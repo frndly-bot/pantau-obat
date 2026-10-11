@@ -23,7 +23,7 @@ design/
     app.css               # komponen shadcn + shell user & admin
     data.js               # data dummy + state localStorage
     app.js                # helper bersama: render, toast, nav, drawer, bagan
-  _review/                # tangkapan layar hasil verifikasi (bukan bagian UI)
+  _review/                # tangkapan layar hasil verifikasi (bukan bagian UI; di-gitignore)
   user/                   # aplikasi user — mobile-first (360px)
     login.html
     register.html

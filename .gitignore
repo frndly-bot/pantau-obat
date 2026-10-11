@@ -85,6 +85,13 @@ deploy/backup/
 Thumbs.db
 
 # =============================================================================
+# Aset verifikasi lokal (bukan bagian produk)
+# =============================================================================
+# design/_review/ = tangkapan layar hasil verifikasi wireframe; besar dan
+# hanya untuk review lokal, bukan bagian dari UI yang di-serve.
+design/_review/
+
+# =============================================================================
 # Catatan kerja lokal (bukan bagian dari produk)
 # =============================================================================
 # .hermes/ memuat rencana kerja dan catatan sesi agen.
