@@ -1,0 +1,62 @@
+info:
+  name: Cabut Perangkat
+  type: http
+  seq: 5
+  tags:
+    - notification
+
+http:
+  method: DELETE
+  url: "{{base_url}}/api/v1/device-tokens/{{device_token_encoded}}"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.unregistered
+      operator: eq
+      value: true
+
+docs: |-
+  # Cabut Perangkat
+
+  Berhenti menerima notifikasi di satu perangkat.
+
+  ## Token di path harus URL-encoded
+
+  Token web push berbentuk JSON, sehingga memuat karakter yang punya arti
+  khusus di URL: `{`, `}`, `/`, `+`, dan `=`. Klien **wajib**
+  meng-encode-nya:
+
+  ```
+  DELETE /api/v1/device-tokens/%7B%22endpoint%22%3A...
+  ```
+
+  Server men-decode-nya kembali sebelum mencocokkan. Kalau tidak di-encode,
+  token akan terpotong di karakter pertama yang bermakna khusus, dan
+  pencabutannya gagal.
+
+  ## Token harus milik pemanggil
+
+  Pencabutan dibatasi `user_id`, sehingga satu user tidak bisa mencabut
+  perangkat user lain hanya dengan menebak tokennya.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"unregistered": true}}
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Muncul bila token tidak ada, sudah dicabut, atau milik user lain.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

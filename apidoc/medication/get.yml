@@ -1,0 +1,89 @@
+info:
+  name: Detail Obat
+  type: http
+  seq: 3
+  tags:
+    - medication
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.id
+      operator: isString
+    - expression: res.body.data.frequency
+      operator: isDefined
+    - expression: res.body.data.times
+      operator: isArray
+
+docs: |-
+  # Detail Obat
+
+  Obat lengkap dengan **aturan frekuensi, jam minum, dan stok**.
+
+  Berbeda dari daftar, endpoint ini melengkapi ketiganya. Ketiganya dibaca
+  dalam satu transaksi supaya hasilnya konsisten — tanpa itu, obat bisa
+  berubah di antara dua query dan hasilnya jadi campuran dua keadaan.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019ccc...",
+      "name": "Amlodipine 10",
+      "dose_value": 1,
+      "dose_unit_code": "tablet",
+      "meal_relation": "after_meal",
+      "is_active": true,
+      "frequency": {
+        "pattern": "daily",
+        "times_per_day": 2,
+        "interval_hours": null,
+        "days_of_week": null,
+        "cycle_intake_days": null,
+        "cycle_pause_days": null,
+        "cycle_anchor": null,
+        "tolerance_minutes": 60,
+        "start_time": "07:00",
+        "schedule_timezone": "Asia/Jakarta"
+      },
+      "times": [
+        {"id": "019d1...", "time_local": "07:00", "label": "morning", "weekdays": 127, "is_active": true},
+        {"id": "019d2...", "time_local": "19:00", "label": "evening", "weekdays": 127, "is_active": true}
+      ],
+      "stock": {
+        "unit_code": "tablet",
+        "initial_qty": 30,
+        "current_qty": 28,
+        "qty_per_dose": 1,
+        "refill_threshold_qty": 5,
+        "needs_refill": false,
+        "doses_remaining": 28
+      }
+    }
+  }
+  ```
+
+  Parameter yang tidak relevan untuk polanya dikirim sebagai `null`, bukan
+  dihilangkan. Frontend bisa menampilkan hanya yang terisi tanpa menebak.
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Balasan ini juga muncul untuk obat milik user lain. Dibedakan dari
+  "tidak berhak" dengan sengaja: membedakannya akan memberi tahu bahwa obat
+  itu memang ada.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

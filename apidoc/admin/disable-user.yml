@@ -1,0 +1,76 @@
+info:
+  name: Nonaktifkan Akun
+  type: http
+  seq: 3
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}/disable"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.access_revoked
+      operator: eq
+      value: true
+
+docs: |-
+  # Nonaktifkan Akun
+
+  Menonaktifkan akun. Butuh scope **`users`**.
+
+  ## DUA hal terjadi bersamaan
+
+  | Yang terjadi | Kenapa |
+  |---|---|
+  | `is_active = false` | User tidak bisa login lagi |
+  | **Seluruh akses dicabut** | Token yang SUDAH beredar langsung mati |
+
+  Yang kedua itu yang mudah terlewat. Tanpa pencabutan, user yang
+  dinonaktifkan tetap bisa memakai aplikasi sampai tokennya kedaluwarsa —
+  dan itu membuat tindakan admin terasa tidak berlaku.
+
+  Pencabutan memakai garis potong di `user_token_revocations`: token yang
+  diterbitkan **sebelum** garis itu ditolak, walau tanda tangannya masih sah
+  dan umurnya masih 24 jam.
+
+  ## Peran TIDAK diubah
+
+  Blokir akun dan perubahan peran sengaja dipisah. Menonaktifkan admin tidak
+  menghapus peran adminnya — kalau diaktifkan kembali, ia kembali seperti
+  semula. Kalau perannya memang ingin dicabut, itu aksi terpisah.
+
+  ## Admin tidak bisa menonaktifkan dirinya sendiri
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa menonaktifkan akun sendiri"
+    }
+  }
+  ```
+
+  Admin yang menonaktifkan dirinya sendiri akan langsung kehilangan akses, dan
+  tidak ada yang bisa mengembalikannya lewat API.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "is_active": false,
+      "access_revoked": true,
+      "note": "seluruh sesi dan token aktif ikut dicabut"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

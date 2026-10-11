@@ -1,0 +1,127 @@
+info:
+  name: Beri Peran Admin
+  type: http
+  seq: 5
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}/grant-admin"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "admin_scope": ["catalog", "reports"],
+        "reason": "operator katalog baru"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.role
+      operator: eq
+      value: "admin"
+
+docs: |-
+  # Beri Peran Admin
+
+  Memberi peran admin beserta cakupannya. Butuh scope **`users`**.
+
+  ## `admin_scope` di sini DITERIMA
+
+  Ini **satu-satunya** endpoint yang sah menerima `admin_scope`. Tugasnya
+  memang menetapkan cakupan, dan sudah dijaga `RequireAdmin(users)`.
+
+  Di tempat lain, `admin_scope` **ditolak**:
+
+  | Endpoint | Boleh? |
+  |---|---|
+  | `/auth/register` | tidak |
+  | `PATCH /users/me` | tidak |
+  | `/admin/users/{id}/grant-admin` | **ya** |
+
+  User tidak bisa menaikkan cakupannya sendiri, karena hanya endpoint ini yang
+  menerimanya — dan endpoint ini butuh scope `users`.
+
+  ## `admin_scope` dan arti `null`
+
+  | Nilai | Arti |
+  |---|---|
+  | `null` atau tidak dikirim | **Akses penuh** |
+  | `[]` (array kosong) | Tidak punya akses apa pun |
+  | `["catalog"]` | Hanya bidang itu |
+
+  Perbedaan `null` dan `[]` dijaga: admin tanpa cakupan tidak boleh dikira
+  punya akses penuh.
+
+  ## Nilai cakupan yang dikenal
+
+  `users`, `catalog`, `notifications`, `reports`.
+
+  Nilai asing ditolak:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "admin_scope "rahasia" tidak dikenal"
+    }
+  }
+  ```
+
+  Cakupan asing akan membuat `RequireScope` selalu menolak — keadaan yang
+  membingungkan dan sulit dilacak.
+
+  ## Alasan wajib
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "alasan pemberian peran wajib diisi"
+    }
+  }
+  ```
+
+  Peran admin adalah hak istimewa terbesar di sistem ini, jadi setiap
+  pemberiannya harus bisa ditelusuri: siapa, kapan, dan kenapa.
+
+  ## Akses user itu DICABUT, dan ia harus login ulang
+
+  Klaim peran di token lama masih `user`, dan token itu tidak boleh dipakai
+  mengakses rute admin. Pencabutan memaksa login ulang, dan token baru yang
+  terbit akan memuat peran baru.
+
+  ## Admin tidak bisa mengubah perannya sendiri
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa mengubah peran sendiri"
+    }
+  }
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "role": "admin",
+      "admin_scope": ["catalog", "reports"],
+      "relogin_required": true
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

@@ -1,0 +1,166 @@
+info:
+  name: Daftar Akun
+  type: http
+  seq: 1
+  tags:
+    - authentication
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/register"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{user_email}}",
+        "password": "KataSandi2026kuat",
+        "full_name": "Budi Santoso",
+        "timezone": "Asia/Jakarta",
+        "phone": "+62812345678"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.access_token
+      operator: isString
+    - expression: res.body.data.user.role
+      operator: eq
+      value: "user"
+
+    # CATATAN: TIDAK ada assertion `admin_scope: eq null`.
+    #
+    # `null` di YAML dibaca sebagai nilai KOSONG, bukan null JSON. Bru akan
+    # membandingkan null dari respons dengan '' dari YAML, dan keduanya tidak
+    # sama — assertion-nya selalu gagal walau perilakunya benar.
+    #
+    # Yang perlu dipastikan di sini hanya bahwa peran default adalah `user`.
+    # Bahwa `admin_scope` kosong untuk user biasa sudah dijamin oleh desain:
+    # peran admin tidak bisa diberikan lewat API sama sekali.
+  scripts:
+    - type: before-request
+      code: |-
+        // Email WAJIB unik tiap run.
+        //
+        // Sebelumnya file ini memakai email tetap `budi@example.com`. Akibatnya
+        // run kedua di database yang sama selalu gagal 400 "email sudah
+        // terdaftar", access_token tidak pernah terisi, dan SELURUH 70 request
+        // berikutnya ikut gagal 401. Koleksi harus idempoten: dijalankan
+        // berkali-kali di database yang sama, hasilnya tetap lulus.
+        const uniq = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        bru.setVar("user_email", "uji-" + uniq + "@example.com");
+    - type: after-response
+      code: |-
+        // Token disimpan untuk seluruh request berikutnya. Inilah yang
+        // membuat koleksi ini bisa dijalankan sebagai rangkaian e2e: tanpa
+        // ini, setiap file harus mengisi token manual.
+        bru.setVar("access_token", res.body.data.access_token);
+        bru.setVar("user_id", res.body.data.user.id);
+
+docs: |-
+  # Daftar Akun
+
+  Membuat akun baru lalu langsung membuat sesi. Token dikembalikan di body,
+  dan refresh token dipasang sebagai cookie HttpOnly.
+
+  ## Field
+
+  | Field | Wajib | Keterangan |
+  |---|---|---|
+  | `email` | ya | Case-insensitive; kolomnya bertipe CITEXT |
+  | `password` | ya | Minimal 8 karakter |
+  | `full_name` | ya | 1–100 karakter |
+  | `timezone` | tidak | Default `Asia/Jakarta`; harus zona IANA yang dikenal |
+  | `phone` | tidak | 6–20 karakter |
+
+  ## Yang TIDAK bisa dikirim
+
+  Endpoint ini **menolak** field berikut dengan pesan yang menjelaskan,
+  bukan mengabaikannya:
+
+  | Field | Alasan |
+  |---|---|
+  | `role` | Peran akun hanya ditetapkan lewat operasi database |
+  | `admin_scope` | Cakupan admin hanya ditetapkan operator |
+  | `is_active` | Status akun diubah lewat endpoint admin |
+  | `id` | Dibuat server |
+  | `password_hash` | Dikelola server |
+
+  Penolakannya eksplisit, bukan efek samping: pesannya menjelaskan **kenapa**.
+  Field asing lain yang tidak berbahaya diabaikan, supaya klien versi lebih
+  baru bisa mengirim field tambahan tanpa langsung ditolak.
+
+  ## Cookie refresh
+
+  ```
+  po_refresh=<token>; HttpOnly; SameSite=Strict; Path=/api/v1/auth
+  ```
+
+  `Path` dibatasi ke `/api/v1/auth` supaya permintaan ke endpoint lain tidak
+  ikut membawa refresh token.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbGciOiJIUzI1NiIs...",
+      "token_type": "Bearer",
+      "expires_in": 86400,
+      "user": {
+        "id": "019...",
+        "email": "budi@example.com",
+        "full_name": "Budi Santoso",
+        "phone": "+62812345678",
+        "timezone": "Asia/Jakarta",
+        "is_active": true,
+        "role": "user",
+        "admin_scope": null,
+        "created_at": "2026-10-10T10:29:00Z"
+      }
+    }
+  }
+  ```
+
+  `expires_in` adalah **86400 detik** (24 jam), bukan 15 menit. Access token
+  diperpanjang, dan pencabutan seketika ditangani lewat garis potong di
+  `user_token_revocations` — bukan dengan memperpendek umur token.
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "password minimal 8 karakter",
+      "details": [{"field": "password", "issue": "weak"}]
+    }
+  }
+  ```
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "peran akun tidak bisa diatur lewat API. Peran admin hanya ditetapkan lewat operasi database oleh operator.",
+      "details": {
+        "field": "role",
+        "issue": "not_allowed",
+        "detail": "peran akun tidak bisa diatur lewat API. ..."
+      }
+    }
+  }
+  ```
+
+  ## Rate limit
+
+  5 permintaan per 5 menit per IP, dan 3 per jam per email. Balasan `429`
+  menyertakan header `Retry-After`.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

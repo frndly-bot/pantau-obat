@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Detail Preset — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .json { font: 12px/1.6 var(--font-mono); background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 12px 14px; overflow-x: auto; color: var(--muted-foreground); white-space: pre; }
+  .field-row { display: grid; grid-template-columns: minmax(140px, 30%) 1fr; gap: 8px 16px; font-size: 13px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .field-row:last-child { border-bottom: 0; }
+  .field-row .k { color: var(--muted-foreground); font-weight: 600; }
+  .field-row .v { color: var(--foreground); word-break: break-word; }
+  .field-row .v.null { color: var(--muted-foreground); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<!-- Modal: kurasi -->
+<div class="scrim" data-for="m-curate"></div>
+<div class="modal" id="m-curate" role="dialog" aria-modal="true" aria-labelledby="c-t">
+  <div class="m-head"><h3 id="c-t">Ubah status kurasi</h3>
+    <button class="icon-btn" data-close="m-curate" aria-label="Tutup" id="c-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="c-about"></p>
+    <div class="field"><label for="c-reason">Alasan <span class="req">*</span></label>
+      <select class="input" id="c-reason">
+        <option value="verifikasi NIE BPOM">Verifikasi NIE BPOM</option>
+        <option value="perbaikan data katalog">Perbaikan data katalog</option>
+        <option value="sumber tidak lagi berlaku">Sumber tidak lagi berlaku</option>
+        <option value="permintaan apoteker">Permintaan apoteker</option>
+      </select></div>
+    <div class="field"><label for="c-note">Catatan</label><input class="input" id="c-note" placeholder="Nomor surat / tautan sumber"></div>
+    <div class="banner warn"><span class="ic" id="c-ic"></span><div><b>Yang berubah dan tidak berubah</b>
+      <p>Status preset berubah untuk semua pengguna baru. Obat yang sudah dibuat pengguna <b>tidak</b> berubah — nilai disalin saat obat dibuat.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-curate">Batal</button>
+    <button class="btn btn-primary" id="c-go">Simpan</button></div>
+</div>
+
+<!-- Modal: ubah field -->
+<div class="scrim" data-for="m-edit"></div>
+<div class="modal wide" id="m-edit" role="dialog" aria-modal="true" aria-labelledby="e-t">
+  <div class="m-head"><h3 id="e-t">Ubah data preset</h3>
+    <button class="icon-btn" data-close="m-edit" aria-label="Tutup" id="e-x"></button></div>
+  <div class="m-body">
+    <div class="grid-2">
+      <div class="field"><label for="e-name">Nama tampilan</label><input class="input" id="e-name"></div>
+      <div class="field"><label for="e-dagang">Nama dagang</label><input class="input" id="e-dagang"></div>
+    </div>
+    <div class="grid-2">
+      <div class="field"><label for="e-generik">Nama generik</label><input class="input" id="e-generik"></div>
+      <div class="field"><label for="e-dose">Kekuatan</label><input class="input" id="e-dose"></div>
+    </div>
+    <div class="field"><label for="e-ind">Indikasi</label><textarea class="input" id="e-ind"></textarea></div>
+    <div class="field"><label for="e-warn">Peringatan</label><textarea class="input" id="e-warn"></textarea></div>
+    <div class="field"><label for="e-note">Alasan perubahan <span class="req">*</span></label>
+      <input class="input" id="e-note" placeholder="Misalnya: koreksi kekuatan dari 5 mg ke 10 mg"></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-edit">Batal</button>
+    <button class="btn btn-primary" id="e-go">Simpan perubahan</button></div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  var id = A.qs("id") || "cat-01";
+  var c = PO.cat(id);
+  var next = null;
+
+  if (!c) {
+    A.boot({
+      shell: "admin", active: "catalog", title: "Entri tidak ditemukan",
+      after: function () {
+        document.getElementById("main").innerHTML =
+          A.empty("Entri katalog tidak ditemukan", "Id tidak cocok dengan data dummy.", "database") +
+          '<a class="btn btn-outline" href="catalog.html">Kembali ke katalog</a>';
+      }
+    });
+    return;
+  }
+
+  function row(k, v, isNull) {
+    return '<div class="field-row"><div class="k">' + A.esc(k) + '</div><div class="v' + (isNull ? " null" : "") + '">' +
+      (isNull ? "NULL" : A.esc(v)) + "</div></div>";
+  }
+
+  function auditFor() {
+    return PO.audit.filter(function (a) { return a.resource_id === c.id && a.resource_type === "catalog"; });
+  }
+
+  function render() {
+    var st = PO.stockPercent ? null : null;
+    var usedBy = PO.medications.filter(function (m) { return m.catalog_id === c.id; });
+    var audit = auditFor();
+
+    var html = "";
+
+    /* header */
+    html += '<section class="card card-pad">' +
+      '<div class="row-t gap-14">' +
+        '<span class="avatar lg ' + (c.is_preset ? "" : "med") + '">' + A.icon(c.is_preset ? "database" : "tag") + "</span>" +
+        '<div class="grow">' +
+          '<div class="row gap-6"><h1 style="font-size:19px">' + A.esc(c.display_name) + "</h1>" +
+            (c.is_preset
+              ? A.badge(PO.t("curation_status", c.curation_status), "badge-" + (c.curation_status === "published" ? "published" : c.curation_status === "draft" ? "draft" : "archived"), c.curation_status === "published")
+              : A.badge("katalog pribadi", "badge-private")) +
+            A.badge(PO.t("source", c.source), "badge-na") +
+          "</div>" +
+          '<div class="sm muted mt-4">' + A.esc(c.nama_dagang || "—") + " · " + A.esc(c.generik_nama || "—") + " · <span class=\"mono\">" + A.esc(c.id) + "</span></div>" +
+          '<div class="row-wrap mt-8 gap-6">' +
+            A.badge(c.dosage_form_name || "bentuk —", "badge-info") +
+            A.badge(PO.t("route", c.route_code), "badge-info") +
+            (c.dose_value_text ? A.badge(c.dose_value_text, "badge-accent") : "") +
+            (c.atc_l5_code ? A.badge("ATC " + c.atc_l5_code, "badge-na") : "") +
+          "</div>" +
+        "</div>" +
+      "</div>" +
+      (c.is_preset ? "" :
+        '<div class="banner info mt-16"><span class="ic">' + A.icon("lock") + "</span><div><b>Entri pribadi milik pengguna</b>" +
+        "<p>Admin hanya bisa melihat. Mengubah atau menghapusnya melanggar isolasi katalog pribadi — dan tidak disediakan tombolnya di sini.</p></div></div>") +
+      (c.is_preset
+        ? '<div class="divider mt-16"></div><div class="row-wrap mt-12 gap-8">' +
+            (c.curation_status === "draft"
+              ? '<button class="btn btn-ok btn-sm" data-curate="published">' + A.icon("check") + "Terbitkan</button>"
+              : c.curation_status === "published"
+                ? '<button class="btn btn-outline btn-sm" data-curate="draft">' + A.icon("undo") + "Tarik ke draf</button>"
+                : '<button class="btn btn-outline btn-sm" data-curate="draft">' + A.icon("refresh") + "Aktifkan draf</button>") +
+            (c.curation_status !== "archived" ? '<button class="btn btn-ghost btn-sm" data-curate="archived">' + A.icon("box") + "Arsipkan</button>" : "") +
+            '<button class="btn btn-outline btn-sm" id="b-edit">' + A.icon("pencil") + "Ubah data</button>" +
+            '<a class="btn btn-ghost btn-sm" href="catalog.html">' + A.icon("arrow-left") + "Kembali</a>" +
+          "</div>"
+        : '<div class="row-wrap mt-16 gap-8"><a class="btn btn-ghost btn-sm" href="catalog.html">' + A.icon("arrow-left") + "Kembali</a></div>") +
+    "</section>";
+
+    /* isi: dua kolom */
+    html += '<div class="split">';
+
+    html += '<div class="stack">';
+
+    html += '<section class="card"><div class="card-head"><h2>Identitas &amp; klasifikasi</h2></div><div class="card-pad">' +
+      row("Nama tampilan", c.display_name) +
+      row("Nama dagang", c.nama_dagang, !c.nama_dagang) +
+      row("Nama generik (INN)", c.generik_nama, !c.generik_nama) +
+      row("Bentuk sediaan", c.dosage_form_name, !c.dosage_form_name) +
+      row("Rute", PO.t("route", c.route_code) + " (" + c.route_code + ")") +
+      row("Kekuatan", c.dose_value_text, !c.dose_value_text) +
+      row("ATC level 5", c.atc_l5_code, !c.atc_l5_code) +
+      row("Kode KFA", c.kfa_code, !c.kfa_code) +
+      row("NIE BPOM", c.bpom_nie, !c.bpom_nie) +
+      row("Kode UCUM", c.ucum_code, !c.ucum_code) +
+      row("Satuan kemasan", c.uom_name, !c.uom_name) +
+    "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><h2>Kandungan &amp; kemasan</h2></div><div class="card-pad">' +
+      row("Zat aktif", (c.active_ingredients && c.active_ingredients.length) ? c.active_ingredients.join(", ") : "—", !(c.active_ingredients || []).length) +
+      row("Pilihan kemasan", (c.packaging_options && c.packaging_options.length) ? c.packaging_options.join(", ") : "—", !(c.packaging_options || []).length) +
+      '<div class="divider mt-12"></div>' +
+      '<div class="mt-12"><div class="k xs muted-3">INDIKASI</div><p class="sm mt-4">' + A.esc(c.indication || "Belum diisi.") + "</p></div>" +
+      '<div class="mt-16"><div class="k xs muted-3">PERINGATAN</div><p class="sm mt-4">' + A.esc(c.warning || "Belum diisi.") + "</p></div>" +
+    "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>Metadata longgar</h2>' +
+      '<div class="sub">Kolom JSONB/array — menampung field sumber yang belum dipetakan</div></div></div>' +
+      '<div class="card-pad"><div class="json">' + A.esc(JSON.stringify({
+        active_ingredients: c.active_ingredients || [],
+        packaging_options: c.packaging_options || [],
+        identifiers: c.identifiers || [],
+        tags: c.tags || [],
+        extra_meta: c.extra_meta || {}
+      }, null, 2)) + "</div>" +
+      '<p class="xs muted-3 mt-8">Importer menyimpan payload mentah di <span class="mono">extra_meta</span>, jadi sumber baru tidak memaksa migrasi skema.</p>' +
+    "</div></section>";
+
+    html += "</div>";
+
+    html += '<div class="stack">';
+
+    html += '<section class="card"><div class="card-head"><h2>Kurasi</h2></div><div class="card-pad">' +
+      row("Status", PO.t("curation_status", c.curation_status)) +
+      row("Sumber", PO.t("source", c.source)) +
+      row("Dikurasi oleh", c.curated_by, !c.curated_by) +
+      row("Waktu kurasi", c.curated_at ? PO.fmtDateTime(c.curated_at) : null, !c.curated_at) +
+      row("Snapshot", PO.fmtDate(c.snapshot_date || PO.TODAY, { mid: true })) +
+      (c.is_preset ? "" :
+        '<div class="banner info mt-12"><span class="ic">' + A.icon("info") + "</span><div><b>Siklus kurasi tidak berlaku</b>" +
+        "<p>Entri pribadi selamanya <span class='mono'>user_private</span> dan hanya terlihat pemiliknya.</p></div></div>") +
+    "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>Dipakai obat pengguna</h2>' +
+      '<div class="sub">Hanya jumlah &amp; id — nama obat tidak dibuka</div></div>' +
+      '<span class="badge badge-accent">' + usedBy.length + "</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (usedBy.length ? usedBy.slice(0, 5).map(function (m) {
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("pill") + "</span>" +
+          '<div class="grow"><div class="sm"><b>obat #' + A.esc(m.id) + "</b></div>" +
+          '<div class="xs muted-3">pemilik ' + A.esc(m.owner_id) + " · dibuat " + A.esc(PO.relTime(m.start_date)) + "</div></div>" +
+          A.badge(m.is_active && !m.deleted_at ? "aktif" : "arsip", m.is_active && !m.deleted_at ? "badge-ok" : "badge-na") + "</div>";
+      }).join("") + (usedBy.length > 5 ? '<p class="xs muted-3">dan ' + (usedBy.length - 5) + " lainnya…</p>" : "")
+        : A.empty("Belum dipakai", "Tidak ada obat pengguna yang memakai entri katalog ini.", "pill")) +
+      "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>Audit entri ini</h2>' +
+      '<div class="sub">before_state / after_state tersimpan</div></div></div>' +
+      '<div class="card-pad stack-8">' +
+      (audit.length ? audit.map(function (a) {
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("file") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(PO.t("action", a.action) || a.action) + "</b> " +
+            A.badge(a.actor_role, a.actor_role === "admin" ? "badge-accent" : "badge-na") + "</div>" +
+            '<div class="xs muted-3">' + A.esc(PO.fmtDateTime(a.created_at)) + " · " + A.esc(a.actor_email || "sistem") + "</div>" +
+            '<div class="json mt-8">' + A.esc(JSON.stringify({ before: a.before_state, after: a.after_state, meta: a.meta }, null, 2)) + "</div>" +
+          "</div></div>";
+      }).join("") : A.empty("Belum ada audit", "Belum ada aksi tercatat untuk entri ini.", "file")) +
+      "</div></section>";
+
+    html += "</div></div>";
+
+    document.getElementById("main").innerHTML = html;
+    ["c-x", "e-x"].forEach(function (x) { document.getElementById(x).innerHTML = A.icon("x"); });
+    document.getElementById("c-ic").innerHTML = A.icon("alert");
+
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll("[data-curate]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        next = b.getAttribute("data-curate");
+        var verb = next === "published" ? "Terbitkan" : next === "draft" ? "Tarik kembali ke draf" : "Arsipkan";
+        document.getElementById("c-about").innerHTML = verb + " <b>" + A.esc(c.display_name) + "</b>? " +
+          "Status sekarang <span class='mono'>" + A.esc(c.curation_status) + "</span> → <span class='mono'>" + next + "</span>.";
+        A.overlay("m-curate", true);
+      });
+    });
+
+    var edit = document.getElementById("b-edit");
+    if (edit) edit.addEventListener("click", function () {
+      document.getElementById("e-name").value = c.display_name || "";
+      document.getElementById("e-dagang").value = c.nama_dagang || "";
+      document.getElementById("e-generik").value = c.generik_nama || "";
+      document.getElementById("e-dose").value = c.dose_value_text || "";
+      document.getElementById("e-ind").value = c.indication || "";
+      document.getElementById("e-warn").value = c.warning || "";
+      document.getElementById("e-note").value = "";
+      A.overlay("m-edit", true);
+    });
+  }
+
+  document.getElementById("c-go").addEventListener("click", function () {
+    if (!next) return;
+    var reason = document.getElementById("c-reason").value;
+    var note = document.getElementById("c-note").value.trim();
+    var before = c.curation_status;
+    PO.setCuration(c.id, next, note ? reason + " — " + note : reason);
+    A.overlay("m-curate", false);
+    A.toast(next === "published" ? "ok" : "warn",
+      next === "published" ? "Preset diterbitkan" : next === "draft" ? "Preset ditarik ke draf" : "Preset diarsipkan",
+      before + " → " + next + " · alasan tersimpan di audit.");
+    c = PO.cat(id);
+    next = null;
+    render();
+  });
+
+  document.getElementById("e-go").addEventListener("click", function () {
+    var note = document.getElementById("e-note").value.trim();
+    if (note.length < 6) { A.toast("err", "Alasan wajib", "Setiap perubahan preset harus bisa ditelusuri."); return; }
+    var before = { display_name: c.display_name, dose_value_text: c.dose_value_text, indication: c.indication, warning: c.warning };
+    c.display_name = document.getElementById("e-name").value.trim() || c.display_name;
+    c.nama_dagang = document.getElementById("e-dagang").value.trim() || null;
+    c.generik_nama = document.getElementById("e-generik").value.trim() || null;
+    c.dose_value_text = document.getElementById("e-dose").value.trim() || null;
+    c.indication = document.getElementById("e-ind").value.trim() || null;
+    c.warning = document.getElementById("e-warn").value.trim() || null;
+    c.curated_by = "admin@example.com";
+    c.curated_at = new Date().toISOString();
+    PO.audit.unshift({
+      id: 55800 + PO.audit.length, actor_email: "admin@example.com", actor_role: "admin",
+      action: "catalog_update", resource_type: "catalog", resource_id: c.id,
+      created_at: new Date().toISOString(), ip: "10.20.0.5", meta: { reason: note },
+      before_state: before, after_state: { display_name: c.display_name, dose_value_text: c.dose_value_text, indication: c.indication, warning: c.warning }
+    });
+    PO.save();
+    A.overlay("m-edit", false);
+    A.toast("ok", "Preset diperbarui", "before_state/after_state tercatat di audit.");
+    render();
+  });
+
+  A.boot({
+    shell: "admin",
+    active: "catalog",
+    title: c.display_name,
+    crumb: "Katalog · " + c.id,
+    actions: '<a class="btn btn-outline btn-sm" href="catalog.html">' + A.icon("arrow-left") + "Katalog</a>",
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

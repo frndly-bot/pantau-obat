@@ -1,0 +1,55 @@
+info:
+  name: Hidup (liveness)
+  type: http
+  seq: 1
+  tags:
+    - health
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/healthz"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.status
+      operator: eq
+      value: "ok"
+
+docs: |-
+  # Hidup (liveness)
+
+  Memeriksa apakah proses API masih berjalan. **Selalu 200** selama server
+  bisa menjawab.
+
+  Endpoint ini sengaja **tidak** memeriksa database. Alasannya penting:
+  kalau database sedang down, prosesnya tetap hidup, dan yang gagal adalah
+  *readiness*, bukan *liveness*. Kalau endpoint ini ikut gagal, Docker akan
+  me-restart container berulang kali hanya karena database belum siap —
+  restart tidak akan memperbaiki apa pun, dan justru memperparah.
+
+  Dipakai sebagai `healthcheck` di `deploy/docker-compose.yml`.
+
+  ## Path
+
+  Di luar `/api/v1`. Ini kontrak infrastruktur, bukan kontrak produk, jadi
+  path-nya tidak boleh berubah saat API naik versi.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "status": "ok",
+      "time": "2026-10-10T13:29:01Z"
+    }
+  }
+  ```
+
+  ## Kapan gagal
+
+  Tidak ada kondisi yang membuatnya membalas selain 200. Kalau endpoint ini
+  tidak menjawab, artinya prosesnya mati, bukan sekadar tidak siap.

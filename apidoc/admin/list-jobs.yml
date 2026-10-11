@@ -1,0 +1,84 @@
+info:
+  name: Daftar Job Notifikasi
+  type: http
+  seq: 13
+  tags:
+    - admin
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/admin/notifications/jobs?status=failed&limit=50"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+  scripts:
+    - type: after-response
+      code: |-
+        // retry-job dan cancel-job memakai {{job_id}}. Diambil dari
+        // daftar ini; tanpa itu kedua request memakai id kosong dan
+        // PostgreSQL menolaknya sebagai BIGINT tidak sah (400).
+        // Daftar boleh kosong (belum ada job) — variabelnya tetap
+        // diset ke id pertama bila ada, dan kedua request sesudahnya
+        // memakai nilai itu.
+        const items = res.body.data || [];
+        if (items.length) {
+          bru.setVar("job_id", String(items[0].id));
+        }
+
+docs: |-
+  # Daftar Job Notifikasi
+
+  Antrean pengiriman notifikasi. Butuh scope **`notifications`**.
+
+  ## `payload` TIDAK dikirim
+
+  Payload bisa memuat detail pesan — termasuk teks yang disusun untuk user.
+  Halaman admin tidak perlu menampilkannya, dan menyimpannya di jejak tampilan
+  akan memperluas jangkauan data yang seharusnya terbatas pada pasiennya.
+
+  Yang dikirim hanya metadata teknis:
+
+  | Field | Isi |
+  |---|---|
+  | `kind` | Jenis pengiriman |
+  | `status` | `pending`, `claimed`, `done`, `failed`, `cancelled` |
+  | `attempts` / `max_attempts` | Berapa kali dicoba |
+  | `last_error` | Pesan kegagalan terakhir |
+
+  ## Query
+
+  | Parameter | Arti |
+  |---|---|
+  | `status` | Filter status |
+  | `kind` | Filter jenis |
+  | `limit` | Bawaan 50, maksimum 100 |
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": 1234,
+        "kind": "dose_reminder",
+        "status": "failed",
+        "attempts": 5,
+        "max_attempts": 5,
+        "last_error": "push service membalas 500",
+        "run_at": "2026-10-11T00:00:00Z",
+        "created_at": "2026-10-11T00:00:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 50}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

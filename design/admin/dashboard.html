@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .dash-split { display: grid; grid-template-columns: 1.35fr .95fr; gap: 18px; align-items: start; }
+  @media (max-width: 1100px) { .dash-split { grid-template-columns: 1fr; } }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .kpi-row > * { min-width: 0; }
+  .dash-split > * { min-width: 0; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  function jobBadge(status) {
+    var map = { done: ["badge-ok", "Selesai"], failed: ["badge-miss", "Gagal"], pending: ["badge-info", "Menunggu"], claimed: ["badge-late", "Diproses"], cancelled: ["badge-na", "Dibatalkan"] };
+    var m = map[status] || ["badge-na", status];
+    return A.badge(m[1], m[0]);
+  }
+
+  function render() {
+    var st = PO.stats;
+    var failed = PO.jobs.filter(function (j) { return j.status === "failed"; });
+    var pendingJobs = PO.jobs.filter(function (j) { return j.status === "pending"; });
+    var lowAdherence = PO.users.filter(function (u) { return u.adherence_7d !== null && u.adherence_7d < 0.6 && u.is_active; });
+    var draftPresets = PO.catalog.filter(function (c) { return c.is_preset && c.curation_status === "draft"; });
+    var growth = st.users_new_7d - st.users_new_prev_7d;
+
+    var html = "";
+
+    /* KPI utama */
+    html += '<section class="stats">' +
+      A.stat({ ic: "users", k: "Akun aktif", v: A.money(st.users_active), s: "<span class='trend " + (growth >= 0 ? "up" : "down") + "'>" + A.icon(growth >= 0 ? "trend-up" : "trend-down") + (growth >= 0 ? "+" : "") + growth + " akun baru vs minggu lalu</span>", viz: A.spark([112, 116, 119, 121, 123, 126, st.users_active], { dot: false }) }) +
+      A.stat({ ic: "pill", k: "Obat aktif", v: A.money(st.medications_active), s: "dari " + st.users_active + " akun · rata-rata " + (st.medications_active / st.users_active).toFixed(1) + " per akun" }) +
+      A.stat({ ic: "send", k: "Kirim 24 jam", v: A.money(st.deliveries_sent_24h), s: st.deliveries_failed_24h + " gagal · sukses " + A.pct(1 - st.deliveries_failed_24h / (st.deliveries_sent_24h + st.deliveries_failed_24h), 1), tone: "info" }) +
+      A.stat({ ic: "alert", k: "Job gagal", v: st.jobs_failed_24h, s: failed.length + " job menunggu tindakan", tone: st.jobs_failed_24h ? "err" : "ok" }) +
+    "</section>";
+
+    html += '<div class="dash-split">';
+
+    /* kolom kiri */
+    html += "<div class=\"stack\">";
+
+    /* grafik pengiriman 7 hari */
+    html += '<section class="card">' +
+      '<div class="card-head"><div><h2>Pengiriman &amp; keberhasilan 7 hari</h2>' +
+        '<div class="sub">Tinggi batang = rasio sukses, label = jumlah kirim</div></div>' +
+        '<span class="badge badge-accent">' + A.pct(st.push_success_rate, 1) + " push</span></div>" +
+      '<div class="card-pad">' +
+        A.bars(st.series_7d.map(function (d) { return { k: d.d, v: d.ok }; }), { max: 1, fmt: function (v) { return A.pct(v); } }) +
+        '<div class="divider mt-16"></div>' +
+        '<div class="kpi-row mt-12">' +
+          st.series_7d.map(function (d) {
+            return '<div><div class="xs muted-3">' + d.d + "</div>" +
+              '<div class="mono" style="font-weight:700">' + A.money(d.sent) + "</div>" +
+              '<div class="xs ' + (d.failed > 10 ? "err-text" : "muted-3") + '">' + d.failed + " gagal</div></div>";
+          }).join("") +
+        "</div>" +
+      "</div></section>";
+
+    /* job gagal cepat */
+    html += '<section class="card">' +
+      '<div class="card-head"><div><h2>Job gagal terbaru</h2>' +
+        '<div class="sub">Retry menambah baris audit dengan actor_role=admin</div></div>' +
+        '<a class="btn btn-outline btn-sm" href="notifications.html">Semua job</a></div>' +
+      '<div class="tbl-wrap">' + (failed.length ?
+        '<table class="tbl"><thead><tr><th>ID</th><th>Jenis</th><th>Pemilik</th><th>Percobaan</th><th>Error</th><th>Status</th><th></th></tr></thead><tbody>' +
+        failed.map(function (j) {
+          return "<tr><td class=\"mono tight\">#" + j.id + "</td>" +
+            "<td class=\"tight\">" + A.esc(PO.t("job_kind", j.kind)) + "</td>" +
+            "<td class=\"sm muted trunc\" style=\"max-width:9rem\">" + A.esc(j.owner_email || "sistem") + "</td>" +
+            '<td class="num mono">' + j.attempts + "/" + j.max_attempts + "</td>" +
+            '<td class="sm muted trunc" style="max-width:14rem" title="' + A.esc(j.last_error || "") + '">' + A.esc(j.last_error || "—") + "</td>" +
+            "<td>" + jobBadge(j.status) + "</td>" +
+            '<td><div class="tbl-actions"><button class="btn btn-outline btn-sm" data-retry="' + j.id + '">' + A.icon("refresh") + "Ulangi</button></div></td></tr>";
+        }).join("") + "</tbody></table>"
+        : A.empty("Tidak ada job gagal", "Antrean bersih. Ini kondisi yang diharapkan.", "check-check")) + "</div></section>";
+
+    /* pengguna perlu perhatian */
+    html += '<section class="card">' +
+      '<div class="card-head"><div><h2>Kepatuhan rendah (7 hari)</h2>' +
+        '<div class="sub">Hanya angka agregat — isi obat pasien tidak dibuka di sini</div></div>' +
+        '<span class="badge badge-late">' + lowAdherence.length + " akun</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (lowAdherence.length ? lowAdherence.map(function (u) {
+        return '<a class="list-card hoverable" href="user-detail.html?id=' + u.id + '">' +
+          '<span class="avatar sm">' + A.esc(u.full_name.slice(0, 2).toUpperCase()) + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(u.full_name) + "</b></div>" +
+            '<div class="xs muted-3">' + u.meds_active + " obat aktif · login terakhir " + A.esc(PO.relTime(u.last_login_at)) + "</div>" +
+            '<div class="mt-8">' + A.meter(u.adherence_7d, { tone: u.adherence_7d < 0.5 ? "err" : "warn", thin: true }) + "</div></div>" +
+          '<span class="badge badge-miss">' + A.pct(u.adherence_7d) + "</span></a>";
+      }).join("") : A.empty("Semua akun di atas ambang", "Tidak ada akun dengan kepatuhan 7 hari di bawah 60%.", "award")) +
+      "</div></section>";
+
+    html += "</div>";
+
+    /* kolom kanan */
+    html += "<div class=\"stack\">";
+
+    /* katalog */
+    html += '<section class="card"><div class="card-head"><h2>Katalog obat</h2></div>' +
+      '<div class="card-pad">' +
+        '<div class="row-b gap-14">' + A.donut(st.catalog_presets / (st.catalog_presets + st.catalog_draft + st.catalog_archived), String(st.catalog_presets), "preset terbit", 120) +
+          '<div class="grow"><dl class="dl">' +
+            "<dt>Terbit</dt><dd>" + st.catalog_presets + "</dd>" +
+            "<dt>Draf</dt><dd>" + st.catalog_draft + "</dd>" +
+            "<dt>Arsip</dt><dd>" + st.catalog_archived + "</dd>" +
+            "<dt>Pribadi user</dt><dd>" + PO.catalog.filter(function (c) { return !c.is_preset; }).length + "</dd>" +
+          "</dl></div></div>" +
+        (draftPresets.length ? '<div class="banner warn mt-16"><span class="ic">' + A.icon("alert") + "</span><div><b>" + draftPresets.length + " preset menunggu diulas</b>" +
+          "<p>" + draftPresets.map(function (c) { return A.esc(c.display_name); }).join(" · ") + "</p></div></div>" : "") +
+        '<a class="btn btn-outline btn-block mt-12" href="catalog.html">Buka katalog</a>' +
+      "</div></section>";
+
+    /* antrean notifikasi */
+    html += '<section class="card"><div class="card-head"><h2>Antrean menunggu</h2>' +
+      '<span class="badge badge-info">' + pendingJobs.length + "</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (pendingJobs.length ? pendingJobs.slice(0, 5).map(function (j) {
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("clock") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(PO.t("job_kind", j.kind)) + "</b></div>" +
+            '<div class="xs muted-3">#' + j.id + " · jalan " + A.esc(PO.fmtDateTime(j.run_at)) + " · " + A.esc(j.owner_email || "sistem") + "</div></div>" +
+          A.badge(A.pct(1 - j.attempts / j.max_attempts) + " sisa", "badge-na") + "</div>";
+      }).join("") : A.empty("Antrean kosong", "Tidak ada job menunggu.", "check-check")) +
+      "</div></section>";
+
+    /* audit terakhir */
+    html += '<section class="card"><div class="card-head"><div><h2>Audit terakhir</h2>' +
+      '<div class="sub">actor_role disalin saat aksi terjadi, bukan hasil join</div></div></div>' +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Aktor</th><th>Aksi</th><th>Objek</th></tr></thead><tbody>' +
+      PO.audit.slice(0, 8).map(function (a) {
+        var kind = a.actor_role === "admin" ? "badge-accent" : a.actor_role === "system" ? "badge-na" : "badge-info";
+        return "<tr><td class=\"sm muted nowrap\">" + A.esc(PO.relTime(a.created_at)) + "</td>" +
+          "<td class=\"sm\">" + A.esc(a.actor_email || "sistem") + " " + A.badge(a.actor_role, kind) + "</td>" +
+          "<td class=\"mono sm\">" + A.esc(a.action) + "</td>" +
+          "<td class=\"sm muted\">" + A.esc(a.resource_type) + (a.resource_id ? " · " + A.esc(a.resource_id) : "") + "</td></tr>";
+      }).join("") + "</tbody></table></div></section>";
+
+    html += '<div class="banner info"><span class="ic">' + A.icon("lock") + "</span><div><b>Batas rute admin</b>" +
+      "<p>Konsol ini tidak bisa membaca isi obat atau log pasien individual. Kalau investigasi diperlukan, jalurnya terpisah dengan alasan tertulis dan tercatat di audit.</p></div></div>";
+
+    html += "</div></div>";
+
+    document.getElementById("main").innerHTML = html;
+
+    /* retry langsung dari dashboard */
+    document.querySelectorAll("[data-retry]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = +b.getAttribute("data-retry");
+        PO.retryJob(id);
+        A.toast("ok", "Job #" + id + " diulang", "Status kembali pending, percobaan direset. Audit bertambah.");
+        render();
+      });
+    });
+  }
+
+  A.boot({
+    shell: "admin",
+    active: "dashboard",
+    title: "Dashboard",
+    crumb: "Ringkasan agregat · tanpa identitas pasien",
+    actions: '<a class="btn btn-outline btn-sm" href="stats.html">' + A.icon("bar") + "Statistik</a>",
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hari Ini — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  /* Hero compact: progres + dosis berikutnya + rentetan.
+     Tinggi dijaga kecil (~25% viewport) karena ini layar pendarat. */
+  .hero { padding: 0.875rem 1rem; }
+  .hero-top { display: flex; align-items: center; gap: 0.875rem; }
+  .hero-figures { min-width: 0; }
+  .hero-figures .hf-main { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600; line-height: 1; letter-spacing: -0.03em; }
+  .hero-figures .hf-main span { font-size: 1rem; color: var(--muted-foreground); font-weight: 500; }
+  .hero-figures .hf-sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.1875rem; }
+  /* Badge rentetan: angka sebagai fokus, api sebagai aksen di atasnya.
+     Ukuran tetap agar seimbang dengan ring di kiri; angka menyesuaikan digit
+     (d1..d4) supaya tidak meleber pada puluhan/ratusan hari.
+     Kontras: angka memakai warna teks utama (--foreground) di atas latar
+     warn pekat, bukan warna warn dicampur hitam — rasio terukur jauh lebih
+     tinggi di kedua tema (sebelumnya ~1.1:1, nyaris tak terbaca). */
+  .hero-streak {
+    flex: none; width: 3.25rem; height: 3.25rem;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.1875rem;
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklab, var(--warn) 22%, var(--card));
+    border: 1px solid color-mix(in oklab, var(--warn) 45%, var(--border));
+    color: var(--foreground);
+  }
+  .hero-streak .hs-flame { display: grid; place-items: center; color: var(--warn); }
+  .hero-streak .hs-flame svg { width: 0.875rem; height: 0.875rem; }
+  .hero-streak .hs-num {
+    font-family: var(--font-mono); font-weight: 700; line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .hero-streak .hs-num.d1 { font-size: 1.125rem; }
+  .hero-streak .hs-num.d2 { font-size: 0.9375rem; }
+  .hero-streak .hs-num.d3 { font-size: 0.8125rem; }
+  .hero-streak .hs-num.d4 { font-size: 0.6875rem; }
+
+  /* Baris dosis berikutnya: satu tombol lebar, paling actionable. */
+  .hero-next {
+    display: flex; align-items: center; gap: 0.75rem; width: 100%;
+    margin-top: 0.75rem; padding: 0.625rem 0.75rem; text-align: left;
+    border-radius: var(--radius-lg); border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--muted) 60%, var(--card));
+    transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+  }
+  .hero-next:not(.hero-next-done):hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); }
+  .hero-next .hn-ic { flex: none; display: grid; place-items: center; }
+  .hero-next .hn-ic svg { width: 1.25rem; height: 1.25rem; }
+  .hero-next .hn-lbl { display: block; font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); }
+  .hero-next .hn-name { display: block; font-size: 0.875rem; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hero-next .hn-time { display: block; font-size: 0.75rem; color: var(--muted-foreground); font-family: var(--font-mono); white-space: nowrap; }
+  .hero-next .grow { min-width: 0; }
+  .hero-next .hn-go {
+    flex: none; display: inline-flex; align-items: center; gap: 0.25rem;
+    padding: 0.3125rem 0.625rem; border-radius: var(--radius-md);
+    background: var(--primary); color: var(--primary-foreground);
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .hero-next .hn-go svg { width: 0.875rem; height: 0.875rem; }
+  .hero-next .hn-go-soft { background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent); }
+  .hero-next-done { cursor: default; }
+  .hero-next-done .hn-ic { color: var(--ok); }
+
+  /* Sorotan sekilas saat melompat dari hero ke kartu dosis. */
+  .dose.flash { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 28%, transparent); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-user">
+  <header id="po-top"></header>
+
+  <main class="u-body" id="main"></main>
+
+  <a class="fab" href="obat.html#tambah" id="fab" aria-label="Tambah obat"></a>
+</div>
+
+<nav id="po-nav"></nav>
+
+<!-- Modal: tunda pengingat -->
+<div class="scrim" data-for="m-snooze"></div>
+<div class="modal" id="m-snooze" role="dialog" aria-modal="true" aria-labelledby="m-snooze-t">
+  <div class="m-head">
+    <h3 id="m-snooze-t">Tunda pengingat</h3>
+    <button class="icon-btn" data-close="m-snooze" aria-label="Tutup" id="sn-x"></button>
+  </div>
+  <div class="m-body">
+    <p class="sm muted" id="sn-about"></p>
+    <div class="row-wrap" id="sn-opts"></div>
+    <div class="banner info">
+      <span class="ic" id="sn-ic"></span>
+      <div><b>Maksimal 3 kali berturut-turut</b>
+        <p>Setelah itu dosis dianggap terlewat dan caregiver bisa menerima eskalasi (aturan D2 &amp; F4 di TRD).</p></div>
+    </div>
+  </div>
+  <div class="m-foot">
+    <button class="btn btn-ghost" data-close="m-snooze">Batal</button>
+    <button class="btn btn-primary" id="sn-go">Tunda</button>
+  </div>
+</div>
+
+<!-- Modal: lewati dosis -->
+<div class="scrim" data-for="m-skip"></div>
+<div class="modal" id="m-skip" role="dialog" aria-modal="true" aria-labelledby="m-skip-t">
+  <div class="m-head">
+    <h3 id="m-skip-t">Lewati dosis ini</h3>
+    <button class="icon-btn" data-close="m-skip" aria-label="Tutup" id="sk-x"></button>
+  </div>
+  <div class="m-body">
+    <p class="sm muted" id="sk-about"></p>
+    <div class="field">
+      <label for="sk-reason">Alasan (opsional)</label>
+      <select class="input" id="sk-reason">
+        <option value="">— tanpa alasan —</option>
+        <option value="lupa">Lupa</option>
+        <option value="muntah">Muntah</option>
+        <option value="obat tidak tersedia">Obat tidak tersedia</option>
+        <option value="efek samping">Efek samping</option>
+        <option value="lainnya">Lainnya</option>
+      </select>
+      <span class="hint">Alasan tersimpan di log dan terlihat caregiver. Tidak ada penilaian di UI.</span>
+    </div>
+    <div class="field">
+      <label for="sk-note">Catatan tambahan</label>
+      <textarea class="input" id="sk-note" placeholder="Misalnya: muntah 30 menit setelah sarapan"></textarea>
+    </div>
+  </div>
+  <div class="m-foot">
+    <button class="btn btn-ghost" data-close="m-skip">Batal</button>
+    <button class="btn btn-danger" id="sk-go">Lewati dosis</button>
+  </div>
+</div>
+
+<!-- Modal: catat PRN -->
+<div class="scrim" data-for="m-prn"></div>
+<div class="modal" id="m-prn" role="dialog" aria-modal="true" aria-labelledby="m-prn-t">
+  <div class="m-head">
+    <h3 id="m-prn-t">Catat obat bila perlu</h3>
+    <button class="icon-btn" data-close="m-prn" aria-label="Tutup" id="prn-x"></button>
+  </div>
+  <div class="m-body">
+    <div class="field">
+      <label for="prn-med">Obat</label>
+      <select class="input" id="prn-med"></select>
+      <span class="hint" id="prn-hint"></span>
+    </div>
+    <div class="field">
+      <label for="prn-note">Alasan pemakaian</label>
+      <textarea class="input" id="prn-note" placeholder="Misalnya: demam 38.5 sejak pagi"></textarea>
+    </div>
+    <div class="banner info">
+      <span class="ic" id="prn-ic"></span>
+      <div><b>Log PRN tidak punya jadwal</b>
+        <p>Dosis PRN boleh berkali-kali dalam sehari, tidak dihitung terlewat, dan tetap memotong stok.</p></div>
+    </div>
+  </div>
+  <div class="m-foot">
+    <button class="btn btn-ghost" data-close="m-prn">Batal</button>
+    <button class="btn btn-primary" id="prn-go">Catat sekarang</button>
+  </div>
+</div>
+
+<!-- Modal: catat diminum + jam -->
+<div class="scrim" data-for="m-take"></div>
+<div class="modal" id="m-take" role="dialog" aria-modal="true" aria-labelledby="tk-t">
+  <div class="m-head">
+    <h3 id="tk-t">Catat diminum</h3>
+    <button class="icon-btn" data-close="m-take" aria-label="Tutup" id="tk-x"></button>
+  </div>
+  <div class="m-body">
+    <p class="sm muted" id="tk-about"></p>
+    <div class="field">
+      <label for="tk-time">Jam diminum</label>
+      <input class="input" id="tk-time" type="time" step="60">
+      <span class="hint" id="tk-hint">Biarkan jam sekarang bila baru diminum. Ubah bila sudah minum lebih awal dan baru dicatat sekarang.</span>
+    </div>
+    <div class="row-wrap" id="tk-quick"></div>
+    <div class="banner info">
+      <span class="ic" id="tk-ic"></span>
+      <div><b>Status dihitung dari jam ini</b>
+        <p>Bila jam minum lebih lambat dari toleransi jadwal, dosis tercatat sebagai <span class="mono">late</span> — bukan <span class="mono">taken</span>. Stok tetap dipotong satu dosis.</p></div>
+    </div>
+  </div>
+  <div class="m-foot">
+    <button class="btn btn-ghost" data-close="m-take">Batal</button>
+    <button class="btn btn-danger hide" id="tk-del">Batalkan catatan</button>
+    <button class="btn btn-primary" id="tk-go">Catat diminum</button>
+  </div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  var session = A.requireUser();
+  if (!session) return;
+
+  var pending = null;   // {med, time, log} yang sedang dipilih di modal
+  var prnTarget = null;
+  var takeTarget = null; // {med, sched, hh, mm} yang sedang dicatat diminum
+
+  /* ---------- label bantuan ---------- */
+  function label(time) { return PO.t("label", time.label); }
+  function doseText(m) {
+    var u = PO.t("unit", m.dose_unit_code);
+    return m.dose_value + " " + u + (m.strength_note ? " · " + m.strength_note : "");
+  }
+  function hhmm(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function hour(mm) { return mm >= 60 * 18 || mm < 60 * 5 ? "malam" : mm < 60 * 11 ? "pagi" : mm < 60 * 15 ? "siang" : "sore"; }
+
+  /* ---------- ringkasan hari ini (dihitung dari aturan) ---------- */
+  function summary() {
+    var items = PO.todaySchedule();
+    var c = { total: items.length, taken: 0, late: 0, skipped: 0, pending: 0, upcoming: 0, snoozed: 0 };
+    items.forEach(function (it) {
+      var st = PO.doseStatus(it);
+      if (st === "taken") c.taken++;
+      else if (st === "late") c.late++;
+      else if (st === "skipped") c.skipped++;
+      else if (st === "snoozed") c.snoozed++;
+      else if (st === "pending") c.pending++;
+      else c.upcoming++;
+    });
+    // dosis yang sudah lewat jam tapi belum dicatat = terlewat sementara
+    c.open = c.pending + c.snoozed;
+    var done = c.taken + c.late;
+    c.ratio = c.total ? done / c.total : 0;
+    return { items: items, c: c };
+  }
+
+  /* Dosis berikutnya untuk hero. Prioritas:
+       1. dosis terdekat yang BELUM lewat jamnya (upcoming/pending mendatang),
+       2. bila semua sudah lewat, dosis tertunggak paling lama (paling perlu
+          ditindak) — bukan yang paling awal di daftar.
+     Tanpa urutan ini, jam 21:00 bisa menunjuk dosis 14:00 yang sudah lewat. */
+  function nextDose(items) {
+    var nowM = PO.NOW.getHours() * 60 + PO.NOW.getMinutes();
+    function mins(t) { return (+t.time_local.slice(0, 2)) * 60 + (+t.time_local.slice(3, 5)); }
+    var open = items.filter(function (it) {
+      var st = PO.doseStatus(it);
+      return st === "pending" || st === "upcoming" || st === "snoozed";
+    });
+    if (!open.length) return null;
+    var ahead = open.filter(function (it) { return mins(it.time) >= nowM; });
+    if (ahead.length) {
+      return ahead.sort(function (a, b) { return mins(a.time) - mins(b.time); })[0];
+    }
+    /* Semua sudah lewat: ambil yang paling lama tertunggak (jam paling awal). */
+    return open.sort(function (a, b) { return mins(a.time) - mins(b.time); })[0];
+  }
+
+  /* Jarak waktu ringkas ke jam dosis: "dalam 25 mnt" / "2 j 10 mnt" /
+     "sekarang" / "terlambat 3 j" bila jamnya sudah lewat. */
+  function untilText(timeLocal) {
+    var mins = (+timeLocal.slice(0, 2)) * 60 + (+timeLocal.slice(3, 5));
+    var nowM = PO.NOW.getHours() * 60 + PO.NOW.getMinutes();
+    var d = mins - nowM;
+    if (d === 0) return "sekarang";
+    if (d > 0 && d < 60) return "dalam " + d + " mnt";
+    if (d >= 60) {
+      var h = Math.floor(d / 60), m = d % 60;
+      return "dalam " + h + " j" + (m ? " " + m + " mnt" : "");
+    }
+    /* Sudah lewat: tampilkan besar keterlambatan. */
+    var over = -d;
+    if (over < 60) return "terlambat " + over + " mnt";
+    return "terlambat " + Math.floor(over / 60) + " j" + (over % 60 ? " " + (over % 60) + " mnt" : "");
+  }
+
+  /* ---------- hero: ringkasan actionable (compact) ----------
+     Menampilkan 3 hal yang paling berguna di layar pertama:
+       1. progres hari ini (ring + n/total),
+       2. dosis BERIKUTNYA (nama obat, jam, sisa waktu) — paling actionable,
+       3. rentetan hari (motivasi).
+     Detail lain (terlambat/dilewati/menunggu, tanggal, zona) tidak lagi
+     dijejalkan di sini; status per dosis sudah ada di kartu dosis di bawah. */
+  function heroCard(s, c) {
+    var nd = nextDose(s.items);
+    var ndMed = nd ? nd.med : null;
+    var ndWhen = nd ? untilText(nd.time.time_local) : "";
+    var ndDue = nd && PO.doseStatus(nd) === "pending";
+
+    var nextBlock;
+    if (nd) {
+      nextBlock =
+        '<button class="hero-next" id="hero-next-btn" data-dose-jump="' + ndMed.id + "|" + nd.time.id + '">' +
+          '<span class="hn-ic" style="color:' + A.esc(ndMed.color_tag) + '">' + A.icon(ndMed.as_needed ? "droplet" : "pill") + "</span>" +
+          '<span class="grow">' +
+            '<span class="hn-lbl">Berikutnya</span>' +
+            '<span class="hn-name">' + A.esc(ndMed.name) + "</span>" +
+            '<span class="hn-time">' + nd.time.time_local + " · " + A.esc(ndWhen) + "</span>" +
+          "</span>" +
+          (ndDue ? '<span class="hn-go">' + A.icon("check") + "Catat</span>" : '<span class="hn-go hn-go-soft">Lihat</span>') +
+        "</button>";
+    } else {
+      nextBlock = '<div class="hero-next hero-next-done">' +
+        '<span class="hn-ic">' + A.icon("check-check") + "</span>" +
+        '<span class="grow"><span class="hn-lbl">Selesai</span>' +
+        '<span class="hn-name">Semua dosis hari ini sudah dicatat</span></span></div>';
+    }
+
+    return '<section class="hero">' +
+      '<div class="hero-top">' +
+        A.ring(c.ratio, A.pct(c.ratio), "", 68) +
+        '<div class="grow hero-figures">' +
+          '<div class="hf-main">' + (c.taken + c.late) + "<span>/" + c.total + "</span></div>" +
+          '<div class="hf-sub">dosis tercatat hari ini</div>' +
+        "</div>" +
+        streakBadge(PO.todayOverview.streak_days) +
+      "</div>" +
+      nextBlock +
+    "</section>";
+  }
+
+  /* Badge rentetan: angka di dalam ikon api. Ukuran angka menyesuaikan jumlah
+     digit supaya tetap muat pada puluhan/ratusan hari (lihat kelas .hs-num.dN).
+     Label panjang "hari berturut" TIDAK ditampilkan agar tidak berantakan —
+     maknanya dibawa aria-label + title. */
+  function streakBadge(days) {
+    var n = String(days);
+    var dcls = n.length >= 4 ? "d4" : n.length === 3 ? "d3" : n.length === 2 ? "d2" : "d1";
+    var label = days + " hari berturut-turut";
+    return '<div class="hero-streak" role="img" aria-label="' + label + '" title="' + label + '">' +
+      '<span class="hs-flame">' + A.icon("flame") + "</span>" +
+      '<b class="hs-num ' + dcls + '">' + n + "</b>" +
+    "</div>";
+  }
+
+  /* ---------- kartu dosis ----------
+     Aksi didesain ulang (rework kerapian):
+     - SEMUA aksi selalu terlihat sebagai tombol ikon berlabel — tidak ada
+       menu tersembunyi "Lainnya" (bertele-tele untuk satu aksi, dan
+       menyembunyikan "Lewati" yang penting).
+     - Tombol ramping: ikon 1.125rem + label kecil di bawahnya, lebar tetap
+       3.75rem, sehingga 3 aksi sekalipun tetap satu baris di 360px.
+     - Susunan per status:
+         pending  : [✓ Diminum] [⏰ Tunda] [🚫 Lewati]
+         snoozed  : [✓ Diminum] [⏰ Tunda lagi]
+         taken    : [✏️ Koreksi]
+         skipped  : [✓ Diminum]
+       Aksi paling sering selalu di kiri dan berwarna; yang jarang mengikuti. */
+  function doseCard(it) {
+    var st = PO.doseStatus(it);
+    var m = it.med, t = it.time;
+    var hh = +t.time_local.slice(0, 2), mm = +t.time_local.slice(3, 5);
+    var due = st === "pending";
+    var isPrn = m.as_needed;
+    var key = m.id + "|" + t.id + "|" + hh + "|" + mm;
+
+    /* pembuat tombol aksi ikon */
+    function act(action, ic, lbl, primary, glow) {
+      return '<button class="dose-act' + (primary ? " dose-act-primary" : "") +
+        (glow ? " due-glow" : "") + '" data-' + action + '="' + key + '">' +
+        A.icon(ic) + "<span>" + lbl + "</span></button>";
+    }
+
+    /* baris aksi: status pill di atas + tombol sejajar di bawah */
+    var acts = "";
+    if (st === "taken" || st === "late") {
+      acts =
+        '<div class="dose-status">' +
+          '<span class="badge badge-ok">' + A.icon("check") +
+            (st === "late" ? "Terlambat" : "Diminum") +
+            (it.log && it.log.taken_at ? " · " + A.clockAt(it.log.taken_at) : "") +
+          "</span>" +
+        "</div>" +
+        '<div class="dose-actions">' +
+          act("undo", "undo", "Koreksi", false, false) +
+        "</div>";
+    } else if (st === "skipped") {
+      acts =
+        '<div class="dose-status">' +
+          '<span class="badge badge-na">' + A.icon("ban") + "Dilewati" +
+            (it.log && it.log.note ? " · " + A.esc(it.log.note) : "") + "</span>" +
+        "</div>" +
+        '<div class="dose-actions">' +
+          act("take", "check", "Diminum", true, false) +
+        "</div>";
+    } else if (st === "snoozed") {
+      acts =
+        '<div class="dose-status">' +
+          '<span class="badge badge-info">' + A.icon("hourglass") + "Ditunda " +
+            (it.log && it.log.snooze_minutes ? it.log.snooze_minutes + " mnt" : "") + "</span>" +
+        "</div>" +
+        '<div class="dose-actions">' +
+          act("take", "check", "Diminum", true, false) +
+          act("snooze", "hourglass", "Tunda", false, false) +
+          act("skip", "ban", "Lewati", false, false) +
+        "</div>";
+    } else {
+      acts =
+        '<div class="dose-status">' +
+          '<span class="badge ' + (due ? "badge-info badge-pulse" : "badge-na") + '">' +
+            A.icon("clock") + (due ? "Waktunya sekarang" : "Belum waktunya") + "</span>" +
+        "</div>" +
+        '<div class="dose-actions">' +
+          act("take", "check", "Diminum", true, due) +
+          act("snooze", "hourglass", "Tunda", false, false) +
+          act("skip", "ban", "Lewati", false, false) +
+        "</div>";
+    }
+
+    return '<article class="dose ' + A.doseClass(st) + (due ? " due" : "") + '" data-dose="' + m.id + "|" + t.id + '">' +
+      '<div class="time">' + t.time_local + "</div>" +
+      '<div class="grow">' +
+        '<div class="row gap-6">' +
+          '<span class="swatch" style="background:' + A.esc(m.color_tag) + '"></span>' +
+          '<span class="nm">' + A.esc(m.name) + "</span>" +
+          (m.must_finish ? A.badge("harus dihabiskan", "badge-late") : "") +
+          (isPrn ? A.badge("PRN", "badge-private") : "") +
+        "</div>" +
+        '<div class="meta">' + A.esc(doseText(m)) + " · " + A.esc(PO.t("meal_relation", m.meal_relation)) +
+          " · " + A.esc(label(t)) + "</div>" +
+        (m.notes_reminder ? '<div class="meta meta-note">' + A.icon("info") + "<span>" + A.esc(m.notes_reminder) + "</span></div>" : "") +
+        acts +
+      "</div>" +
+    "</article>";
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    var s = summary();
+    var c = s.c;
+    var low = PO.lowStock();
+    var refillOn = PO.needsRefill();
+    var myPatients = PO.carePatients;
+
+    var html = "";
+
+    /* hero: ringkasan actionable (compact) */
+    html += heroCard(s, c);
+
+    /* banner stok menipis */
+    if (refillOn.length) {
+      html += '<div class="banner warn">' +
+        '<span class="ic">' + A.icon("alert") + "</span>" +
+        "<div class=\"grow\"><b>" + refillOn.length + " obat perlu di-restock</b>" +
+        "<p>" + refillOn.map(function (m) {
+          var info = low.filter(function (x) { return x.med.id === m.id; })[0];
+          return A.esc(m.name) + " (sisa " + m.stock.current_qty + " " + A.esc(PO.t("unit", m.stock.unit_code)) +
+            (info && info.daysLeft !== null ? ", ± " + info.daysLeft + " hari lagi" : "") + ")";
+        }).join(" · ") + "</p></div>" +
+        '<button class="btn btn-warn btn-sm" data-dead="Pesan ulang ke apotek">' + A.icon("refresh") + "Pesan</button>" +
+      "</div>";
+    }
+
+    /* daftar dosis hari ini */
+    html += '<section class="stack-8">' +
+      '<div class="row-b">' +
+        '<h2 class="pg-title">Dosis hari ini</h2>' +
+        '<span class="xs muted-3">' + s.items.length + " jadwal dari aturan</span>" +
+      "</div>";
+    if (!s.items.length) {
+      html += A.empty("Tidak ada dosis terjadwal", "Semua obat sedang jeda siklus atau di luar rentang terapi.", "calendar-check");
+    } else {
+      html += s.items.map(doseCard).join("");
+    }
+    html += "</section>";
+
+    /* obat bila perlu (PRN) */
+    var prn = PO.activeMeds().filter(function (m) { return m.as_needed; });
+    var prnToday = PO.logs.filter(function (l) { return l.schedule_id === null && l.slot_date === PO.TODAY && !l.deleted_at; });
+    html += '<section class="card">' +
+      '<div class="card-head"><div><h3>' + A.icon("pill") + " Bila perlu (PRN)</h3>" +
+      '<div class="sub">Tidak dijadwalkan — dicatat hanya saat benar-benar dipakai</div></div>' +
+      '<span class="badge badge-private">' + prnToday.length + " hari ini</span></div>";
+    if (!prn.length) {
+      html += '<div class="card-pad">' + A.empty("Belum ada obat PRN", "Tambahkan dari halaman Obat bila ada obat yang diminum saat perlu.", "pill") + "</div>";
+    } else {
+      html += '<div class="card-pad stack-8">' + prn.map(function (m) {
+        var used = PO.logs.filter(function (l) { return l.medication_id === m.id && l.schedule_id === null && l.slot_date === PO.TODAY && !l.deleted_at; }).length;
+        var max = m.frequency.prn_max_per_day;
+        return '<div class="list-card">' +
+          '<span class="avatar med">' + A.icon("pill") + "</span>" +
+          '<div class="grow"><div class="nm"><b>' + A.esc(m.name) + "</b></div>" +
+            '<div class="sm muted">' + A.esc(doseText(m)) + " · dipakai " + used + "×" + (max ? " (batas " + max + "×/hari)" : "") + "</div>" +
+            '<div class="meta xs muted-3">Sisa ' + (m.stock ? m.stock.current_qty + " " + A.esc(PO.t("unit", m.stock.unit_code)) : "—") + "</div>" +
+          "</div>" +
+          '<button class="btn btn-primary btn-sm" data-prn="' + m.id + '">' + A.icon("plus") + "Catat</button>" +
+        "</div>";
+      }).join("") + "</div>";
+    }
+    html += "</section>";
+
+    /* caregiver ringkas */
+    html += '<section class="card">' +
+      '<div class="card-head"><div><h3>' + A.icon("users") + " Pemantau</h3>" +
+      '<div class="sub">Siapa yang menerima ringkasan dan eskalasi Anda</div></div>' +
+      '<a class="btn btn-outline btn-sm" href="caregiver.html">Kelola</a></div>' +
+      '<div class="card-pad stack-8">';
+    var watchers = PO.careLinks.filter(function (l) { return l.owner_id === PO.session.user.id; });
+    if (!watchers.length) {
+      html += A.empty("Belum ada pemantau", "Undang keluarga agar mereka tahu kalau dosis terlewat.", "users");
+    } else {
+      html += watchers.map(function (l) {
+        var live = l.status === "accepted";
+        return '<div class="list-card">' +
+          '<span class="avatar sm">' + A.esc((l.caregiver_name || "?").slice(0, 2).toUpperCase()) + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(l.caregiver_name || l.invite_email) + "</b></div>" +
+            '<div class="xs muted-3">' + A.esc(PO.t("relation", l.relation)) + " · " + A.esc(PO.t("care_role", l.role)) + "</div></div>" +
+          A.badge(PO.t("care_status", l.status), live ? "badge-ok" : "badge-info", live) +
+        "</div>";
+      }).join("");
+    }
+    html += "</div></section>";
+
+    /* pasien yang saya pantau (kalau jadi caregiver) */
+    if (myPatients.length) {
+      html += '<section class="card">' +
+        '<div class="card-head"><div><h3>' + A.icon("heart") + " Saya memantau</h3>" +
+        '<div class="sub">Ringkasan orang yang mengundang Anda</div></div></div>' +
+        '<div class="card-pad stack-8">' +
+        myPatients.map(function (p) {
+          var tone = p.adherence_ratio >= 0.8 ? "ok" : p.adherence_ratio >= 0.6 ? "warn" : "err";
+          return '<a class="list-card hoverable" href="caregiver.html#p-' + p.owner_id + '">' +
+            '<span class="avatar">' + A.esc(p.name.slice(0, 1)) + "</span>" +
+            '<div class="grow"><div class="sm"><b>' + A.esc(p.name) + "</b></div>" +
+              '<div class="xs muted-3">' + A.esc(PO.t("relation", p.relation)) + " · " + A.esc(PO.t("care_role", p.role)) + " · hari ini " + p.taken + "/" + p.doses_total + "</div>" +
+              '<div class="mt-8">' + A.meter(p.adherence_ratio, { tone: tone, thin: true }) + "</div>" +
+            "</div>" +
+            '<span class="badge badge-' + (tone === "ok" ? "ok" : tone === "warn" ? "late" : "miss") + '">' + A.pct(p.adherence_ratio) + "</span>" +
+          "</a>";
+        }).join("") + "</div></section>";
+    }
+
+    /* catatan kaki: apa yang dihitung & tidak */
+    html += '<div class="divider dashed"></div>' +
+      '<div class="xs muted-3" style="line-height:1.6">' +
+      A.icon("info") + " Hari dalam masa jeda siklus, tanggal di luar rentang terapi, dan dosis PRN " +
+      "<b>tidak</b> dihitung sebagai terlewat. Nama obat tidak pernah masuk log aplikasi — hanya id." +
+      "</div>";
+
+    document.getElementById("main").innerHTML = html;
+
+    /* ikon di fab */
+    document.getElementById("fab").innerHTML = A.icon("plus");
+    document.getElementById("sn-x").innerHTML = A.icon("x");
+    document.getElementById("sk-x").innerHTML = A.icon("x");
+    document.getElementById("prn-x").innerHTML = A.icon("x");
+    document.getElementById("tk-x").innerHTML = A.icon("x");
+    document.getElementById("sn-ic").innerHTML = A.icon("info");
+    document.getElementById("prn-ic").innerHTML = A.icon("info");
+    document.getElementById("tk-ic").innerHTML = A.icon("info");
+
+    bind();
+  }
+
+  /* ---------- aksi ---------- */
+  function bind() {
+    var main = document.getElementById("main");
+
+    /* Hero: tombol "berikutnya" menggulir ke kartu dosis terkait dan
+       menyorotnya sekilas, supaya pengguna langsung tahu harus ke mana. */
+    var jump = document.getElementById("hero-next-btn");
+    if (jump) jump.addEventListener("click", function () {
+      var p = jump.getAttribute("data-dose-jump").split("|");
+      var card = main.querySelector('[data-dose="' + p[0] + "|" + p[1] + '"]');
+      if (!card) return;
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("flash");
+      setTimeout(function () { card.classList.remove("flash"); }, 1200);
+    });
+
+    main.querySelectorAll("[data-take]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-take").split("|");
+        takeTarget = { med: p[0], sched: p[1], hh: +p[2], mm: +p[3] };
+        var m = PO.med(p[0]);
+        var sched = String(p[2]).padStart(2, "0") + ":" + String(p[3]).padStart(2, "0");
+        document.getElementById("tk-t").textContent = "Catat diminum";
+        document.getElementById("tk-del").classList.add("hide");
+        document.getElementById("tk-go").textContent = "Catat diminum";
+        document.getElementById("tk-about").innerHTML =
+          "Dosis <b>" + A.esc(m.name) + " " + sched + "</b>. Pastikan jam minum yang tercatat sesuai kenyataan.";
+        var nowStr = hhmm(new Date());
+        document.getElementById("tk-time").value = nowStr;
+        /* tombol cepat: jam sekarang dan jam jadwal */
+        var quick = [
+          { v: nowStr, lbl: "Sekarang", ic: "clock" },
+          { v: sched, lbl: "Jam jadwal", ic: "calendar-check" }
+        ];
+        document.getElementById("tk-quick").innerHTML = quick.map(function (q) {
+          return '<button class="chip' + (q.v === nowStr ? " on" : "") + '" data-t="' + q.v + '">' + A.icon(q.ic) + A.esc(q.lbl) + "</button>";
+        }).join("");
+        document.getElementById("tk-quick").querySelectorAll("[data-t]").forEach(function (c) {
+          c.addEventListener("click", function () {
+            document.getElementById("tk-time").value = c.getAttribute("data-t");
+            document.getElementById("tk-quick").querySelectorAll(".chip").forEach(function (x) { x.classList.remove("on"); });
+            c.classList.add("on");
+          });
+        });
+        A.overlay("m-take", true);
+      });
+    });
+
+    main.querySelectorAll("[data-undo]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-undo").split("|");
+        var log = PO.logFor(p[0], p[1], PO.TODAY, +p[2], +p[3]);
+        if (!log) return;
+        var m = PO.med(p[0]);
+        var sched = String(p[2]).padStart(2, "0") + ":" + String(p[3]).padStart(2, "0");
+        /* mode edit: ubah jam minum, atau batalkan catatan */
+        takeTarget = { med: p[0], sched: p[1], hh: +p[2], mm: +p[3], edit: true };
+        document.getElementById("tk-t").textContent = "Koreksi jam diminum";
+        document.getElementById("tk-about").innerHTML =
+          "Ubah jam minum <b>" + A.esc(m.name) + " " + sched + "</b>, atau batalkan catatannya.";
+        var cur = log.taken_at ? hhmm(new Date(log.taken_at)) : sched;
+        document.getElementById("tk-time").value = cur;
+        document.getElementById("tk-quick").innerHTML = [
+          { v: cur, lbl: "Tersimpan", ic: "check" },
+          { v: sched, lbl: "Jam jadwal", ic: "calendar-check" },
+          { v: hhmm(new Date()), lbl: "Sekarang", ic: "clock" }
+        ].map(function (q, i) {
+          return '<button class="chip' + (i === 0 ? " on" : "") + '" data-t="' + q.v + '">' + A.icon(q.ic) + A.esc(q.lbl) + "</button>";
+        }).join("");
+        document.getElementById("tk-quick").querySelectorAll("[data-t]").forEach(function (c) {
+          c.addEventListener("click", function () {
+            document.getElementById("tk-time").value = c.getAttribute("data-t");
+            document.getElementById("tk-quick").querySelectorAll(".chip").forEach(function (x) { x.classList.remove("on"); });
+            c.classList.add("on");
+          });
+        });
+        document.getElementById("tk-del").classList.remove("hide");
+        document.getElementById("tk-go").textContent = "Simpan jam";
+        A.overlay("m-take", true);
+      });
+    });
+
+    main.querySelectorAll("[data-snooze]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-snooze").split("|");
+        pending = { med: p[0], sched: p[1], hh: +p[2], mm: +p[3] };
+        var m = PO.med(p[0]);
+        document.getElementById("sn-about").innerHTML =
+          "Dosis <b>" + A.esc(m.name) + " " + p[2] + ":" + p[3] + "</b> akan diingatkan ulang. " +
+          "Snooze disimpan sebagai satu baris <span class=\"mono\">bump_queue</span> (kind=dose, skip_tag=snooze).";
+        document.getElementById("sn-opts").innerHTML = [5, 10, 30].map(function (v, i) {
+          return '<button class="chip' + (i === 1 ? " on" : "") + '" data-min="' + v + '">' + A.icon("clock") + v + " menit</button>";
+        }).join("");
+        document.getElementById("sn-opts").querySelectorAll("[data-min]").forEach(function (c) {
+          c.addEventListener("click", function () {
+            document.getElementById("sn-opts").querySelectorAll(".chip").forEach(function (x) { x.classList.remove("on"); });
+            c.classList.add("on");
+          });
+        });
+        A.overlay("m-snooze", true);
+      });
+    });
+
+    main.querySelectorAll("[data-skip]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-skip").split("|");
+        pending = { med: p[0], sched: p[1], hh: +p[2], mm: +p[3] };
+        var m = PO.med(p[0]);
+        document.getElementById("sk-about").innerHTML =
+          "Dosis <b>" + A.esc(m.name) + " " + p[2] + ":" + p[3] + "</b> ditandai <span class=\"mono\">skipped</span>. " +
+          "Stok <b>tidak</b> dipotong karena obat tidak diminum.";
+        document.getElementById("sk-reason").value = "";
+        document.getElementById("sk-note").value = "";
+        A.overlay("m-skip", true);
+      });
+    });
+
+    main.querySelectorAll("[data-prn]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        prnTarget = b.getAttribute("data-prn");
+        var prn2 = PO.activeMeds().filter(function (m) { return m.as_needed; });
+        document.getElementById("prn-med").innerHTML = prn2.map(function (m) {
+          return '<option value="' + m.id + '"' + (m.id === prnTarget ? " selected" : "") + ">" +
+            A.esc(m.name) + " — " + A.esc(doseText(m)) + "</option>";
+        }).join("");
+        document.getElementById("prn-hint").textContent = "Log PRN dibuat tanpa schedule_id, jadi boleh berkali-kali per hari.";
+        document.getElementById("prn-note").value = "";
+        A.overlay("m-prn", true);
+      });
+    });
+  }
+
+  document.getElementById("sn-go").addEventListener("click", function () {
+    if (!pending) return;
+    var on = document.querySelector("#sn-opts .chip.on");
+    var minutes = on ? +on.getAttribute("data-min") : 10;
+    PO.snooze(pending.med, pending.sched, pending.hh, pending.mm, minutes);
+    A.overlay("m-snooze", false);
+    A.toast("info", "Ditunda " + minutes + " menit", "Pengingat ulang dijadwalkan pada jam tunda.");
+    pending = null;
+    render();
+  });
+
+  document.getElementById("sk-go").addEventListener("click", function () {
+    if (!pending) return;
+    var reason = document.getElementById("sk-reason").value;
+    var note = document.getElementById("sk-note").value;
+    var full = [reason, note].filter(Boolean).join(" — ");
+    PO.markSkipped(pending.med, pending.sched, pending.hh, pending.mm, full || null);
+    A.overlay("m-skip", false);
+    A.toast("warn", "Dosis dilewati", reason ? "Alasan: " + reason : "Tanpa alasan. Stok tidak dipotong.");
+    pending = null;
+    render();
+  });
+
+  document.getElementById("tk-go").addEventListener("click", function () {
+    if (!takeTarget) return;
+    var t = document.getElementById("tk-time").value;
+    if (!t) { A.toast("err", "Jam belum diisi", "Isi jam obat diminum."); return; }
+    var m = PO.med(takeTarget.med);
+    var sch = String(takeTarget.hh).padStart(2, "0") + ":" + String(takeTarget.mm).padStart(2, "0");
+    var log;
+    if (takeTarget.edit) {
+      log = PO.editTaken(takeTarget.med, takeTarget.sched, takeTarget.hh, takeTarget.mm, t);
+      A.overlay("m-take", false);
+      A.toast("ok", "Jam dikoreksi: " + m.name,
+        "Diminum " + t + " · jadwal " + sch + (log.status === "late" ? " (terlambat)" : "") + ".");
+    } else {
+      log = PO.markTaken(takeTarget.med, takeTarget.sched, takeTarget.hh, takeTarget.mm, t);
+      A.overlay("m-take", false);
+      A.toast("ok", "Tercatat: " + m.name,
+        "Diminum " + t + " · jadwal " + sch + (log.status === "late" ? " (terlambat)" : "") +
+        " · stok turun " + m.stock.qty_per_dose + " " + PO.t("unit", m.stock.unit_code) + ".");
+    }
+    takeTarget = null;
+    render();
+  });
+
+  document.getElementById("tk-del").addEventListener("click", function () {
+    if (!takeTarget) return;
+    var t = takeTarget;
+    var log = PO.logFor(t.med, t.sched, PO.TODAY, t.hh, t.mm);
+    var m = PO.med(t.med);
+    if (log) {
+      // Koreksi = soft-delete baris lama; baris pengganti lahir saat dicatat ulang (aturan D5).
+      log.deleted_at = new Date().toISOString();
+      if (m.stock) m.stock.current_qty += m.stock.qty_per_dose;
+      PO.save();
+    }
+    A.overlay("m-take", false);
+    A.toast("warn", "Catatan dibatalkan", "Baris lama di-soft-delete, saldo stok dikembalikan.");
+    takeTarget = null;
+    render();
+  });
+
+  document.getElementById("prn-go").addEventListener("click", function () {
+    var medId = document.getElementById("prn-med").value;
+    var note = document.getElementById("prn-note").value || "Pemakaian PRN";
+    var m = PO.med(medId);
+    var now = new Date();
+    PO.logs.push({
+      id: "lg-" + Math.random().toString(36).slice(2, 8), medication_id: medId, schedule_id: null,
+      owner_id: PO.session.user.id, recorded_by: PO.session.user.id, slot_date: PO.TODAY,
+      scheduled_hour: null, scheduled_minute: null, scheduled_tz: m.frequency.schedule_timezone,
+      status: "taken", taken_at: now.toISOString(), note: note, source: "self", deleted_at: null
+    });
+    if (m.stock && m.stock.current_qty >= m.stock.qty_per_dose) {
+      m.stock.current_qty -= m.stock.qty_per_dose;
+      PO.stockTx.unshift({
+        id: "tx-" + Math.random().toString(36).slice(2, 8), medication_id: medId, kind: "consume",
+        qty_delta: -m.stock.qty_per_dose, balance_after: m.stock.current_qty, note: note,
+        created_at: now.toISOString(), log_id: null
+      });
+    }
+    PO.save();
+    A.overlay("m-prn", false);
+    A.toast("ok", "PRN dicatat", A.esc(m.name) + " · stok turun " + m.stock.qty_per_dose + " " + PO.t("unit", m.stock.unit_code) + ".");
+    render();
+  });
+
+  A.boot({
+    shell: "user",
+    active: "hari-ini",
+    title: "Hari ini",
+    sub: PO.fmtDate(PO.TODAY, { long: true }),
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

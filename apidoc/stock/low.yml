@@ -1,0 +1,67 @@
+info:
+  name: Obat Perlu Restock
+  type: http
+  seq: 6
+  tags:
+    - stock
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/stock/low"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Obat Perlu Restock
+
+  Daftar obat yang saldonya sudah menyentuh atau melewati ambangnya.
+
+  ## Dua syarat, keduanya harus terpenuhi
+
+  | Syarat | Kenapa |
+  |---|---|
+  | `refill_threshold_qty` terisi | Tanpa ambang, tidak ada yang bisa dibandingkan |
+  | `refill_reminder` menyala | User mungkin mengisi ambang tapi tidak ingin diingatkan |
+
+  Obat dengan ambang terisi tapi `refill_reminder` mati **tidak muncul** di
+  sini. Itu disengaja: ambang tanpa peringatan tidak ada gunanya, dan
+  memunculkannya akan mengganggu user yang sudah memilih untuk tidak
+  diingatkan.
+
+  ## Diurutkan dari yang paling menipis
+
+  Yang paling mendesak muncul lebih dulu.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "medication_id": "019ccc...",
+        "medication_name": "Amlodipine 10",
+        "unit_code": "tablet",
+        "current_qty": 5,
+        "qty_per_dose": 1,
+        "refill_threshold_qty": 5,
+        "doses_remaining": 5,
+        "needs_refill": true
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 1}
+  }
+  ```
+
+  Saldo **sama dengan** ambang sudah dianggap perlu restock (`<=`, bukan `<`).
+  Dengan begitu, user masih punya waktu membeli sebelum benar-benar habis.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

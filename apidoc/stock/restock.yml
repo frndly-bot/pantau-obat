@@ -1,0 +1,76 @@
+info:
+  name: Catat Restock
+  type: http
+  seq: 3
+  tags:
+    - stock
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/stock/restock"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "qty": 30,
+        "note": "beli di apotek"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.qty_delta
+      operator: isNumber
+
+docs: |-
+  # Catat Restock
+
+  Menambah saldo stok. Setiap restock menulis satu baris transaksi, dan
+  `last_restocked_at` ikut diperbarui.
+
+  ## Saldo dihitung trigger, bukan aplikasi
+
+  Yang ditulis hanya transaksinya. `balance_after` diisi oleh trigger
+  `apply_stock_txn` di dalam transaksi yang sama dengan `INSERT`-nya, di bawah
+  kunci baris.
+
+  Itu yang membuat aritmetikanya aman: dua restock bersamaan tidak bisa
+  saling menimpa, karena keduanya dijalankan berurutan pada baris yang sama.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "kind": "restock",
+      "qty_delta": 30,
+      "balance_after": 58,
+      "unit_code": "tablet",
+      "needs_refill": false,
+      "last_restocked_at": "2026-10-11T10:00:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "obat ini belum punya pengaturan stok"
+    }
+  }
+  ```
+
+  Pengaturan stok harus dibuat lebih dulu lewat `PUT /stock`.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

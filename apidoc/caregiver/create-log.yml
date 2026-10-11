@@ -1,0 +1,113 @@
+info:
+  name: Catat Dosis Atas Nama Pasien
+  type: http
+  seq: 11
+  tags:
+    - caregiver
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/care/{{owner_id}}/logs"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "medication_id": "{{medication_id}}",
+        "schedule_id": "{{schedule_id}}",
+        "slot_date": "2026-10-10",
+        "scheduled_hour": 19,
+        "scheduled_minute": 0,
+        "scheduled_tz": "Asia/Jakarta",
+        "status": "taken",
+        "note": "dibantu anak"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.log.source
+      operator: eq
+      value: "caregiver"
+    - expression: res.body.data.recorded_as
+      operator: eq
+      value: "caregiver"
+
+docs: |-
+  # Catat Dosis Atas Nama Pasien
+
+  Caregiver `helper` mencatat bahwa pasiennya sudah minum obat.
+
+  ## HANYA `helper` yang boleh
+
+  | Role | Hasil |
+  |---|---|
+  | `helper` | 201, tercatat |
+  | `viewer` | **403** `FORBIDDEN` |
+  | Bukan caregiver | 404 |
+
+  Untuk viewer, pesannya membedakan "bukan caregiver" dari "caregiver tapi
+  viewer", karena artinya berbeda bagi klien.
+
+  ## `source` dan `recorded_by` ditetapkan SERVER
+
+  Keduanya **tidak dibaca dari body**:
+
+  | Kolom | Nilai |
+  |---|---|
+  | `source` | `caregiver` |
+  | `recorded_by` | id caregiver, bukan id pasien |
+  | `owner_id` | id pasien — data tetap milik pasien |
+
+  Kalau klien yang menentukan, catatan atas nama pasien bisa **menyamar**
+  sebagai catatan pasien sendiri. Saat menelusuri kenapa sebuah dosis tercatat
+  padahal pasien tidak membuka aplikasinya, satu-satunya yang menjawab adalah
+  kolom ini.
+
+  ## Pasien melihatnya di audit-nya sendiri
+
+  `POST /users/me/audit-log` milik pasien akan memuat aksi ini dengan
+  `actor_id` caregiver. Pasien berhak tahu bahwa ada orang lain yang mencatat
+  atas namanya.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "log": {
+        "id": "019e4...",
+        "medication_id": "019ccc...",
+        "owner_id": "019...",
+        "recorded_by": "019caregiver...",
+        "slot_date": "2026-10-10",
+        "scheduled_time": "07:00",
+        "status": "taken",
+        "source": "caregiver",
+        "taken_at": "2026-10-11T00:05:00Z"
+      },
+      "stock": {"consumed": true, "qty_delta": -1, "balance_after": 27},
+      "recorded_as": "caregiver"
+    }
+  }
+  ```
+
+  ## Contoh response — 403
+
+  ```json
+  {
+    "error": {
+      "code": "FORBIDDEN",
+      "message": "peran viewer tidak boleh mencatat dosis"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

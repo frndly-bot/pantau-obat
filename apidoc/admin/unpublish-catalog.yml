@@ -1,0 +1,63 @@
+info:
+  name: Tarik Preset ke Draft
+  type: http
+  seq: 11
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/catalog/{{preset_id}}/unpublish"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "reason": "perlu peninjauan ulang"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.curation_status
+      operator: eq
+      value: "draft"
+
+docs: |-
+  # Tarik Preset ke Draft
+
+  Mengembalikan preset `published` menjadi `draft`, sehingga **hilang dari
+  pencarian user**. Butuh scope **`catalog`**.
+
+  ## Obat yang sudah dibuat TIDAK terpengaruh
+
+  Obat menyimpan `catalog_id` sebagai rujukan, dan nama serta dosisnya sudah
+  disalin saat obat dibuat. Menarik preset dari peredaran tidak menyentuh data
+  pasien.
+
+  ## Kenapa dipakai alih-alih menghapus
+
+  Entri yang sudah dipublikasikan dan pernah dipakai user **tidak boleh
+  lenyap**. Menariknya ke `draft` membuatnya tidak muncul lagi untuk pemilihan
+  baru, sementara jejak penggunaannya tetap ada.
+
+  ## Alasan wajib
+
+  Sama seperti publish: perubahan ini memengaruhi apa yang dilihat user, jadi
+  alasannya harus tercatat di audit.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"id": "019aaa...", "curation_status": "draft"}}
+  ```
+
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

@@ -1,0 +1,95 @@
+info:
+  name: Buat Entri Katalog Pribadi
+  type: http
+  seq: 3
+  tags:
+    - catalog
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/catalog"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "display_name": "Obat Warung ABC",
+        "dosage_form_code": "LOCAL-TAB",
+        "route_code": "O",
+        "ucum_code": "mg",
+        "uom_name": "Tablet",
+        "dose_value_text": "500 mg"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.is_preset
+      operator: eq
+      value: false
+    - expression: res.body.data.curation_status
+      operator: eq
+      value: "user_private"
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("catalog_id", res.body.data.id);
+
+docs: |-
+  # Buat Entri Katalog Pribadi
+
+  Menambah obat yang tidak ada di preset publik.
+
+  ## Entri yang dibuat SELALU katalog pribadi
+
+  Tiga kolom ditetapkan **server**, tidak dibaca dari body:
+
+  | Kolom | Nilai | Kenapa |
+  |---|---|---|
+  | `is_preset` | `false` | Supaya user tidak bisa menyuntikkan entri ke katalog bersama |
+  | `owner_id` | id pemanggil | Kepemilikan |
+  | `curation_status` | `user_private` | Bukan bagian dari siklus kurasi admin |
+
+  Klien yang tetap mengirim ketiganya **tidak akan berhasil** menyamar sebagai
+  preset publik — nilainya diabaikan, dan CHECK `ck_catalog_scope` di database
+  ikut menegakkannya.
+
+  ## Katalog pribadi tidak pernah muncul untuk user lain
+
+  Baik di pencarian, di saran, maupun di endpoint detail. Itu ditegakkan di
+  query, bukan di tampilan.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "id": "019bbb...",
+      "display_name": "Obat Warung ABC",
+      "is_preset": false,
+      "curation_status": "user_private",
+      "owner_id": "019...",
+      "created_at": "2026-10-10T10:29:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "obat ini sudah ada di katalog pribadi Anda"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

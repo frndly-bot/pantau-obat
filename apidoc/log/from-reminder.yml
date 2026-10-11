@@ -1,0 +1,72 @@
+info:
+  name: Catat dari Notifikasi
+  type: http
+  seq: 2
+  tags:
+    - log
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/logs/from-reminder"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "medication_id": "{{medication_id}}",
+        "schedule_id": "{{schedule_id}}",
+        "slot_date": "2026-10-11",
+        "scheduled_hour": 19,
+        "scheduled_minute": 0,
+        "scheduled_tz": "Asia/Jakarta",
+        "status": "taken"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+docs: |-
+  # Catat dari Notifikasi
+
+  Jalur ringkas untuk mencatat dosis **langsung dari notifikasi**, tanpa
+  membuka halaman obat lebih dulu.
+
+  ## Kenapa jalur tersendiri
+
+  Notifikasi dikirim dengan `deep_link` dan daftar `actions`
+  (`taken,snoozed,skipped`). Aksi itu bisa dijalankan langsung dari notifikasi
+  di perangkat, dan yang dibutuhkan hanyalah keempat field di atas.
+
+  Memakai endpoint utama akan memaksa klien mengirim jam jadwal lengkap, dan
+  notifikasi tidak menyimpannya — yang ada di payload hanya tautan dan id.
+
+  ## Balasan yang sama
+
+  Bentuk balasannya identik dengan `POST /medications/{id}/logs`, termasuk
+  perubahan saldo. Yang berbeda hanya bentuk permintaannya.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "log": {"id": "019e2...", "status": "taken", "source": "self"},
+      "stock": {"consumed": true, "qty_delta": -1, "balance_after": 28}
+    }
+  }
+  ```
+
+  ## Rate limit
+
+  120 permintaan per menit, lebih ketat dari endpoint baca, karena ini jalur
+  tulis.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.

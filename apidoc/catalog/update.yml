@@ -1,0 +1,73 @@
+info:
+  name: Ubah Entri Katalog
+  type: http
+  seq: 5
+  tags:
+    - catalog
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/catalog/{{catalog_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "display_name": "Obat Warung ABC 500mg",
+        "dose_value_text": "500 mg"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+docs: |-
+  # Ubah Entri Katalog
+
+  Mengubah **katalog pribadi** milik sendiri.
+
+  ## Preset publik DITOLAK dengan pesan yang jelas
+
+  ```json
+  {
+    "error": {
+      "code": "CATALOG_IMMUTABLE",
+      "message": "preset katalog hanya bisa diubah admin"
+    }
+  }
+  ```
+
+  Ditolak eksplisit, bukan diabaikan diam-diam. Perubahan yang tidak terjadi
+  tanpa penjelasan adalah pengalaman yang membingungkan — user akan mengira
+  perubahannya tersimpan.
+
+  ## Katalog pribadi user lain dijawab 404
+
+  Bukan 409 dan bukan 403. Membedakannya akan memberi tahu bahwa entri itu
+  memang ada dan milik seseorang.
+
+  ## Dua penjagaan, keduanya bekerja
+
+  | Lapisan | Penjagaan |
+  |---|---|
+  | Handler | Membaca entri dulu, memeriksa `is_preset` dan kepemilikan |
+  | Query UPDATE | `WHERE owner_id = $ AND is_preset = false` |
+
+  Syarat kepemilikan ada **juga** di klausa WHERE, bukan hanya di pemeriksaan
+  sebelumnya. Dengan begitu, satu bug di lapisan atas tidak bisa berubah jadi
+  kemampuan mengubah preset publik — database sendiri yang menolaknya.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"id": "019bbb...", "display_name": "Obat Warung ABC 500mg"}}
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

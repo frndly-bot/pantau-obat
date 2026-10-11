@@ -1,0 +1,55 @@
+---
+# Compose membaca variabel dari file .env yang sejajar dengan file ini.
+# Simpan secret di .env (tidak masuk git). Lihat .env.example.
+name: pantau-obat
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: po-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pantau_obat}
+      POSTGRES_USER: ${POSTGRES_USER:-pantau_obat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/.env}
+      # Skema & data disimpan di subfolder volume agar pg_wal bisa dipisah nanti.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - pgbackup:/backup
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Di produksi ganti jadi "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-pantau_obat} -d $${POSTGRES_DB:-pantau_obat}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    # Batas resource: VPS kecil. Postgres akan dimatikan OOM-killer internal
+    # kalau lewat batas, supaya VPS tidak ikut tumbang.
+    mem_limit: 320m
+    memswap_limit: 384m
+    cpus: "1.0"
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+    name: po-pgdata
+  pgbackup:
+    name: po-pgbackup
+
+networks:
+  internal:
+    name: po-internal
+    driver: bridge

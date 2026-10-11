@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERD — Pantau Obat v0.1 (PostgreSQL 18)</title>
+<style>
+  :root{
+    --bg:#0b0f17; --bg2:#111826; --card:#151d2e; --line:#26314a; --line2:#33415e;
+    --txt:#e6ecf7; --txt2:#9aa8c4; --txt3:#6b7a99;
+    --katalog:#8b9bb4; --inti:#5aa9ff; --stok:#3ddc97; --notif:#ffc857; --auth:#c792ea;
+    --pk:#ffd166; --fk:#5aa9ff; --uq:#3ddc97;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:10;background:rgba(11,15,23,.92);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:14px 18px}
+  h1{margin:0;font-size:17px;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--txt2);font-size:12px;margin-top:3px}
+  .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+  button,input{font:inherit;color:var(--txt);background:var(--bg2);border:1px solid var(--line2);
+    border-radius:8px;padding:7px 11px;cursor:pointer}
+  button:hover{border-color:var(--inti)}
+  button[aria-pressed="false"]{opacity:.42}
+  input{cursor:text;min-width:190px}
+  main{padding:18px;display:grid;gap:22px;
+    grid-template-columns:repeat(auto-fill,minmax(330px,1fr));align-items:start}
+  section{display:contents}
+  .tbl{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 6px 22px rgba(0,0,0,.32)}
+  .tbl.hide{display:none}
+  .tbl>h2{margin:0;font-size:13px;font-weight:650;padding:9px 12px;display:flex;gap:8px;
+    align-items:center;border-bottom:1px solid var(--line)}
+  .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .grp-katalog>h2{background:linear-gradient(90deg,rgba(139,155,180,.20),transparent);border-left:3px solid var(--katalog)}
+  .grp-inti>h2{background:linear-gradient(90deg,rgba(90,169,255,.20),transparent);border-left:3px solid var(--inti)}
+  .grp-stok>h2{background:linear-gradient(90deg,rgba(61,220,151,.20),transparent);border-left:3px solid var(--stok)}
+  .grp-notif>h2{background:linear-gradient(90deg,rgba(255,200,87,.20),transparent);border-left:3px solid var(--notif)}
+  .grp-auth>h2{background:linear-gradient(90deg,rgba(199,146,234,.20),transparent);border-left:3px solid var(--auth)}
+  .grp-katalog .dot{background:var(--katalog)} .grp-inti .dot{background:var(--inti)}
+  .grp-stok .dot{background:var(--stok)} .grp-notif .dot{background:var(--notif)}
+  .grp-auth .dot{background:var(--auth)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td{padding:4px 10px;border-top:1px solid rgba(38,49,74,.55);vertical-align:top}
+  tr:first-child td{border-top:0}
+  td.k{white-space:nowrap;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  td.t{color:var(--txt2);white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+  td.n{color:var(--txt3);font-size:11px;text-align:right;white-space:nowrap}
+  .badge{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:5px;
+    margin-right:5px;vertical-align:1px;letter-spacing:.4px}
+  .b-pk{background:rgba(255,209,102,.18);color:var(--pk)}
+  .b-fk{background:rgba(90,169,255,.18);color:var(--fk)}
+  .b-uq{background:rgba(61,220,151,.18);color:var(--uq)}
+  .rel{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .rel h2{margin:0 0 10px;font-size:13px}
+  .rel ul{margin:0;padding-left:18px;color:var(--txt2);font-size:12.5px}
+  .rel li{margin:3px 0}
+  .rel code{background:#0d1420;border:1px solid var(--line2);border-radius:4px;padding:0 4px;
+    font-size:11.5px;color:#cfe0ff}
+  .notes{grid-column:1/-1;color:var(--txt2);font-size:12.5px}
+  .notes b{color:var(--txt)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11.5px;color:var(--txt2)}
+  .legend span{display:flex;align-items:center;gap:5px}
+  footer{padding:22px 18px 40px;color:var(--txt3);font-size:11.5px}
+  @media(max-width:520px){
+    main{grid-template-columns:1fr;padding:12px;gap:14px}
+    header{padding:12px}
+    .tools{margin-top:9px}
+    input{min-width:0;width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ERD — Pantau Obat v2</h1>
+  <div class="sub">PostgreSQL 18 · 23 tabel · 2 view · uuidv7() untuk PK entitas · soft delete via <code>deleted_at</code></div>
+  <div class="tools">
+    <button data-f="all" aria-pressed="true">Semua</button>
+    <button data-f="katalog" aria-pressed="true"><span class="dot" style="background:var(--katalog)"></span> Katalog</button>
+    <button data-f="inti" aria-pressed="true"><span class="dot" style="background:var(--inti)"></span> Inti obat</button>
+    <button data-f="stok" aria-pressed="true"><span class="dot" style="background:var(--stok)"></span> Stok</button>
+    <button data-f="notif" aria-pressed="true"><span class="dot" style="background:var(--notif)"></span> Notifikasi</button>
+    <button data-f="auth" aria-pressed="true"><span class="dot" style="background:var(--auth)"></span> Auth &amp; audit</button>
+    <input id="q" type="search" placeholder="cari tabel atau kolom…" aria-label="Cari tabel atau kolom">
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ============ KATALOG ============ -->
+<div class="tbl grp-katalog" data-g="katalog" id="ref_unit">
+  <h2><span class="dot"></span>ref_unit</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>code</td><td class="t">TEXT</td><td class="n">mg, tablet, IU…</td></tr>
+    <tr><td class="k">name</td><td class="t">TEXT</td><td class="n">wajib</td></tr>
+    <tr><td class="k">ucum_code</td><td class="t">TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k">kind</td><td class="t">TEXT</td><td class="n">dose|count|volume|application</td></tr>
+    <tr><td class="k">sort_order</td><td class="t">SMALLINT</td><td class="n">default 0</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-katalog" data-g="katalog" id="ref_dosage_form">
+  <h2><span class="dot"></span>ref_dosage_form</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>code</td><td class="t">TEXT</td><td class="n">BS077…</td></tr>
+    <tr><td class="k">name</td><td class="t">TEXT</td><td class="n">Tablet Salut Selaput</td></tr>
+    <tr><td class="k">group_name</td><td class="t">TEXT</td><td class="n">padat|cair|semi-padat|steril</td></tr>
+    <tr><td class="k">sort_order</td><td class="t">SMALLINT</td><td class="n">default 0</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-katalog" data-g="katalog" id="ref_route">
+  <h2><span class="dot"></span>ref_route</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>code</td><td class="t">TEXT</td><td class="n">O, T, S…</td></tr>
+    <tr><td class="k">name</td><td class="t">TEXT</td><td class="n">Oral…</td></tr>
+    <tr><td class="k">sort_order</td><td class="t">SMALLINT</td><td class="n">default 0</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-katalog" data-g="katalog" id="ref_controlled_drug">
+  <h2><span class="dot"></span>ref_controlled_drug</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>code</td><td class="t">TEXT</td><td class="n">3 = Obat Keras</td></tr>
+    <tr><td class="k">name</td><td class="t">TEXT</td><td class="n">wajib</td></tr>
+    <tr><td class="k">sort_order</td><td class="t">SMALLINT</td><td class="n">default 0</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-katalog" data-g="katalog" id="drug_catalog">
+  <h2><span class="dot"></span>drug_catalog <span class="badge b-uq">preset publik + pribadi</span></h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7() internal</td></tr>
+    <tr><td class="k">display_name</td><td class="t">TEXT</td><td class="n">wajib</td></tr>
+    <tr><td class="k">nama_dagang, generik_nama, rxterm</td><td class="t">TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k">is_generik</td><td class="t">BOOLEAN</td><td class="n">nullable</td></tr>
+    <tr><td class="k">manufacturer, registrar, country_of_origin</td><td class="t">TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k">produksi_buatan</td><td class="t">TEXT</td><td class="n">local|imported|other</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>dosage_form_code</td><td class="t">TEXT</td><td class="n">→ ref_dosage_form</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>route_code</td><td class="t">TEXT</td><td class="n">→ ref_route</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>controlled_code</td><td class="t">TEXT</td><td class="n">→ ref_controlled_drug</td></tr>
+    <tr><td class="k">dose_value_text, ucum_code, uom_name</td><td class="t">TEXT</td><td class="n">"300 mg", mg, Tablet</td></tr>
+    <tr><td class="k">atc_l1_code … atc_l5_name</td><td class="t">TEXT</td><td class="n">klasifikasi ATC</td></tr>
+    <tr><td class="k">atc_ddd</td><td class="t">TEXT</td><td class="n">"0.6 g - O"</td></tr>
+    <tr><td class="k">indication, warning, side_effect</td><td class="t">TEXT</td><td class="n">boleh HTML</td></tr>
+    <tr><td class="k">description, dosage_usage, storage_note</td><td class="t">TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k">is_discontinued</td><td class="t">BOOLEAN</td><td class="n">nullable</td></tr>
+    <tr><td class="k">nie_start_date, nie_end_date</td><td class="t">DATE</td><td class="n">masa berlaku</td></tr>
+    <tr><td class="k">kfa_code, bpom_nie, barcode</td><td class="t">TEXT</td><td class="n">metadata penyedia</td></tr>
+    <tr><td class="k">kode_lkpp, kode_kbki</td><td class="t">TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">NULL = preset publik</td></tr>
+    <tr><td class="k">is_preset</td><td class="t">BOOLEAN</td><td class="n">false = milik user</td></tr>
+    <tr><td class="k">curation_status</td><td class="t">TEXT</td><td class="n">draft|published|archived|user_private</td></tr>
+    <tr><td class="k">curated_by, curated_at</td><td class="t">UUID/TS</td><td class="n">jejak admin</td></tr>
+    <tr><td class="k">dose_per_unit, pack_qty</td><td class="t">NUMERIC(12,3)</td><td class="n">nullable</td></tr>
+    <tr><td class="k">fix_price, het_price</td><td class="t">NUMERIC(14,2)</td><td class="n">nullable</td></tr>
+    <tr><td class="k">is_fornas, reference_url</td><td class="t">BOOL/TEXT</td><td class="n">https wajib</td></tr>
+    <tr><td class="k">active_ingredients</td><td class="t">JSONB</td><td class="n">[{zat_aktif, kekuatan}]</td></tr>
+    <tr><td class="k">packaging_options</td><td class="t">JSONB</td><td class="n">[{nama, qty, uom}]</td></tr>
+    <tr><td class="k">identifiers</td><td class="t">JSONB</td><td class="n">[{code, source_name}]</td></tr>
+    <tr><td class="k">tags</td><td class="t">TEXT[]</td><td class="n">GIN index</td></tr>
+    <tr><td class="k">extra_meta</td><td class="t">JSONB</td><td class="n">payload mentah penyedia</td></tr>
+    <tr><td class="k">source, state, snapshot_date</td><td class="t">TEXT/DATE</td><td class="n">kfa|bpom|manual|other</td></tr>
+    <tr><td class="k">deleted_at</td><td class="t">TIMESTAMPTZ</td><td class="n">soft delete</td></tr>
+    <tr><td class="k">search_tsv <span class="badge b-uq">GEN</span></td><td class="t">tsvector</td><td class="n">STORED + GIN</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-katalog" data-g="katalog" id="medication_templates">
+  <h2><span class="dot"></span>medication_templates</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">NULL = template sistem</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>catalog_id</td><td class="t">UUID</td><td class="n">→ drug_catalog</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>dose_unit_code</td><td class="t">TEXT</td><td class="n">→ ref_unit</td></tr>
+    <tr><td class="k">name, dose_value, meal_relation</td><td class="t">TEXT/NUMERIC</td><td class="n">prefill form</td></tr>
+    <tr><td class="k">as_needed, must_finish</td><td class="t">BOOLEAN</td><td class="n">default false</td></tr>
+    <tr><td class="k">default_frequency</td><td class="t">JSONB</td><td class="n">pola awal</td></tr>
+    <tr><td class="k">default_stock_qty, default_refill_threshold</td><td class="t">NUMERIC</td><td class="n">nullable</td></tr>
+    <tr><td class="k">is_system, usage_count</td><td class="t">BOOL/INT</td><td class="n">sistem vs pribadi</td></tr>
+    <tr><td class="k">deleted_at</td><td class="t">TIMESTAMPTZ</td><td class="n">nullable</td></tr>
+  </table>
+</div>
+
+<!-- ============ INTI ============ -->
+<div class="tbl grp-inti" data-g="inti" id="users">
+  <h2><span class="dot"></span>users <span class="badge b-uq">user vs admin</span></h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>email</td><td class="t">CITEXT</td><td class="n">case-insensitive</td></tr>
+    <tr><td class="k">phone, full_name</td><td class="t">TEXT</td><td class="n">full_name 1–100</td></tr>
+    <tr><td class="k">password_hash</td><td class="t">TEXT</td><td class="n">Argon2id PHC</td></tr>
+    <tr><td class="k">timezone</td><td class="t">TEXT</td><td class="n">default Asia/Jakarta</td></tr>
+    <tr><td class="k">is_active</td><td class="t">BOOLEAN</td><td class="n">default true</td></tr>
+    <tr><td class="k">role</td><td class="t">TEXT</td><td class="n">user|admin</td></tr>
+    <tr><td class="k">admin_scope</td><td class="t">TEXT[]</td><td class="n">NULL = penuh</td></tr>
+    <tr><td class="k">admin_granted_at</td><td class="t">TIMESTAMPTZ</td><td class="n">kapan</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>admin_granted_by</td><td class="t">UUID</td><td class="n">→ users (self)</td></tr>
+    <tr><td class="k">last_login_at</td><td class="t">TIMESTAMPTZ</td><td class="n">nullable</td></tr>
+    <tr><td class="k">created_at, updated_at, deleted_at</td><td class="t">TIMESTAMPTZ</td><td class="n">soft delete</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="medications">
+  <h2><span class="dot"></span>medications</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>catalog_id</td><td class="t">UUID</td><td class="n">→ drug_catalog</td></tr>
+    <tr><td class="k">name</td><td class="t">TEXT</td><td class="n">1–120</td></tr>
+    <tr><td class="k">dose_value</td><td class="t">NUMERIC(12,3)</td><td class="n">CHECK &gt; 0</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>dose_unit_code</td><td class="t">TEXT</td><td class="n">→ ref_unit</td></tr>
+    <tr><td class="k">strength_note</td><td class="t">TEXT</td><td class="n">"120mg/5mL"</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>route_code</td><td class="t">TEXT</td><td class="n">→ ref_route</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>dosage_form_code</td><td class="t">TEXT</td><td class="n">→ ref_dosage_form</td></tr>
+    <tr><td class="k">meal_relation</td><td class="t">TEXT</td><td class="n">before_meal|after_meal|with_meal|not_related</td></tr>
+    <tr><td class="k">as_needed, must_finish</td><td class="t">BOOLEAN</td><td class="n">butuh / harus habis</td></tr>
+    <tr><td class="k">start_date, start_time</td><td class="t">DATE/TIME</td><td class="n">mulai terapi</td></tr>
+    <tr><td class="k">end_date</td><td class="t">DATE</td><td class="n">opsional, ≥ start_date</td></tr>
+    <tr><td class="k">notes, notes_reminder</td><td class="t">TEXT</td><td class="n">≤2000 / ≤1000</td></tr>
+    <tr><td class="k">prescription_photo_url</td><td class="t">TEXT</td><td class="n">harus https://</td></tr>
+    <tr><td class="k">color_tag</td><td class="t">TEXT</td><td class="n">#rrggbb</td></tr>
+    <tr><td class="k">is_active, deleted_at</td><td class="t">BOOL/TS</td><td class="n">stop vs hapus</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="medication_frequency">
+  <h2><span class="dot"></span>medication_frequency</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>medication_id</td><td class="t">UUID</td><td class="n">UNIQUE → 1:1</td></tr>
+    <tr><td class="k">pattern</td><td class="t">TEXT</td><td class="n">daily|interval|weekly|monthly_cycle|prn</td></tr>
+    <tr><td class="k">times_per_day</td><td class="t">SMALLINT</td><td class="n">1–24 (daily)</td></tr>
+    <tr><td class="k">interval_hours</td><td class="t">SMALLINT</td><td class="n">1–168 (interval)</td></tr>
+    <tr><td class="k">days_of_week</td><td class="t">SMALLINT</td><td class="n">bitmask 1–127</td></tr>
+    <tr><td class="k">cycle_intake_days</td><td class="t">SMALLINT</td><td class="n">1–365</td></tr>
+    <tr><td class="k">cycle_pause_days</td><td class="t">SMALLINT</td><td class="n">0–365</td></tr>
+    <tr><td class="k">cycle_anchor</td><td class="t">TEXT</td><td class="n">dom|end_of_month|from_start</td></tr>
+    <tr><td class="k">prn_max_per_day</td><td class="t">SMALLINT</td><td class="n">PRN</td></tr>
+    <tr><td class="k">tolerance_minutes</td><td class="t">SMALLINT</td><td class="n">0–120</td></tr>
+    <tr><td class="k">start_time</td><td class="t">TIME</td><td class="n">default 08:00</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="medication_times">
+  <h2><span class="dot"></span>medication_times</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>medication_id</td><td class="t">UUID</td><td class="n">→ medications</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>frequency_id</td><td class="t">UUID</td><td class="n">→ medication_frequency</td></tr>
+    <tr><td class="k">time_local</td><td class="t">TIME</td><td class="n">07:00, 12:30…</td></tr>
+    <tr><td class="k">label</td><td class="t">TEXT</td><td class="n">morning|afternoon|evening|dawn|other</td></tr>
+    <tr><td class="k">weekdays</td><td class="t">SMALLINT</td><td class="n">override hari</td></tr>
+    <tr><td class="k">dose_override, sort_order</td><td class="t">TEXT/SMALLINT</td><td class="n">khusus jam ini</td></tr>
+    <tr><td class="k">is_active, deleted_at</td><td class="t">BOOL/TS</td><td class="n">nonaktif vs hapus</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="jadwal-at-rules">
+  <h2><span class="dot"></span>jadwal = ATURAN, bukan baris per hari</h2>
+  <table>
+    <tr><td class="k">medication_frequency</td><td class="t">1 baris / obat</td><td class="n">pola + timezone</td></tr>
+    <tr><td class="k">medication_times</td><td class="t">N baris / obat</td><td class="n">jam konkret</td></tr>
+    <tr><td class="k">tanggal dosis</td><td class="t">dihitung</td><td class="n">occurrence key di kode Go</td></tr>
+    <tr><td class="k">terapi "selamanya"</td><td class="t">0 baris</td><td class="n">tidak tumbuh walau 10 tahun</td></tr>
+    <tr><td class="k">baris yang tumbuh</td><td class="t">saat dosis</td><td class="n">logs + dose_events saja</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="medication_dose_events">
+  <h2><span class="dot"></span>medication_dose_events <span class="badge b-uq">append-only</span></h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>event_key</td><td class="t">TEXT</td><td class="n">jadwal|tgl|jam:menit</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id, medication_id</td><td class="t">UUID</td><td class="n">→ users, medications</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>schedule_id</td><td class="t">UUID</td><td class="n">→ medication_times</td></tr>
+    <tr><td class="k">event_date, scheduled_hour/minute</td><td class="t">DATE/INT</td><td class="n">waktu dosis</td></tr>
+    <tr><td class="k">scheduled_tz</td><td class="t">TEXT</td><td class="n">zona saat kejadian</td></tr>
+    <tr><td class="k">kind</td><td class="t">TEXT</td><td class="n">missed|dose_shift|paused</td></tr>
+    <tr><td class="k">reason</td><td class="t">TEXT</td><td class="n">alasan</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="bump_queue">
+  <h2><span class="dot"></span>bump_queue <span class="badge b-uq">pekerjaan terjadwal</span></h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">BIGINT IDENTITY</td><td class="n">antrean</td></tr>
+    <tr><td class="k">kind</td><td class="t">TEXT</td><td class="n">dose|refill|digest</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>medication_id, schedule_id</td><td class="t">UUID</td><td class="n">→ medications, times</td></tr>
+    <tr><td class="k">scheduled_at, slot_date</td><td class="t">TS/DATE</td><td class="n">kapan dorong</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>dedup_key</td><td class="t">TEXT</td><td class="n">insert idempoten</td></tr>
+    <tr><td class="k">attempts, claimed_at, done_at</td><td class="t">SMALLINT/TS</td><td class="n">claim &amp; selesai</td></tr>
+    <tr><td class="k">skip_tag</td><td class="t">TEXT</td><td class="n">snooze|quiet</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="medication_logs">
+  <h2><span class="dot"></span>medication_logs</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>medication_id</td><td class="t">UUID</td><td class="n">→ medications</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>schedule_id</td><td class="t">UUID</td><td class="n">NULL = dosis spontan</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id, recorded_by</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">slot_date, scheduled_at</td><td class="t">DATE/TS</td><td class="n">tanggal lokal, absolut</td></tr>
+    <tr><td class="k">scheduled_hour, scheduled_minute</td><td class="t">SMALLINT</td><td class="n">occurrence key</td></tr>
+    <tr><td class="k">scheduled_tz</td><td class="t">TEXT</td><td class="n">zona saat dosis jatuh</td></tr>
+    <tr><td class="k">status</td><td class="t">TEXT</td><td class="n">taken|late|skipped|snoozed</td></tr>
+    <tr><td class="k">taken_at</td><td class="t">TIMESTAMPTZ</td><td class="n">wajib jika taken/late</td></tr>
+    <tr><td class="k">note, source</td><td class="t">TEXT</td><td class="n">self|caregiver|system</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>uq_log_slot</td><td class="t">partial</td><td class="n">anti log ganda</td></tr>
+    <tr><td class="k">deleted_at</td><td class="t">TIMESTAMPTZ</td><td class="n">koreksi = soft-delete + baris baru</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-inti" data-g="inti" id="care_links">
+  <h2><span class="dot"></span>care_links</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">pasien → users</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>caregiver_id</td><td class="t">UUID</td><td class="n">NULL saat undangan</td></tr>
+    <tr><td class="k">invite_email</td><td class="t">CITEXT</td><td class="n">belum terdaftar</td></tr>
+    <tr><td class="k">relation</td><td class="t">TEXT</td><td class="n">family|child|parent|spouse|friend|nurse|other</td></tr>
+    <tr><td class="k">role</td><td class="t">TEXT</td><td class="n">viewer|helper</td></tr>
+    <tr><td class="k">status</td><td class="t">TEXT</td><td class="n">pending|accepted|rejected|revoked|expired</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>invited_by</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">invite_token_hash</td><td class="t">TEXT</td><td class="n">SHA-256, satu pakai</td></tr>
+    <tr><td class="k">invite_expires_at, decided_at</td><td class="t">TIMESTAMPTZ</td><td class="n">+7 hari</td></tr>
+    <tr><td class="k">CHECK</td><td class="t">—</td><td class="n">owner ≠ caregiver</td></tr>
+  </table>
+</div>
+
+<!-- ============ STOK ============ -->
+<div class="tbl grp-stok" data-g="stok" id="medication_stock">
+  <h2><span class="dot"></span>medication_stock</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>medication_id</td><td class="t">UUID</td><td class="n">UNIQUE → 1:1</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>unit_code</td><td class="t">TEXT</td><td class="n">→ ref_unit</td></tr>
+    <tr><td class="k">initial_qty</td><td class="t">NUMERIC</td><td class="n">≥ 0</td></tr>
+    <tr><td class="k">current_qty</td><td class="t">NUMERIC</td><td class="n">CHECK ≥ 0</td></tr>
+    <tr><td class="k">qty_per_dose</td><td class="t">NUMERIC</td><td class="n">&gt; 0</td></tr>
+    <tr><td class="k">refill_threshold_qty</td><td class="t">NUMERIC</td><td class="n">ambang peringatan</td></tr>
+    <tr><td class="k">refill_reminder</td><td class="t">BOOLEAN</td><td class="n">aktifkan pengingat</td></tr>
+    <tr><td class="k">last_restocked_at</td><td class="t">TIMESTAMPTZ</td><td class="n">nullable</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-stok" data-g="stok" id="stock_transactions">
+  <h2><span class="dot"></span>stock_transactions</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>stock_id</td><td class="t">UUID</td><td class="n">→ medication_stock</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>log_id</td><td class="t">UUID</td><td class="n">→ medication_logs</td></tr>
+    <tr><td class="k">kind</td><td class="t">TEXT</td><td class="n">initial|restock|consume|adjust|expire</td></tr>
+    <tr><td class="k">qty_delta</td><td class="t">NUMERIC</td><td class="n">+ masuk, − keluar</td></tr>
+    <tr><td class="k">balance_after <span class="badge b-uq">TRG</span></td><td class="t">NUMERIC</td><td class="n">diisi trigger</td></tr>
+    <tr><td class="k">note, recorded_by</td><td class="t">TEXT/UUID</td><td class="n">nullable</td></tr>
+    <tr><td class="k">created_at</td><td class="t">TIMESTAMPTZ</td><td class="n">append-only</td></tr>
+  </table>
+</div>
+
+<!-- ============ NOTIFIKASI ============ -->
+<div class="tbl grp-notif" data-g="notif" id="notification_prefs">
+  <h2><span class="dot"></span>notification_prefs</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>user_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">channel</td><td class="t">TEXT</td><td class="n">push|email|telegram|in_app</td></tr>
+    <tr><td class="k">enabled</td><td class="t">BOOLEAN</td><td class="n">default true</td></tr>
+    <tr><td class="k">quiet_start, quiet_end</td><td class="t">TIME</td><td class="n">jam sunyi</td></tr>
+    <tr><td class="k">advance_minutes</td><td class="t">SMALLINT</td><td class="n">0–120</td></tr>
+    <tr><td class="k">notif_throttled</td><td class="t">BOOLEAN</td><td class="n">auto turun kanal</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>user_id+channel</td><td class="t">—</td><td class="n">satu baris per kanal</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-notif" data-g="notif" id="device_tokens">
+  <h2><span class="dot"></span>device_tokens</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>user_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">platform</td><td class="t">TEXT</td><td class="n">android|ios|web</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>token</td><td class="t">TEXT</td><td class="n">VAPID/FCM</td></tr>
+    <tr><td class="k">app_version, last_seen_at</td><td class="t">TEXT/TS</td><td class="n">debug</td></tr>
+    <tr><td class="k">revoked_at</td><td class="t">TIMESTAMPTZ</td><td class="n">logout / basi</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-notif" data-g="notif" id="user_integrations">
+  <h2><span class="dot"></span>user_integrations</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>user_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">provider</td><td class="t">TEXT</td><td class="n">telegram|wa</td></tr>
+    <tr><td class="k">external_id</td><td class="t">TEXT</td><td class="n">chat id</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>provider+external_id</td><td class="t">—</td><td class="n">idempoten</td></tr>
+    <tr><td class="k">verified_at, revoked_at</td><td class="t">TIMESTAMPTZ</td><td class="n">—</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-notif" data-g="notif" id="notification_jobs">
+  <h2><span class="dot"></span>notification_jobs</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">BIGINT IDENTITY</td><td class="n">antrean</td></tr>
+    <tr><td class="k">kind</td><td class="t">TEXT</td><td class="n">dose_reminder|missed_escalation|care_digest|retention|refill_reminder</td></tr>
+    <tr><td class="k">status</td><td class="t">TEXT</td><td class="n">pending|claimed|done|failed|cancelled</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>dedup_key</td><td class="t">TEXT</td><td class="n">anti spam</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k">payload</td><td class="t">JSONB</td><td class="n">{}</td></tr>
+    <tr><td class="k">run_at, attempts, max_attempts</td><td class="t">TS/SMALLINT</td><td class="n">retry backoff</td></tr>
+    <tr><td class="k">last_error, claimed_at</td><td class="t">TEXT/TS</td><td class="n">FOR UPDATE SKIP LOCKED</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-notif" data-g="notif" id="notification_deliveries">
+  <h2><span class="dot"></span>notification_deliveries</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">BIGINT IDENTITY</td><td class="n">per kanal</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>job_id</td><td class="t">BIGINT</td><td class="n">→ notification_jobs</td></tr>
+    <tr><td class="k">channel, status</td><td class="t">TEXT</td><td class="n">pending|sent|failed|skipped</td></tr>
+    <tr><td class="k">provider_id</td><td class="t">TEXT</td><td class="n">id pesan provider</td></tr>
+    <tr><td class="k">error_code, error_msg</td><td class="t">TEXT</td><td class="n">investigasi</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>job_id+channel</td><td class="t">—</td><td class="n">anti duplikat</td></tr>
+    <tr><td class="k">attempts, sent_at</td><td class="t">SMALLINT/TS</td><td class="n">—</td></tr>
+  </table>
+</div>
+
+<!-- ============ AUTH & AUDIT ============ -->
+<div class="tbl grp-auth" data-g="auth" id="refresh_sessions">
+  <h2><span class="dot"></span>refresh_sessions</h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">UUID</td><td class="n">uuidv7()</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>user_id</td><td class="t">UUID</td><td class="n">→ users</td></tr>
+    <tr><td class="k"><span class="badge b-uq">UQ</span>token_hash</td><td class="t">TEXT</td><td class="n">SHA-256</td></tr>
+    <tr><td class="k">expires_at</td><td class="t">TIMESTAMPTZ</td><td class="n">+30 hari</td></tr>
+    <tr><td class="k">revoked_at</td><td class="t">TIMESTAMPTZ</td><td class="n">logout / reuse</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>rotated_from</td><td class="t">UUID</td><td class="n">→ refresh_sessions</td></tr>
+    <tr><td class="k">created_ip, user_agent</td><td class="t">INET/TEXT</td><td class="n">nullable</td></tr>
+  </table>
+</div>
+
+<div class="tbl grp-auth" data-g="auth" id="audit_log">
+  <h2><span class="dot"></span>audit_log <span class="badge b-uq">append-only</span></h2>
+  <table>
+    <tr><td class="k"><span class="badge b-pk">PK</span>id</td><td class="t">BIGINT IDENTITY</td><td class="n">urutan</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>actor_id</td><td class="t">UUID</td><td class="n">NULL = sistem/cron</td></tr>
+    <tr><td class="k"><span class="badge b-fk">FK</span>owner_id</td><td class="t">UUID</td><td class="n">pemilik data</td></tr>
+    <tr><td class="k">actor_role</td><td class="t">TEXT</td><td class="n">user|admin|system</td></tr>
+    <tr><td class="k">action</td><td class="t">TEXT</td><td class="n">create…restock + aksi admin</td></tr>
+    <tr><td class="k">action (admin)</td><td class="t">TEXT</td><td class="n">admin_grant|user_disable|catalog_publish|…</td></tr>
+    <tr><td class="k">resource_type, resource_id</td><td class="t">TEXT/UUID</td><td class="n">tanpa FK</td></tr>
+    <tr><td class="k">ip, user_agent</td><td class="t">INET/TEXT</td><td class="n">nullable</td></tr>
+    <tr><td class="k">before_state, after_state</td><td class="t">JSONB</td><td class="n">perubahan sensitif</td></tr>
+    <tr><td class="k">meta</td><td class="t">JSONB</td><td class="n">GIN index</td></tr>
+    <tr><td class="k">created_at</td><td class="t">TIMESTAMPTZ</td><td class="n">—</td></tr>
+  </table>
+</div>
+
+<!-- ============ NOTES ============ -->
+<div class="rel notes grp-auth" data-g="all" style="grid-column:1/-1">
+  <h2>Relasi utama</h2>
+  <ul>
+    <li><code>users 1—* medications</code> — obat milik satu pasien (<code>owner_id</code>).</li>
+    <li><code>medications 1—1 medication_frequency</code> — satu pola minum per obat.</li>
+    <li><code>medications 1—* medication_times</code> — jam konkret (pagi/siang/malam atau jam:menit).</li>
+    <li><code>medications 1—* medication_logs</code> — catatan minum. Kunci unik <code>(obat, jadwal, tanggal, jam:menit)</code> menggantikan tabel slot; <code>schedule_id</code> NULL untuk dosis PRN/spontan.</li>
+    <li><code>medications 1—* medication_dose_events</code> — penyimpangan (missed, dose_shift, paused), append-only.</li>
+    <li><code>medications 1—* bump_queue</code> — hanya pekerjaan yang akan datang (snooze, job notifikasi, refill, digest).</li>
+    <li><b>Tidak ada tabel slot.</b> Tanggal dosis dihitung dari aturan (<code>medication_frequency</code> + <code>medication_times</code>) saat dibutuhkan.</li>
+    <li><code>medications 1—1 medication_stock 1—* stock_transactions</code> — stok berjalan + riwayat transaksi.</li>
+    <li><code>users *—* users via care_links</code> — <code>owner_id</code> (pasien) dan <code>caregiver_id</code> (pemantau), berstatus.</li>
+    <li><code>users 1—* notification_prefs | device_tokens | user_integrations | refresh_sessions</code>.</li>
+    <li><code>notification_jobs 1—* notification_deliveries</code> — satu baris per kanal per job.</li>
+    <li><code>audit_log</code> mencatat <code>actor_id</code> + <code>owner_id</code> tanpa FK ke sumber daya (log tetap utuh setelah objek dihapus).</li>
+  </ul>
+  <div class="legend">
+    <span><i class="badge b-pk">PK</i> primary key</span>
+    <span><i class="badge b-fk">FK</i> foreign key</span>
+    <span><i class="badge b-uq">UQ</i> unik / partial unique</span>
+    <span><i class="badge b-uq">GEN</i> generated column</span>
+    <span><i class="badge b-uq">TRG</i> diisi trigger</span>
+  </div>
+</div>
+
+<div class="rel notes" data-g="all" style="grid-column:1/-1">
+  <h2>Catatan desain</h2>
+  <ul>
+    <li><b>Pola frekuensi</b> — <code>daily</code> (× per hari), <code>interval</code> (tiap N jam), <code>weekly</code> (bitmask hari), <code>monthly_cycle</code> (intake N hari lalu pause M hari; atau tanggal tertentu / akhir bulan), <code>prn</code> (bila dibutuhkan).</li>
+    <li><b>Satuan</b> — mengacu UCUM subset di <code>ref_unit</code>: mg, g, mcg, IU, mL, tetes, puff, spuit, tablet, kapsul, unit, olesan. Satuan kombinasi lewat <code>strength_note</code> (mis. <code>120mg/5mL</code>).</li>
+    <li><b>Cara pakai</b> — <code>meal_relation</code> (sebelum/sesudah/saat makan), <code>as_needed</code>, <code>must_finish</code>, dan <code>notes_reminder</code> bebas.</li>
+    <li><b>Stok</b> — <code>balance_after</code> diisi trigger <code>apply_stock_txn()</code>; saldo negatif ditolak di aplikasi dan di DB. Peringatan restock saat <code>current_qty &lt;= refill_threshold_qty</code>.</li>
+    <li><b>Katalog</b> — <code>drug_catalog</code> dipakai dua tahap. Tahap 1 (sekarang): cukup untuk input manual user; kolom penyedia boleh kosong. Tahap 2: importer KFA/BPOM mengisi <code>kfa_code</code>/<code>bpom_nie</code> + <code>extra_meta</code>, jadi penyedia baru tidak butuh migrasi. FK dari <code>medications</code> memakai <code>id</code> internal (UUID), bukan kode penyedia.</li>
+    <li><b>Anti log ganda</b> — <code>uq_log_occurrence</code> partial unique pada <code>(medication_id, schedule_id, slot_date, scheduled_hour, scheduled_minute)</code> untuk baris hidup.</li>
+    <li><b>Jadwal tanpa row per hari</b> — terapi seumur hidup tetap 1 baris pola + N baris jam. Biaya storage tumbuh hanya saat dosis benar-benar dicatat, jadi tidak membengkak di skala SaaS.</li>
+    <li><b>Preset vs data user</b> — <code>drug_catalog.owner_id</code> NULL + <code>is_preset</code> = katalog publik kurasi admin; <code>owner_id</code> terisi + <code>curation_status='user_private'</code> = katalog pribadi user dan tidak pernah masuk preset.</li>
+    <li><b>User vs admin</b> — <code>users.role</code> (<code>user</code> / <code>admin</code>), terpisah dari <code>is_active</code>. <code>admin_scope</code> subset <code>{users, catalog, notifications, reports}</code>, NULL = penuh. Peran hanya ditetapkan lewat DB/seed, tidak ada endpoint yang menerimanya dari klien.</li>
+    <li><b>Audit admin</b> — <code>actor_role</code> disalin saat aksi (agar jejak tidak berubah bila peran user berubah), plus <code>before_state</code>/<code>after_state</code> untuk perubahan sensitif. Aksi admin: <code>admin_grant</code>, <code>admin_revoke</code>, <code>admin_scope_change</code>, <code>user_disable</code>, <code>user_enable</code>, <code>user_erase</code>, <code>catalog_publish</code>, <code>catalog_import</code>, <code>retention_purge</code>, dan sejenisnya.</li>
+    <li><b>Nilai enum berbahasa Inggris</b> — semua CHECK memakai istilah Inggris (mis. <code>after_meal</code>, <code>evening</code>, <code>child</code>), sedangkan <code>name</code> di tabel <code>ref_*</code> tetap Indonesia karena itu label tampilan untuk user.</li>
+    <li><b>Waktu</b> — semua absolut <code>TIMESTAMPTZ</code>; <code>slot_date</code> dihitung backend dari <code>users.timezone</code>, bukan zona DB.</li>
+    <li><b>Soft delete</b> — semua query aplikasi wajib <code>WHERE deleted_at IS NULL</code>, kecuali laporan admin.</li>
+  </ul>
+</div>
+
+</main>
+
+<footer>
+  Sumber: <code>backend/migrations/</code> · <code>docs/design-v2/data-model-v2.md</code> · <code>docs/design-v2/notification-v2.md</code>.
+  Katalog obat: Kamus Farmasi dan Alat Kesehatan (KFA), Kementerian Kesehatan RI.
+  Halaman ini offline — tidak memuat resource eksternal.
+</footer>
+
+<script>
+(function(){
+  var main=document.getElementById('main');
+  var cards=[].slice.call(main.querySelectorAll('.tbl'));
+  var notes=[].slice.call(main.querySelectorAll('.notes'));
+  var q=document.getElementById('q');
+  var btns=[].slice.call(document.querySelectorAll('button[data-f]'));
+  var state={katalog:true,inti:true,stok:true,notif:true,auth:true};
+
+  function groupOf(card){
+    var g=card.getAttribute('data-g');
+    return g;
+  }
+
+  function apply(){
+    var term=(q.value||'').trim().toLowerCase();
+    cards.forEach(function(card){
+      var g=groupOf(card);
+      var vis=state[g]!==false;
+      if(vis&&term){
+        vis=card.textContent.toLowerCase().indexOf(term)>-1;
+      }
+      card.classList.toggle('hide',!vis);
+    });
+    notes.forEach(function(n){
+      n.style.display=term?'none':'';
+    });
+    if(term){notes.forEach(function(n){n.style.display='none';});}
+    else{
+      var anyOn=Object.keys(state).some(function(k){return state[k];});
+      notes.forEach(function(n){n.style.display=anyOn?'':'none';});
+    }
+  }
+
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      var f=b.getAttribute('data-f');
+      if(f==='all'){
+        var turnOn=!Object.keys(state).every(function(k){return state[k];});
+        Object.keys(state).forEach(function(k){state[k]=turnOn;});
+      }else{
+        state[f]=!state[f];
+      }
+      btns.forEach(function(x){
+        var k=x.getAttribute('data-f');
+        if(k==='all'){
+          x.setAttribute('aria-pressed',String(Object.keys(state).every(function(kk){return state[kk];})));
+        }else{
+          x.setAttribute('aria-pressed',String(!!state[k]));
+        }
+      });
+      apply();
+    });
+  });
+
+  q.addEventListener('input',apply);
+  apply();
+})();
+</script>
+</body>
+</html>

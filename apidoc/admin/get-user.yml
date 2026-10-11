@@ -1,0 +1,64 @@
+info:
+  name: Detail Akun
+  type: http
+  seq: 2
+  tags:
+    - admin
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.medication_count
+      operator: isNumber
+
+docs: |-
+  # Detail Akun
+
+  Data akun beserta **jumlah** obat aktifnya. Butuh scope **`users`**.
+
+  ## Admin TIDAK bisa membaca isi obat pasien
+
+  Aturan ini dari TRD bagian 5.3, dan ditegakkan di lapisan query: rute admin
+  tidak pernah menyentuh tabel `medications`, `medication_logs`, maupun
+  `medication_dose_events`.
+
+  Yang tersedia hanya:
+
+  | Data | Keterangan |
+  |---|---|
+  | Identitas akun | Email, nama, telepon, zona waktu |
+  | Peran dan cakupan | Untuk memeriksa hak akses |
+  | Status aktif | Untuk menonaktifkan |
+  | **Jumlah** obat aktif | Bukan daftarnya |
+  | Waktu login terakhir | Untuk melihat akun yang menganggur |
+
+  Kalau operator perlu investigasi isi data pasien, itu jalur tersendiri
+  dengan alasan tertulis dan tercatat — bukan lewat endpoint ini.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019...",
+      "email": "budi@example.com",
+      "full_name": "Budi Santoso",
+      "is_active": true,
+      "role": "user",
+      "admin_scope": null,
+      "medication_count": 3,
+      "last_login_at": "2026-10-11T10:00:00Z"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

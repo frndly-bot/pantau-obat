@@ -1,0 +1,68 @@
+info:
+  name: Aktifkan Akun
+  type: http
+  seq: 4
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}/enable"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.is_active
+      operator: eq
+      value: true
+
+docs: |-
+  # Aktifkan Akun
+
+  Mengaktifkan kembali akun yang dinonaktifkan. Butuh scope **`users`**.
+
+  ## Garis potong pencabutan DIHAPUS
+
+  Saat menonaktifkan, sebuah garis potong waktu dipasang sehingga token lama
+  ditolak. Saat mengaktifkan, garis itu **dihapus**, supaya token baru berlaku
+  normal.
+
+  Token **lama** tetap tidak berlaku: `iat`-nya tetap sebelum garis potong
+  yang lama, dan itu tidak berubah.
+
+  ## User perlu masuk ulang
+
+  Akun yang baru diaktifkan belum punya sesi aktif — semuanya dicabut saat
+  dinonaktifkan. User perlu login lagi untuk mendapat token baru.
+
+  ## Kalau akun sudah aktif
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "akun sudah dalam keadaan itu"
+    }
+  }
+  ```
+
+  Ditolak, bukan dibiarkan sukses tanpa efek. Perubahan yang tidak terjadi
+  tanpa penjelasan membingungkan operator.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "is_active": true,
+      "note": "user perlu masuk ulang untuk mendapat token baru"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

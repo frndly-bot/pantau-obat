@@ -1,0 +1,81 @@
+info:
+  name: Cabut Peran Admin
+  type: http
+  seq: 6
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}/revoke-admin"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "reason": "tugas selesai"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.role
+      operator: eq
+      value: "user"
+
+docs: |-
+  # Cabut Peran Admin
+
+  Mencabut peran admin. Butuh scope **`users`**.
+
+  ## Cakupan dikosongkan sekaligus
+
+  Kalau peran dicabut tapi `admin_scope` tertinggal, pemberian peran
+  berikutnya akan **mewarisi cakupan lama** tanpa disadari. Karena itu
+  keduanya diubah bersama.
+
+  ## Akses dicabut, login ulang wajib
+
+  Sama seperti pemberian peran: token lama masih memuat klaim admin, dan itu
+  tidak boleh terus berlaku. Seluruh sesi dicabut.
+
+  ## Pada akun yang bukan admin
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Dijawab sebagai tidak ditemukan: tidak ada peran yang bisa dicabut dari akun
+  yang bukan admin.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "role": "user",
+      "admin_scope": null,
+      "relogin_required": true
+    }
+  }
+  ```
+
+  ## Auditnya lengkap dengan before/after
+
+  ```json
+  "before_state": {"role": "admin", "admin_scope": ["catalog", "reports"]},
+  "after_state":  {"role": "user",  "admin_scope": null}
+  ```
+
+  Peran **saat aksi terjadi** disalin ke `actor_role`, bukan di-join. Kalau
+  admin yang beraksi itu kemudian diturunkan, jejak lamanya harus tetap
+  menunjukkan bahwa aksinya dilakukan **saat ia berperan admin**.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Obat — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .wiz-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .wiz-foot { padding: 14px 18px calc(16px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--border); display: flex; gap: 10px; position: sticky; bottom: 0; background: var(--card); }
+  .wiz-foot .btn { flex: 1; }
+  .time-rows { display: flex; flex-direction: column; gap: 8px; }
+  .time-row { display: flex; gap: 8px; align-items: center; }
+  .time-row .input { flex: 1; }
+  .time-row .btn { flex: none; }
+  /* Kartu obat: ikon rata atas + isi lebih padat & informatif */
+  .med-card { align-items: flex-start; }
+  .med-card .med-avatar { align-self: flex-start; }
+  .med-card .med-chev { flex: none; align-self: center; color: var(--muted-foreground); opacity: .5; }
+  .med-card .med-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .med-card .med-name { font-size: 14.5px; line-height: 1.25; }
+  .med-card .meta-line { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+  .med-card .med-times { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+  .med-card .med-times .tc { font-family: var(--font-mono); font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; background: var(--muted); border: 1px solid var(--border); }
+  .med-card .med-times .tc.prn { font-family: var(--font-sans); color: var(--private); border-color: color-mix(in oklab, var(--private) 28%, transparent); background: color-mix(in oklab, var(--private) 12%, transparent); }
+  .med-card .med-times .tc.next { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: var(--primary); border-color: color-mix(in oklab, var(--primary) 40%, transparent); background: color-mix(in oklab, var(--primary) 14%, transparent); }
+  .med-card .med-times .tc.next svg { width: 12px; height: 12px; }
+  .med-card .stock-line { margin-top: 9px; }
+  .med-card .stock-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 5px; }
+  .sect-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-user">
+  <header id="po-top"></header>
+  <main class="u-body" id="main"></main>
+  <button class="fab" id="fab" aria-label="Tambah obat"></button>
+</div>
+
+<nav id="po-nav"></nav>
+
+<!-- ============ Sheet: wizard tambah obat ============ -->
+<div class="scrim" data-for="w-add"></div>
+<div class="sheet" id="w-add" role="dialog" aria-modal="true" aria-labelledby="w-title">
+  <div class="grip"></div>
+  <div class="u-topbar" style="position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border)">
+    <div class="row-b">
+      <div class="grow">
+        <div class="t" id="w-title">Tambah obat</div>
+        <div class="sub" id="w-sub">Langkah 1 dari 5</div>
+      </div>
+      <button class="icon-btn" data-close="w-add" aria-label="Tutup" id="w-x"></button>
+    </div>
+    <div class="steps mt-12" id="w-steps"></div>
+  </div>
+
+  <div class="wiz-body" id="w-body"></div>
+
+  <div class="wiz-foot">
+    <button class="btn btn-outline" id="w-back">Kembali</button>
+    <button class="btn btn-primary" id="w-next">Lanjut</button>
+  </div>
+</div>
+
+<!-- ============ Sheet: pilih preset katalog ============ -->
+<div class="scrim" data-for="w-cat"></div>
+<div class="sheet" id="w-cat" role="dialog" aria-modal="true" aria-labelledby="wc-t">
+  <div class="grip"></div>
+  <div class="u-topbar" style="position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border)">
+    <div class="row-b">
+      <div class="grow"><div class="t" id="wc-t">Cari obat</div>
+        <div class="sub">Preset publik dari KFA/BPOM + katalog pribadi Anda</div></div>
+      <button class="icon-btn" data-close="w-cat" aria-label="Tutup" id="wc-x"></button>
+    </div>
+  </div>
+  <div class="wiz-body">
+    <div class="autocomplete">
+      <div class="input-icon">
+        <span id="wc-ic"></span>
+        <input class="input" id="wc-q" placeholder="Nama dagang, generik, istilah resep, ATC…" autocomplete="off">
+      </div>
+      <div class="ac-list hide" id="wc-list"></div>
+    </div>
+    <div class="row-wrap" id="wc-chips"></div>
+    <div class="stack-8" id="wc-results"></div>
+    <div class="divider dashed"></div>
+    <button class="btn btn-outline btn-block" id="wc-manual">Tambah sebagai obat manual (katalog pribadi)</button>
+    <p class="xs muted-3">Memilih preset hanya <b>mengisi form</b> — tidak langsung menyimpan obat. Katalog pribadi tidak pernah muncul untuk pengguna lain.</p>
+  </div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireUser()) return;
+
+  var ME = PO.session.user.id;
+  var filter = "active";
+  var query = "";
+
+  /* ---------------- daftar obat ---------------- */
+  function medRow(m) {
+    var st = PO.stockPercent(m);
+    var tone = st >= 50 ? "ok" : st >= 25 ? "warn" : "err";
+    var pattern = PO.t("pattern", m.frequency.pattern);
+    var extra = "";
+    if (m.frequency.pattern === "interval") extra = " · tiap " + m.frequency.interval_hours + " jam";
+    if (m.frequency.pattern === "weekly") extra = " · " + A.esc(daysLabel(m.frequency.days_of_week));
+    if (m.frequency.pattern === "monthly_cycle") extra = " · " + m.frequency.cycle_intake_days + " minum / " + m.frequency.cycle_pause_days + " jeda";
+    if (m.frequency.pattern === "prn") extra = " · maks " + m.frequency.prn_max_per_day + "×/hari";
+    var archived = !!m.deleted_at || !m.is_active;
+    var isPrn = m.frequency.pattern === "prn";
+
+    /* dosis berikutnya hari ini (chip jam yang cocok akan disorot) */
+    var nextTime = nextDoseToday(m);
+
+    /* chip jam: satu pill per jam minum, atau label PRN bila tanpa jadwal */
+    var timeChips = isPrn
+      ? '<span class="tc prn">' + A.esc(pattern) + "</span>"
+      : m.times.filter(function (t) { return t.is_active; }).map(function (t) {
+          var isNext = nextTime && t.time_local === nextTime;
+          return '<span class="tc' + (isNext ? " next" : "") + '">' +
+            (isNext ? A.icon("clock") : "") + A.esc(t.time_local) + "</span>";
+        }).join("");
+
+    /* status stok ringkas */
+    var perDay = m.stock ? PO.perDay(m) : 0;
+    var daysLeft = (m.stock && perDay > 0) ? Math.floor(m.stock.current_qty / perDay) : null;
+    var stockTxt = m.stock ? m.stock.current_qty + " " + A.esc(PO.t("unit", m.stock.unit_code)) : "—";
+    var stockBadge = !m.stock ? A.badge("tanpa stok", "badge-na")
+      : st >= 50 ? A.badge("stok aman", "badge-ok")
+      : st >= 25 ? A.badge("perlu restock", "badge-late")
+      : A.badge("stok menipis", "badge-miss");
+
+    return '<a class="list-card hoverable med-card" href="obat-detail.html?id=' + m.id + '" data-name="' +
+        A.esc((m.name || "").toLowerCase()) + '" data-kind="' + (archived ? "arsip" : "aktif") + '">' +
+      '<span class="avatar med-avatar" style="background:linear-gradient(140deg,' + A.esc(m.color_tag) + '33,var(--muted));color:' + A.esc(m.color_tag) + '">' +
+        A.icon(m.as_needed ? "droplet" : "pill") + "</span>" +
+      '<div class="grow">' +
+        '<div class="med-name-row"><b class="med-name">' + A.esc(m.name) + "</b>" +
+          (m.must_finish ? A.badge("habiskan", "badge-late") : "") +
+          (m.as_needed ? A.badge("PRN", "badge-private") : "") +
+          (archived ? A.badge("arsip", "badge-na") : "") +
+        "</div>" +
+        '<div class="meta-line">' + A.esc(m.dose_value + " " + PO.t("unit", m.dose_unit_code)) + " · " +
+          A.esc(PO.t("meal_relation", m.meal_relation)) + " · " + A.esc(PO.t("route", m.route_code)) + "</div>" +
+        '<div class="meta-line">' + A.esc(pattern) + extra + "</div>" +
+        (timeChips ? '<div class="med-times">' + timeChips + "</div>" : "") +
+        (m.stock ? '<div class="stock-line">' +
+          '<div class="stock-row"><span class="xs muted-3">Stok</span>' + A.meter(st / 100, { tone: tone, thin: true }) +
+          '<span class="q xs">' + stockTxt + "</span></div>" +
+          '<div class="stock-foot">' + stockBadge +
+            (daysLeft !== null ? '<span class="xs muted-3">± ' + daysLeft + " hari lagi</span>" : "") +
+          "</div></div>" : "") +
+      "</div>" +
+      '<span class="med-chev">' + A.icon("chev-right") + "</span>" +
+    "</a>";
+  }
+
+  /* jam dosis berikutnya hari ini untuk obat ini (null bila tidak ada lagi) */
+  function nextDoseToday(m) {
+    if (m.frequency.pattern === "prn") return null;
+    var nowMin = PO.NOW.getHours() * 60 + PO.NOW.getMinutes();
+    var best = null, bestMin = Infinity;
+    m.times.filter(function (t) { return t.is_active; }).forEach(function (t) {
+      var mins = +t.time_local.slice(0, 2) * 60 + +t.time_local.slice(3, 5);
+      if (mins >= nowMin && mins < bestMin) { bestMin = mins; best = t.time_local; }
+    });
+    return best;
+  }
+
+  function daysLabel(mask) {
+    var names = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+    var out = [];
+    for (var i = 0; i < 7; i++) if (mask & Math.pow(2, i)) out.push(names[i]);
+    if (out.length === 7) return "setiap hari";
+    return out.join(", ");
+  }
+
+  function render() {
+    var active = PO.activeMeds().filter(function (m) { return m.is_active && !m.deleted_at; });
+    var archived = PO.medications.filter(function (m) { return m.deleted_at || !m.is_active; });
+    var list = filter === "active" ? active : filter === "arsip" ? archived : PO.medications;
+    if (query) {
+      list = list.filter(function (m) { return (m.name || "").toLowerCase().indexOf(query) >= 0; });
+    }
+
+    var html = "";
+
+    /* ringkasan atas */
+    var lowCount = PO.lowStock().length;
+    html += '<section class="card card-pad">' +
+      '<div class="row-b">' +
+        '<div><div class="hd xs muted-3" style="text-transform:uppercase;letter-spacing:.6px">Obat aktif</div>' +
+          '<div class="big-num">' + active.length + "</div>" +
+          '<div class="sm muted">' + archived.length + " di arsip · " + lowCount + " perlu restock</div></div>" +
+        '<div class="right">' + A.ring(active.length ? (active.length - lowCount) / active.length : 0, "", "stok aman", 84) + "</div>" +
+      "</div></section>";
+
+    /* filter + cari */
+    html += '<section class="stack-8">' +
+      '<div class="toolbar">' +
+        '<div class="input-icon grow"><span>' + A.icon("search") + "</span>" +
+          '<input class="input" id="q" placeholder="Cari nama obat…" value="' + A.esc(query) + '"></div>' +
+      "</div>" +
+      '<div class="seg" id="seg-filter">' +
+        '<button data-val="active" class="' + (filter === "active" ? "on" : "") + '">Aktif</button>' +
+        '<button data-val="arsip" class="' + (filter === "arsip" ? "on" : "") + '">Arsip</button>' +
+        '<button data-val="all" class="' + (filter === "all" ? "on" : "") + '">Semua</button>' +
+      "</div>" +
+    "</section>";
+
+    /* daftar */
+    html += '<section class="stack-8" id="list">';
+    if (!list.length) {
+      html += A.empty("Tidak ada obat di sini", filter === "arsip" ? "Obat yang dihentikan muncul di sini tanpa menghapus riwayat." : "Tambahkan obat pertama Anda lewat tombol +.", "pill");
+    } else {
+      html += list.map(medRow).join("");
+    }
+    html += "</section>";
+
+    /* katalog pribadi */
+    var priv = PO.catalog.filter(function (c) { return !c.is_preset && c.owner_id === ME; });
+    html += '<section class="card"><div class="card-head"><div><h3>' + A.icon("tag") + " Katalog pribadi saya</h3>" +
+      '<div class="sub">Obat manual — tidak pernah terlihat pengguna lain</div></div>' +
+      '<span class="badge badge-private">' + priv.length + "</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (priv.length ? priv.map(function (c) {
+        return '<div class="list-card"><span class="avatar med">' + A.icon("tag") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(c.display_name) + "</b></div>" +
+          '<div class="xs muted-3">' + A.esc(c.dosage_form_name || "—") + " · " + A.esc(PO.t("route", c.route_code)) + " · " + A.esc(PO.t("curation_status", c.curation_status)) + "</div></div>" +
+          A.badge("pribadi", "badge-private") + "</div>";
+      }).join("") : A.empty("Belum ada entri pribadi", "Dibuat otomatis saat Anda menambah obat manual.", "tag")) +
+      "</div></section>";
+
+    html += '<div class="xs muted-3">' + A.icon("info") +
+      " Nama obat dan dosis disimpan per pengguna; keunikan dijaga <span class=\"mono\">uq_meds_owner_name</span>, jadi obat yang sudah dihapus boleh didaftarkan ulang.</div>";
+
+    document.getElementById("main").innerHTML = html;
+    document.getElementById("fab").innerHTML = A.icon("plus");
+    document.getElementById("w-x").innerHTML = A.icon("x");
+    document.getElementById("wc-x").innerHTML = A.icon("x");
+    document.getElementById("wc-ic").innerHTML = A.icon("search");
+
+    var q = document.getElementById("q");
+    q.addEventListener("input", A.debounce(function () {
+      query = q.value.trim().toLowerCase();
+      render();
+      var nq = document.getElementById("q");
+      nq.focus();
+      nq.setSelectionRange(nq.value.length, nq.value.length);
+    }, 200));
+
+    document.querySelectorAll("#seg-filter button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        filter = b.getAttribute("data-val");
+        render();
+      });
+    });
+
+    document.getElementById("fab").addEventListener("click", openWizard);
+  }
+
+  /* ---------------- wizard ---------------- */
+  var STEP_TITLES = ["Sumber obat", "Detail obat", "Pola minum", "Jam & hari", "Stok & simpan"];
+  var step = 0;
+  var draft = null;
+
+  function blankDraft() {
+    return {
+      catalog_id: null, name: "", dose_value: 1, dose_unit_code: "tablet", strength_note: "",
+      route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "after_meal",
+      as_needed: false, must_finish: false, start_date: PO.TODAY, start_time: "07:00", end_date: "",
+      notes: "", notes_reminder: "", color_tag: "#2dd4bf",
+      pattern: "daily", times_per_day: 2, interval_hours: 8, interval_min_hours: 8,
+      days_of_week: 127, cycle_intake_days: 21, cycle_pause_days: 7, cycle_anchor: "from_start",
+      prn_max_per_day: 4,
+      times: [{ time_local: "07:00", label: "morning" }, { time_local: "19:00", label: "evening" }],
+      stock_mode: "track", stock_qty: 30, qty_per_dose: 1, threshold: 5, refill_reminder: true
+    };
+  }
+
+  function openWizard() {
+    if (!draft) draft = blankDraft();
+    step = 0;
+    A.overlay("w-add", true);
+    drawStep();
+  }
+
+  function stepsBar() {
+    var inner = STEP_TITLES.map(function (t, i) {
+      var cls = i === step ? "on" : i < step ? "done" : "";
+      return '<span class="step-dot ' + cls + '" data-step="' + i + '"><i>' + (i < step ? "✓" : i + 1) + "</i>" + A.esc(t) + "</span>" +
+        (i < STEP_TITLES.length - 1 ? '<span class="step-sep"></span>' : "");
+    }).join("");
+    /* Bantalan kiri/kanan (lebarnya diatur centerStep) supaya langkah pertama
+       DAN terakhir tetap bisa diposisikan di tengah. */
+    return '<span class="step-pad" aria-hidden="true"></span>' + inner +
+      '<span class="step-pad" aria-hidden="true"></span>';
+  }
+
+  /* Geser baris langkah supaya langkah aktif tepat di tengah kotak.
+     Tanpa ini, step 4–5 tetap tersembunyi di luar tepi karena .steps
+     hanya bisa di-scroll horizontal tanpa auto-scroll.
+     Catatan: offsetLeft relatif ke offsetParent (.u-topbar), bukan ke
+     .steps, jadi posisi dihitung dari rect agar tidak meleset. */
+  function centerStep() {
+    var box = document.getElementById("w-steps");
+    if (!box) return;
+    var on = box.querySelector(".step-dot.on");
+    if (!on) return;
+    /* Lebar bantalan = setengah ruang kosong, dikurangi gap flex (satu sisi). */
+    var gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+    var pad = Math.max(0, (box.clientWidth - on.offsetWidth) / 2 - gap);
+    box.querySelectorAll(".step-pad").forEach(function (p) { p.style.width = pad + "px"; });
+    var br = box.getBoundingClientRect();
+    var or = on.getBoundingClientRect();
+    /* Tengah langkah aktif dalam koordinat konten (rect + scroll saat ini). */
+    var onCenter = (or.left - br.left) + box.scrollLeft + or.width / 2;
+    var target = onCenter - box.clientWidth / 2;
+    var max = box.scrollWidth - box.clientWidth;
+    box.scrollTo({ left: Math.max(0, Math.min(target, max)), behavior: "smooth" });
+  }
+
+  function fieldOpts(pairs, value) {
+    return pairs.map(function (p) {
+      return '<option value="' + p[0] + '"' + (p[0] === value ? " selected" : "") + ">" + A.esc(p[1]) + "</option>";
+    }).join("");
+  }
+
+  function drawStep() {
+    document.getElementById("w-sub").textContent = "Langkah " + (step + 1) + " dari 5";
+    document.getElementById("w-steps").innerHTML = stepsBar();
+    document.getElementById("w-back").disabled = step === 0;
+    document.getElementById("w-next").textContent = step === 4 ? "Simpan obat" : "Lanjut";
+    document.getElementById("w-next").className = "btn " + (step === 4 ? "btn-ok" : "btn-primary");
+
+    var b = document.getElementById("w-body");
+    var h = "";
+
+    if (step === 0) {
+      h += '<p class="sm muted">Pilih preset agar nama, bentuk sediaan, dan rutenya terisi otomatis — atau tulis sendiri. ' +
+        "Memilih preset <b>tidak</b> menyimpan obat secara diam-diam.</p>" +
+        '<button class="result" id="pick-cat">' +
+          '<span class="avatar sm">' + A.icon("database") + "</span>" +
+          '<div class="grow"><div class="t">' + (draft.catalog_id ? A.esc((PO.cat(draft.catalog_id) || {}).display_name || "") : "Cari preset katalog") + "</div>" +
+          '<div class="s">' + (draft.catalog_id ? "Terisi dari katalog" : "KFA/BPOM atau katalog pribadi") + "</div></div>" +
+          A.icon("search") +
+        "</button>" +
+        '<div class="divider dashed"></div>' +
+        '<div class="field"><label for="f-name">Nama obat di aplikasi <span class="req">*</span></label>' +
+          '<input class="input" id="f-name" value="' + A.esc(draft.name) + '" placeholder="Misalnya: Amlodipine 10">' +
+          '<span class="hint">Bebas Anda tentukan; ini yang muncul di kartu dosis.</span></div>' +
+        '<div class="field"><label>Template cepat</label><div class="row-wrap" id="tpl"></div>' +
+          '<span class="hint">Template hanya mengisi form, tidak menyimpan apa pun.</span></div>';
+    }
+
+    if (step === 1) {
+      h += '<div class="grid-2">' +
+        '<div class="field"><label for="f-dose">Jumlah per dosis <span class="req">*</span></label>' +
+          '<input class="input" id="f-dose" type="number" step="0.25" min="0.25" value="' + draft.dose_value + '"></div>' +
+        '<div class="field"><label for="f-unit">Satuan <span class="req">*</span></label><select class="input" id="f-unit">' +
+          fieldOpts([["tablet", "Tablet"], ["kapsul", "Kapsul"], ["kaplet", "Kaplet"], ["mg", "Miligram (mg)"], ["mL", "Mililiter (mL)"],
+            ["sachet", "Sachet"], ["tetes", "Tetes"], ["puff", "Puff"], ["IU", "IU"], ["spuit", "Spuit"]], draft.dose_unit_code) +
+        "</select></div>" +
+      "</div>" +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="f-route">Rute</label><select class="input" id="f-route">' +
+          fieldOpts([["O", "Mulut (oral)"], ["T", "Topikal"], ["S", "Injeksi"], ["I", "Inhalasi"], ["N", "Hidung"], ["E", "Mata"]], draft.route_code) +
+        "</select></div>" +
+        '<div class="field"><label for="f-meal">Waktu makan</label><select class="input" id="f-meal">' +
+          fieldOpts([["before_meal", "Sebelum makan"], ["after_meal", "Sesudah makan"], ["with_meal", "Bersama makan"], ["not_related", "Tidak terkait makan"]], draft.meal_relation) +
+        "</select></div>" +
+      "</div>" +
+      '<div class="field"><label for="f-strength">Keterangan kekuatan</label>' +
+        '<input class="input" id="f-strength" value="' + A.esc(draft.strength_note) + '" placeholder="120mg/5mL atau 100IU/mL">' +
+        '<span class="hint">Untuk sediaan kombinasi, supaya dosis tidak salah tafsir.</span></div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="f-start">Mulai terapi</label><input class="input" id="f-start" type="date" value="' + draft.start_date + '"></div>' +
+        '<div class="field"><label for="f-end">Selesai (opsional)</label><input class="input" id="f-end" type="date" value="' + draft.end_date + '">' +
+          '<span class="hint">Kosong = terapi berjalan terus.</span></div>' +
+      "</div>" +
+      '<label class="check"><input type="checkbox" id="f-finish"' + (draft.must_finish ? " checked" : "") + '>' +
+        '<span class="cb-txt">Harus dihabiskan<small>Untuk antibiotik dan sejenisnya. Tidak boleh dihentikan walau sudah membaik.</small></span></label>' +
+      '<label class="check"><input type="checkbox" id="f-prn"' + (draft.as_needed ? " checked" : "") + '>' +
+        '<span class="cb-txt">Bila diperlukan (PRN)<small>Tanpa jadwal tetap; langkah 3 akan melewati pola.</small></span></label>' +
+      '<div class="field"><label for="f-rem">Catatan pengingat</label><input class="input" id="f-rem" value="' + A.esc(draft.notes_reminder) + '" placeholder="Jangan lupa tensi pagi"></div>' +
+      '<div class="field"><label for="f-notes">Catatan pribadi</label><textarea class="input" id="f-notes" placeholder="Disimpan untuk diri sendiri; tidak terlihat caregiver">' + A.esc(draft.notes) + "</textarea></div>";
+    }
+
+    if (step === 2) {
+      var PATS = [
+        ["daily", "Sekian kali sehari", "1–24 kali per hari, jam diisi satu per satu", "sun"],
+        ["interval", "Tiap sekian jam", "Mis. tiap 8 jam mulai 06:00", "clock"],
+        ["weekly", "Hari tertentu", "Mis. Senin & Kamis saja", "calendar"],
+        ["monthly_cycle", "Siklus minum–jeda", "Mis. 21 hari minum lalu 7 hari jeda", "refresh"],
+        ["prn", "Bila perlu (PRN)", "Tanpa jadwal; dicatat saat dipakai", "droplet"]
+      ];
+      h += '<div class="pattern-pick">' + PATS.map(function (p) {
+        var on = (draft.as_needed ? "prn" : draft.pattern) === p[0];
+        return '<button class="pattern-opt' + (on ? " on" : "") + '" data-pat="' + p[0] + '">' +
+          A.icon(p[3]) + "<b>" + A.esc(p[1]) + "</b><span>" + A.esc(p[2]) + "</span></button>";
+      }).join("") + "</div>";
+
+      var pat = draft.as_needed ? "prn" : draft.pattern;
+      h += '<div class="divider dashed"></div>';
+      if (pat === "daily") {
+        h += '<div class="field"><label for="p-tpd">Berapa kali sehari</label>' +
+          '<input class="input" id="p-tpd" type="number" min="1" max="24" value="' + draft.times_per_day + '">' +
+          '<span class="hint">DB menegakkan 1–24 lewat <span class="mono">ck_freq_params</span>. Jam konkret diisi di langkah berikut.</span></div>';
+      } else if (pat === "interval") {
+        h += '<div class="grid-2">' +
+          '<div class="field"><label for="p-int">Interval (jam)</label><input class="input" id="p-int" type="number" min="1" max="168" value="' + draft.interval_hours + '"></div>' +
+          '<div class="field"><label for="p-intmin">Rentang minimum</label><input class="input" id="p-intmin" type="number" min="1" max="168" value="' + draft.interval_min_hours + '">' +
+          '<span class="hint">Informasi saja.</span></div></div>';
+      } else if (pat === "weekly") {
+        h += '<div class="field"><label>Hari minum</label><div class="days" id="p-days">' +
+          ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(function (d, i) {
+            var on = !!(draft.days_of_week & Math.pow(2, i));
+            return '<button class="day-opt' + (on ? " on" : "") + '" data-bit="' + Math.pow(2, i) + '">' + d + "</button>";
+          }).join("") + "</div>" +
+          '<span class="hint">Bitmask: Senin=1 … Minggu=64. Minimal satu hari.</span></div>';
+      } else if (pat === "monthly_cycle") {
+        h += '<div class="grid-2">' +
+          '<div class="field"><label for="p-in">Hari minum</label><input class="input" id="p-in" type="number" min="1" max="365" value="' + draft.cycle_intake_days + '"></div>' +
+          '<div class="field"><label for="p-pause">Hari jeda</label><input class="input" id="p-pause" type="number" min="0" max="365" value="' + draft.cycle_pause_days + '"></div>' +
+          "</div>" +
+          '<div class="field"><label for="p-anchor">Titik mulai siklus</label><select class="input" id="p-anchor">' +
+          fieldOpts([["from_start", "Dari tanggal mulai"], ["dom", "Tanggal tertentu (DOM)"], ["end_of_month", "Akhir bulan"]], draft.cycle_anchor) +
+          "</select><span class=\"hint\">Selama masa jeda tidak ada pengingat dan tidak dihitung terlewat.</span></div>";
+      } else {
+        h += '<div class="field"><label for="p-prn">Batas peringatan per hari</label>' +
+          '<input class="input" id="p-prn" type="number" min="1" max="24" value="' + draft.prn_max_per_day + '">' +
+          '<span class="hint">Opsional. Log PRN tidak punya <span class="mono">schedule_id</span>, jadi boleh berkali-kali sehari.</span></div>';
+      }
+      h += '<div class="banner info"><span class="ic">' + A.icon("info") + "</span><div><b>Jadwal disimpan sebagai aturan</b>" +
+        "<p>Terapi seumur hidup tetap 3 baris di DB: satu pola + N jam. Dosis per hari dihitung saat dibutuhkan, tidak disimpan per tanggal.</p></div></div>";
+    }
+
+    if (step === 3) {
+      var pat2 = draft.as_needed ? "prn" : draft.pattern;
+      if (pat2 === "prn") {
+        h += A.empty("PRN tidak punya jam tetap", "Bila diperlukan, dosis dicatat manual dari halaman Hari Ini.", "droplet");
+      } else {
+        h += '<div class="field"><label>Jam minum</label><div class="time-rows" id="t-rows">' +
+          draft.times.map(function (t, i) {
+            return '<div class="time-row" data-i="' + i + '">' +
+              '<input class="input" type="time" value="' + t.time_local + '" data-for="time">' +
+              '<select class="input" style="max-width:130px" data-for="label">' +
+                fieldOpts([["morning", "Pagi"], ["afternoon", "Siang"], ["evening", "Malam"], ["dawn", "Subuh"], ["other", "Lainnya"]], t.label) +
+              "</select>" +
+              '<button class="btn btn-ghost btn-icon" data-del="' + i + '" aria-label="Hapus jam">' + A.icon("trash") + "</button>" +
+            "</div>";
+          }).join("") + "</div>" +
+          '<button class="btn btn-outline btn-sm mt-8" id="t-add">' + A.icon("plus") + "Tambah jam</button></div>";
+        if (pat2 === "weekly") {
+          h += '<div class="field"><label>Berlaku pada hari</label><div class="days" id="t-days">' +
+            ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(function (d, i) {
+              var on = !!(draft.days_of_week & Math.pow(2, i));
+              return '<button class="day-opt' + (on ? " on" : "") + '" data-bit="' + Math.pow(2, i) + '">' + d + "</button>";
+            }).join("") + "</div></div>";
+        }
+        h += '<div class="banner warn"><span class="ic">' + A.icon("alert") + "</span><div><b>Mengubah jam hanya berlaku ke depan</b>" +
+          "<p>Log yang sudah tercatat tidak berubah. Perubahan pola dicatat sebagai <span class=\"mono\">dose_shift</span> di riwayat.</p></div></div>";
+      }
+    }
+
+    if (step === 4) {
+      var pat3 = draft.as_needed ? "prn" : draft.pattern;
+      h += '<label class="sw"><input type="checkbox" id="s-track"' + (draft.stock_mode === "track" ? " checked" : "") + '>' +
+        '<span class="track"></span><span class="sw-lbl">Lacak stok obat ini' +
+        "<small>Setiap dosis dicatat akan memotong saldo satu transaksi.</small></span></label>";
+      h += '<div id="s-fields" class="stack">' +
+        '<div class="grid-2">' +
+          '<div class="field"><label for="s-qty">Stok awal</label><input class="input" id="s-qty" type="number" min="0" value="' + draft.stock_qty + '"></div>' +
+          '<div class="field"><label for="s-per">Dipakai per dosis</label><input class="input" id="s-per" type="number" min="0.25" step="0.25" value="' + draft.qty_per_dose + '"></div>' +
+        "</div>" +
+        '<div class="field"><label for="s-th">Peringatkan bila sisa ≤</label><input class="input" id="s-th" type="number" min="0" value="' + draft.threshold + '">' +
+          '<span class="hint">Dipakai job <span class="mono">refill_reminder</span> harian.</span></div>' +
+        '<label class="check"><input type="checkbox" id="s-rem"' + (draft.refill_reminder ? " checked" : "") + '><span class="cb-txt">Kirim pengingat restock</span></label>' +
+      "</div>";
+
+      /* ringkasan */
+      var summaryRows = [
+        ["Nama", draft.name || "—"],
+        ["Dosis", draft.dose_value + " " + PO.t("unit", draft.dose_unit_code) + (draft.strength_note ? " (" + draft.strength_note + ")" : "")],
+        ["Rute", PO.t("route", draft.route_code)],
+        ["Waktu makan", PO.t("meal_relation", draft.meal_relation)],
+        ["Pola", PO.t("pattern", pat3) + (pat3 === "interval" ? " · tiap " + draft.interval_hours + " jam" : "") +
+          (pat3 === "weekly" ? " · " + daysLabel(draft.days_of_week) : "") +
+          (pat3 === "monthly_cycle" ? " · " + draft.cycle_intake_days + "/" + draft.cycle_pause_days + " hari" : "")],
+        ["Jam", pat3 === "prn" ? "tidak dijadwalkan" : draft.times.map(function (t) { return t.time_local; }).join(", ")],
+        ["Mulai", PO.fmtDate(draft.start_date, { mid: true }) + (draft.end_date ? " → " + PO.fmtDate(draft.end_date, { mid: true }) : " → tanpa batas")],
+        ["Stok", draft.stock_mode === "track" ? draft.stock_qty + " " + PO.t("unit", draft.dose_unit_code) : "tidak dilacak"]
+      ];
+      h += '<div class="card card-pad"><div class="hd xs muted-3" style="text-transform:uppercase;letter-spacing:.6px;font-weight:750">Ringkasan</div>' +
+        '<dl class="dl mt-8">' + summaryRows.map(function (r) {
+          return "<dt>" + A.esc(r[0]) + "</dt><dd>" + A.esc(r[1]) + "</dd>";
+        }).join("") + "</dl></div>";
+      h += '<div class="banner info"><span class="ic">' + A.icon("check-check") + "</span><div><b>Sekali simpan, pengingat langsung dihitung</b>" +
+        "<p>Obat muncul di Hari Ini dan Jadwal. Tidak ada slot harian yang dibuat di database.</p></div></div>";
+    }
+
+    b.innerHTML = h;
+    wireStep();
+    centerStep();
+  }
+
+  function wireStep() {
+    var b = document.getElementById("w-body");
+
+    if (step === 0) {
+      document.getElementById("pick-cat").addEventListener("click", openCatalog);
+      var name = document.getElementById("f-name");
+      name.addEventListener("input", function () { draft.name = name.value; });
+      document.getElementById("tpl").innerHTML = [
+        ["Amlodipine 10", "1 tablet · 2× sehari"],
+        ["Antibiotik 5 hari", "habiskan · tiap 8 jam"],
+        ["Vitamin mingguan", "1 kapsul · Senin"],
+        ["Obat PRN", "bila perlu, tanpa jadwal"]
+      ].map(function (t) {
+        return '<button class="chip" data-tpl="' + A.esc(t[0]) + '">' + A.icon("sparkles") + A.esc(t[0]) + "</button>";
+      }).join("");
+      document.querySelectorAll("#tpl [data-tpl]").forEach(function (c) {
+        c.addEventListener("click", function () {
+          var v = c.getAttribute("data-tpl");
+          draft.name = v;
+          if (/Antibiotik/.test(v)) { draft.must_finish = true; draft.pattern = "interval"; draft.times = [{ time_local: "06:00", label: "dawn" }, { time_local: "14:00", label: "afternoon" }, { time_local: "22:00", label: "evening" }]; }
+          if (/mingguan/.test(v)) { draft.pattern = "weekly"; draft.days_of_week = 1; draft.times = [{ time_local: "09:00", label: "morning" }]; }
+          if (/PRN/.test(v)) { draft.as_needed = true; draft.pattern = "prn"; }
+          if (/Amlodipine/.test(v)) { draft.dose_unit_code = "tablet"; draft.pattern = "daily"; draft.times_per_day = 2; }
+          A.toast("info", "Template diterapkan", "Form terisi — belum ada yang disimpan.");
+          drawStep();
+        });
+      });
+    }
+
+    if (step === 1) {
+      var bind = function (id, key, num) {
+        var el = document.getElementById(id);
+        el.addEventListener("change", function () { draft[key] = num ? +el.value : el.value; });
+      };
+      bind("f-dose", "dose_value", true); bind("f-unit", "dose_unit_code"); bind("f-route", "route_code");
+      bind("f-meal", "meal_relation"); bind("f-strength", "strength_note"); bind("f-start", "start_date");
+      bind("f-end", "end_date"); bind("f-rem", "notes_reminder"); bind("f-notes", "notes");
+      var fin = document.getElementById("f-finish");
+      fin.addEventListener("change", function () { draft.must_finish = fin.checked; });
+      var prn = document.getElementById("f-prn");
+      prn.addEventListener("change", function () { draft.as_needed = prn.checked; });
+    }
+
+    if (step === 2) {
+      document.querySelectorAll("[data-pat]").forEach(function (o) {
+        o.addEventListener("click", function () {
+          var p = o.getAttribute("data-pat");
+          if (p === "prn") { draft.as_needed = true; draft.pattern = "prn"; }
+          else { draft.as_needed = false; draft.pattern = p; }
+          drawStep();
+        });
+      });
+      var tpd = document.getElementById("p-tpd");
+      if (tpd) tpd.addEventListener("change", function () { draft.times_per_day = +tpd.value; });
+      var int1 = document.getElementById("p-int");
+      if (int1) int1.addEventListener("change", function () { draft.interval_hours = +int1.value; });
+      var int2 = document.getElementById("p-intmin");
+      if (int2) int2.addEventListener("change", function () { draft.interval_min_hours = +int2.value; });
+      var in1 = document.getElementById("p-in");
+      if (in1) in1.addEventListener("change", function () { draft.cycle_intake_days = +in1.value; });
+      var pz = document.getElementById("p-pause");
+      if (pz) pz.addEventListener("change", function () { draft.cycle_pause_days = +pz.value; });
+      var an = document.getElementById("p-anchor");
+      if (an) an.addEventListener("change", function () { draft.cycle_anchor = an.value; });
+      var pr = document.getElementById("p-prn");
+      if (pr) pr.addEventListener("change", function () { draft.prn_max_per_day = +pr.value; });
+      wireDays("p-days");
+    }
+
+    if (step === 3) {
+      wireTimes();
+      wireDays("t-days");
+    }
+
+    if (step === 4) {
+      var track = document.getElementById("s-track");
+      var fields = document.getElementById("s-fields");
+      fields.classList.toggle("hide", !track.checked);
+      track.addEventListener("change", function () {
+        draft.stock_mode = track.checked ? "track" : "none";
+        fields.classList.toggle("hide", !track.checked);
+      });
+      var q = document.getElementById("s-qty"); q.addEventListener("change", function () { draft.stock_qty = +q.value; });
+      var p = document.getElementById("s-per"); p.addEventListener("change", function () { draft.qty_per_dose = +p.value; });
+      var t = document.getElementById("s-th"); t.addEventListener("change", function () { draft.threshold = +t.value; });
+      var r = document.getElementById("s-rem"); r.addEventListener("change", function () { draft.refill_reminder = r.checked; });
+    }
+  }
+
+  function wireDays(id) {
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.querySelectorAll("[data-bit]").forEach(function (d) {
+      d.addEventListener("click", function () {
+        var bit = +d.getAttribute("data-bit");
+        var on = d.classList.toggle("on");
+        draft.days_of_week = on ? (draft.days_of_week | bit) : (draft.days_of_week & ~bit);
+      });
+    });
+  }
+
+  function wireTimes() {
+    var rows = document.getElementById("t-rows");
+    if (!rows) return;
+    rows.querySelectorAll(".time-row").forEach(function (row) {
+      var i = +row.getAttribute("data-i");
+      row.querySelector('[data-for="time"]').addEventListener("change", function (e) { draft.times[i].time_local = e.target.value; });
+      row.querySelector('[data-for="label"]').addEventListener("change", function (e) { draft.times[i].label = e.target.value; });
+      row.querySelector("[data-del]").addEventListener("click", function () {
+        if (draft.times.length === 1) { A.toast("warn", "Minimal satu jam", "Hapus pola atau ubah menjadi PRN bila tanpa jadwal."); return; }
+        draft.times.splice(i, 1);
+        drawStep();
+      });
+    });
+    var add = document.getElementById("t-add");
+    if (add) add.addEventListener("click", function () {
+      var last = draft.times[draft.times.length - 1];
+      var hh = ((+last.time_local.slice(0, 2)) + 8) % 24;
+      draft.times.push({ time_local: String(hh).padStart(2, "0") + ":00", label: "other" });
+      drawStep();
+    });
+  }
+
+  /* ---------------- katalog ---------------- */
+  function openCatalog() {
+    A.overlay("w-cat", true);
+    drawCatalog("");
+    document.getElementById("wc-q").addEventListener("input", A.debounce(function (e) {
+      drawCatalog(e.target.value);
+    }, 180));
+    document.getElementById("wc-chips").innerHTML = ["Tablet", "Kapsul", "Sirup", "Vitamin"].map(function (c) {
+      return '<button class="chip" data-q="' + c + '">' + A.icon("filter") + c + "</button>";
+    }).join("");
+    document.querySelectorAll("#wc-chips [data-q]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.getElementById("wc-q").value = b.getAttribute("data-q");
+        drawCatalog(b.getAttribute("data-q"));
+      });
+    });
+    document.getElementById("wc-manual").addEventListener("click", function () {
+      draft.catalog_id = null;
+      A.overlay("w-cat", false);
+      A.toast("info", "Mode manual", "Nama dan bentuk sediaan diisi sendiri; tersimpan sebagai katalog pribadi.");
+    });
+  }
+
+  function drawCatalog(q) {
+    q = (q || "").toLowerCase();
+    var me = PO.session.user.id;
+    var visible = PO.catalog.filter(function (c) {
+      var owner = c.owner_id === me;
+      var pub = c.is_preset && c.curation_status === "published";
+      if (!owner && !pub) return false;
+      if (!q) return true;
+      var hay = [c.display_name, c.nama_dagang, c.generik_nama, c.atc_l5_code, c.dosage_form_name].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+
+    var list = document.getElementById("wc-list");
+    if (q && visible.length) {
+      list.classList.remove("hide");
+      list.innerHTML = visible.slice(0, 5).map(function (c) {
+        return '<div class="ac-item" data-id="' + c.id + '">' + A.esc(c.display_name) +
+          "<small>" + A.esc(c.dosage_form_name || "") + " · " + A.esc(PO.t("source", c.source)) + "</small></div>";
+      }).join("");
+      list.querySelectorAll("[data-id]").forEach(function (it) {
+        it.addEventListener("click", function () { pickCatalog(it.getAttribute("data-id")); });
+      });
+    } else {
+      list.classList.add("hide");
+    }
+
+    document.getElementById("wc-results").innerHTML = visible.length ? visible.map(function (c) {
+      var isPub = c.is_preset;
+      return '<div class="result" data-id="' + c.id + '">' +
+        '<span class="avatar sm">' + A.icon(isPub ? "database" : "tag") + "</span>" +
+        '<div class="grow"><div class="t">' + A.esc(c.display_name) + "</div>" +
+          '<div class="s">' + A.esc(c.dosage_form_name || "—") + " · " + A.esc(PO.t("route", c.route_code)) +
+            (c.dose_value_text ? " · " + A.esc(c.dose_value_text) : "") + "</div>" +
+          '<div class="src">' + A.esc(PO.t("source", c.source)) + (isPub ? " · preset " + A.esc(PO.t("curation_status", c.curation_status)) : " · katalog pribadi") + "</div>" +
+        "</div>" +
+        (isPub ? A.badge("publik", "badge-accent") : A.badge("pribadi", "badge-private")) +
+      "</div>";
+    }).join("") : A.empty("Tidak ditemukan", "Coba kata lain, atau tambah sebagai obat manual.", "search");
+
+    document.querySelectorAll("#wc-results [data-id]").forEach(function (r) {
+      r.addEventListener("click", function () { pickCatalog(r.getAttribute("data-id")); });
+    });
+  }
+
+  function pickCatalog(id) {
+    var c = PO.cat(id);
+    if (!c) return;
+    draft.catalog_id = c.id;
+    draft.name = c.display_name;
+    if (c.uom_name) draft.dose_unit_code = c.ucum_code || "tablet";
+    draft.route_code = c.route_code || "O";
+    if (c.dosage_form_name) draft.dosage_form_code = "LOCAL-0001";
+    A.overlay("w-cat", false);
+    A.toast("ok", "Preset dipilih", "Form terisi dari “" + c.display_name + "”. Belum disimpan.");
+    drawStep();
+  }
+
+  /* ---------------- navigasi langkah ---------------- */
+  document.getElementById("w-back").addEventListener("click", function () {
+    if (step > 0) { step--; drawStep(); }
+  });
+
+  document.getElementById("w-next").addEventListener("click", function () {
+    // validasi ringan per langkah
+    if (step === 0 && !(draft.name || "").trim()) {
+      A.toast("err", "Nama obat belum diisi", "Isi nama atau pilih preset dari katalog.");
+      return;
+    }
+    if (step === 2 && !draft.as_needed && draft.pattern === "weekly" && !draft.days_of_week) {
+      A.toast("err", "Pilih minimal satu hari", "Pola mingguan butuh bitmask hari yang tidak nol.");
+      return;
+    }
+    if (step < 4) { step++; drawStep(); return; }
+
+    /* simpan */
+    var pat = draft.as_needed ? "prn" : draft.pattern;
+    var freq = { id: "fq-new", pattern: pat, schedule_timezone: PO.session.user.timezone || "Asia/Jakarta", tolerance_minutes: 60, start_time: draft.times[0] ? draft.times[0].time_local : "08:00" };
+    if (pat === "daily") freq.times_per_day = draft.times_per_day;
+    if (pat === "interval") { freq.interval_hours = draft.interval_hours; freq.interval_min_hours = draft.interval_min_hours; }
+    if (pat === "weekly") freq.days_of_week = draft.days_of_week;
+    if (pat === "monthly_cycle") { freq.cycle_intake_days = draft.cycle_intake_days; freq.cycle_pause_days = draft.cycle_pause_days; freq.cycle_anchor = draft.cycle_anchor; }
+    if (pat === "prn") freq.prn_max_per_day = draft.prn_max_per_day;
+
+    var m = PO.addMedication({
+      name: draft.name.trim(), catalog_id: draft.catalog_id, dose_value: draft.dose_value,
+      dose_unit_code: draft.dose_unit_code, strength_note: draft.strength_note || null,
+      route_code: draft.route_code, dosage_form_code: draft.dosage_form_code,
+      meal_relation: draft.meal_relation, as_needed: draft.as_needed, must_finish: draft.must_finish,
+      start_date: draft.start_date, start_time: draft.times[0] ? draft.times[0].time_local : "00:00",
+      end_date: draft.end_date || null, notes: draft.notes || null, notes_reminder: draft.notes_reminder || null,
+      color_tag: draft.color_tag, frequency: freq,
+      times: pat === "prn" ? [] : draft.times.map(function (t) {
+        return { time_local: t.time_local, label: t.label, weekdays: pat === "weekly" ? draft.days_of_week : 127 };
+      }),
+      stock: draft.stock_mode === "track" ? {
+        unit_code: draft.dose_unit_code, initial_qty: draft.stock_qty, qty_per_dose: draft.qty_per_dose,
+        refill_threshold_qty: draft.threshold, refill_reminder: draft.refill_reminder
+      } : null
+    });
+
+    A.overlay("w-add", false);
+    A.toast("ok", "Obat disimpan", m.name + " · " + PO.t("pattern", pat) + ". Pengingat dihitung dari aturan.");
+    draft = null;
+    step = 0;
+    render();
+  });
+
+  A.boot({
+    shell: "user",
+    active: "obat",
+    title: "Obat",
+    sub: "Daftar, jadwal sebagai aturan, dan wizard 5 pola",
+    after: function () {
+      render();
+      if (location.hash === "#tambah") setTimeout(openWizard, 250);
+    }
+  });
+})();
+</script>
+</body>
+</html>

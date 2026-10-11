@@ -1,0 +1,79 @@
+info:
+  name: Obat Pasien
+  type: http
+  seq: 8
+  tags:
+    - caregiver
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/care/{{owner_id}}/medications?status=active"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Obat Pasien
+
+  Daftar obat yang dipantau, **tanpa foto resep dan tanpa catatan pribadi**.
+
+  ## Yang dikirim dan yang tidak
+
+  | Dikirim | Tidak dikirim |
+  |---|---|
+  | nama obat | `prescription_photo_url` |
+  | dosis, satuan, kekuatan | `notes` (catatan pribadi pasien) |
+  | rute, hubungan makan | |
+  | tanggal mulai/selesai | |
+  | warna | |
+  | status aktif | |
+
+  Caregiver **perlu** tahu obat apa yang diminum pasiennya — itu inti
+  pemantauan. Yang tidak perlu adalah foto resep dan apa yang ditulis pasien
+  tentang dirinya sendiri.
+
+  ## Penyaringan di lapisan API
+
+  Field yang dikecualikan **tidak pernah dikirim ke jaringan**, bukan dikirim
+  lalu disembunyikan tampilan. Kalau dikirim, datanya tetap bisa dibaca siapa
+  pun yang memeriksa lalu lintas.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019ccc...",
+        "name": "Amlodipine 10",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "strength_note": null,
+        "route_code": "O",
+        "meal_relation": "after_meal",
+        "as_needed": false,
+        "start_date": "2026-10-01",
+        "end_date": null,
+        "is_active": true,
+        "color_tag": "#4F46E5"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 1}
+  }
+  ```
+
+  ## Caregiver tidak bisa mengubah apa pun di sini
+
+  Endpoint ini hanya membaca. Percobaan mengubah obat lewat
+  `PATCH /medications/{id}` akan membalas 404, karena endpoint itu memfilter
+  `owner_id` dan obat pasien tidak ada dalam ruang lingkup caregiver.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

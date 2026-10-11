@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daftar — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .auth-fixed { position: fixed; top: 14px; right: 14px; z-index: 50; display: flex; gap: 8px; }
+  .steps-tight { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="auth-fixed" id="fixed"></div>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="hd">
+      <span class="logo-mark" id="brand"></span>
+      <h1>Buat akun</h1>
+      <p>Gratis, tanpa iklan, dan data kesehatan Anda tidak dikirim ke pihak ketiga.</p>
+    </div>
+
+    <form class="card card-pad stack" id="form" novalidate>
+      <div class="field">
+        <label for="full_name">Nama lengkap <span class="req">*</span></label>
+        <input class="input" id="full_name" name="full_name" autocomplete="name" placeholder="Budi Santoso" required>
+        <span class="hint">Muncul di kartu obat dan di dashboard caregiver.</span>
+      </div>
+
+      <div class="field">
+        <label for="email">Email <span class="req">*</span></label>
+        <input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="nama@example.com" required>
+        <span class="hint">Perbandingan tidak peduli huruf besar/kecil (kolom <span class="mono">CITEXT</span>).</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="phone">Nomor HP</label>
+          <input class="input" id="phone" name="phone" type="tel" inputmode="tel" placeholder="+62812…">
+          <span class="hint">Opsional, 6–20 digit.</span>
+        </div>
+        <div class="field">
+          <label for="timezone">Zona waktu <span class="req">*</span></label>
+          <select class="input" id="timezone" name="timezone">
+            <option value="Asia/Jakarta" selected>Asia/Jakarta (WIB)</option>
+            <option value="Asia/Makassar">Asia/Makassar (WITA)</option>
+            <option value="Asia/Jayapura">Asia/Jayapura (WIT)</option>
+          </select>
+          <span class="hint">Dipakai menghitung semua jam dosis.</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Sandi <span class="req">*</span></label>
+        <div class="input-affix">
+          <input class="input" id="password" name="password" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter" required>
+          <span class="affix" id="pw-meter">lemah</span>
+        </div>
+        <div class="meter thin mt-4" id="pw-bar"><i style="width:0%"></i></div>
+        <span class="hint">Di produksi disimpan sebagai Argon2id (m=64MiB, t=3, p=4), bukan teks biasa.</span>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="agree">
+        <span class="cb-txt">Saya mengerti aplikasi ini <b>alat bantu</b>, bukan pengganti nasihat dokter.
+          <small>Tidak ada saran dosis maupun pemeriksaan interaksi obat di dalamnya.</small></span>
+      </label>
+
+      <button class="btn btn-primary btn-block btn-lg" type="submit" id="submit">Daftar &amp; mulai</button>
+
+      <div class="demo-note">
+        <span id="dn-ic"></span>
+        <div>Setelah daftar Anda langsung masuk (sesi dummy). Email yang mengandung
+          <span class="mono">admin</span> akan masuk sebagai admin — berguna untuk mencoba dua sisi aplikasi.</div>
+      </div>
+    </form>
+
+    <div class="center mt-16 sm muted">
+      Sudah punya akun? <a class="link" href="login.html">Masuk</a>
+    </div>
+    <div class="center mt-16 xs muted-3">
+      <a class="link" href="../index.html">← Kembali ke hub prototipe</a>
+    </div>
+  </div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+
+  A.boot({
+    after: function () {
+      document.getElementById("brand").innerHTML = A.icon("shield");
+      document.getElementById("dn-ic").innerHTML = A.icon("info");
+      
+      var form = document.getElementById("form");
+      var pw = document.getElementById("password");
+      var bar = document.querySelector("#pw-bar > i");
+      var lbl = document.getElementById("pw-meter");
+
+      function strength(v) {
+        var s = 0;
+        if (v.length >= 8) s++;
+        if (v.length >= 12) s++;
+        if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++;
+        if (/\d/.test(v)) s++;
+        if (/[^A-Za-z0-9]/.test(v)) s++;
+        return Math.min(s, 4);
+      }
+
+      pw.addEventListener("input", function () {
+        var s = strength(pw.value);
+        var names = ["lemah", "lemah", "cukup", "kuat", "sangat kuat"];
+        var tone = ["err", "err", "warn", "ok", "ok"][s];
+        lbl.textContent = names[s];
+        bar.style.width = (s / 4 * 100) + "%";
+        bar.parentNode.className = "meter thin mt-4 " + tone;
+      });
+
+      function fail(el, msg) {
+        el.setAttribute("aria-invalid", "true");
+        A.toast("err", "Periksa lagi", msg);
+        el.focus();
+      }
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var name = document.getElementById("full_name");
+        var mail = document.getElementById("email");
+        var timezone = document.getElementById("timezone");
+        var agree = document.getElementById("agree");
+        document.querySelectorAll(".input").forEach(function (el) { el.removeAttribute("aria-invalid"); });
+
+        if ((name.value || "").trim().length < 3) { fail(name, "Nama lengkap minimal 3 karakter."); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((mail.value || "").trim())) { fail(mail, "Format email belum benar."); return; }
+        if ((pw.value || "").length < 8) { fail(pw, "Sandi minimal 8 karakter."); return; }
+        if (!agree.checked) { A.toast("warn", "Perlu persetujuan", "Centang dulu bahwa Anda mengerti batas aplikasi."); return; }
+
+        var phone = (document.getElementById("phone").value || "").trim();
+        if (phone && !/^\+?[0-9\s\-()]{6,20}$/.test(phone)) { fail(document.getElementById("phone"), "Nomor HP 6–20 karakter angka."); return; }
+
+        var btn = document.getElementById("submit");
+        btn.disabled = true;
+        btn.textContent = "Membuat akun…";
+
+        setTimeout(function () {
+          var s = PO.login(mail.value.trim(), pw.value);
+          if (s.user.role !== "admin") s.user.full_name = name.value.trim();
+          PO.session.user.full_name = name.value.trim();
+          PO.session.user.timezone = timezone.value;
+          PO.save();
+
+          A.toast("ok", "Akun dibuat", "Selamat datang, " + PO.session.user.full_name + ".");
+          setTimeout(function () { location.href = "hari-ini.html"; }, 550);
+        }, 480);
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+info:
+  name: Daftar Relasi Caregiver
+  type: http
+  seq: 2
+  tags:
+    - caregiver
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/care-links?as=owner"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Daftar Relasi Caregiver
+
+  Dua arah, dibedakan lewat parameter `as`:
+
+  | `as` | Arti |
+  |---|---|
+  | `owner` (bawaan) | **Siapa yang memantau saya** |
+  | `caregiver` | **Siapa yang saya pantau** |
+
+  Keduanya dibedakan karena tampilannya berbeda di aplikasi: pasien mengelola
+  izin orang lain, sedangkan caregiver memilih pasien mana yang dibuka.
+
+  ## Status yang mungkin
+
+  | Status | Arti |
+  |---|---|
+  | `pending` | Undangan terkirim, belum dijawab |
+  | `accepted` | Aktif, memberi akses |
+  | `rejected` | Ditolak |
+  | `revoked` | Dicabut, akses hilang seketika |
+  | `expired` | Lewat masa berlaku 7 hari |
+
+  Hanya `accepted` yang memberi akses.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019cc1...",
+        "owner_id": "019...",
+        "caregiver_id": "019...",
+        "invite_email": "keluarga@example.com",
+        "relation": "child",
+        "role": "helper",
+        "status": "accepted",
+        "invite_expires_at": null,
+        "decided_at": "2026-10-10T12:00:00Z",
+        "created_at": "2026-10-10T10:29:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 1}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

@@ -1,0 +1,83 @@
+info:
+  name: Detail Entri Katalog
+  type: http
+  seq: 4
+  tags:
+    - catalog
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/catalog/{{catalog_id}}"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.id
+      operator: isString
+
+docs: |-
+  # Detail Entri Katalog
+
+  Detail lengkap satu entri: deskripsi, indikasi, peringatan, efek samping,
+  dan (untuk preset) kode identitasnya.
+
+  ## Yang terlihat
+
+  | Entri | Terlihat? |
+  |---|---|
+  | Preset `published` | ya |
+  | Preset `draft` / `archived` | **tidak** — dijawab 404 |
+  | Katalog pribadi milik sendiri | ya |
+  | Katalog pribadi user lain | **tidak** — dijawab 404 |
+
+  Preset draft dan arsip dijawab sebagai tidak ditemukan, bukan ditolak,
+  supaya user tidak tahu entri itu ada.
+
+  ## Kode identitas hanya untuk preset
+
+  `kfa_code`, `bpom_nie`, `barcode`, dan `kode_lkpp` hanya muncul untuk preset
+  publik. Katalog pribadi tidak punya kode itu yang sah — ia dibuat user
+  sendiri — dan menampilkannya sebagai `null` akan mengundang pertanyaan
+  "kenapa kosong", padahal memang tidak berlaku.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019aaa...",
+      "display_name": "Amlodipine 10 mg Tablet",
+      "is_preset": true,
+      "curation_status": "published",
+      "nama_dagang": "Amlodipine",
+      "generik_nama": "Amlodipine",
+      "is_generik": true,
+      "manufacturer": null,
+      "dosage_form_name": "Tablet",
+      "route_name": "Oral",
+      "dose_value_text": "10 mg",
+      "atc_l5_code": "C08CA01",
+      "atc_l5_name": "Amlodipine",
+      "indication": "Hipertensi, angina",
+      "warning": "Hindari pada hipotensi berat",
+      "side_effect": "Edema pergelangan kaki",
+      "kfa_code": "93001234",
+      "bpom_nie": "DK1234567890A1",
+      "owner_id": null,
+      "created_at": "2026-10-01T00:00:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

@@ -1,0 +1,70 @@
+info:
+  name: Koreksi Catatan Dosis
+  type: http
+  seq: 3
+  tags:
+    - log
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/logs/{{log_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "status": "skipped",
+        "note": "ternyata tidak diminum"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+docs: |-
+  # Koreksi Catatan Dosis
+
+  Mengoreksi status catatan yang salah. **Bukan** mengubah baris yang ada,
+  melainkan soft-delete baris lama lalu membuat baris baru — satu transaksi.
+
+  ## Kenapa bukan UPDATE
+
+  Riwayat bahwa dosis pernah dicatat dengan status lain harus tetap bisa
+  ditelusuri. UPDATE akan menghapus jejak itu. Dengan soft-delete, nilai lama
+  tersimpan di audit log beserta waktu koreksinya.
+
+  ## Stok ikut dikoreksi
+
+  Ini bagian yang mudah terlewat. Kalau status lama memotong stok dan status
+  baru tidak, potongannya **dikembalikan**:
+
+  | Dari | Ke | Efek stok |
+  |---|---|---|
+  | `taken` | `skipped` | **+1** dikembalikan |
+  | `skipped` | `taken` | **−1** dipotong |
+  | `taken` | `late` | tidak berubah (keduanya memotong) |
+
+  Yang dihitung adalah **selisih** dampaknya, bukan status barunya saja.
+  Tanpa ini, koreksi akan membuat saldo tidak lagi cocok dengan riwayat dosis.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "log": {"id": "019e3...", "status": "skipped"},
+      "stock": {"consumed": false, "qty_delta": 1, "balance_after": 29}
+    }
+  }
+  ```
+
+  `qty_delta` positif menandakan potongan dikembalikan.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.

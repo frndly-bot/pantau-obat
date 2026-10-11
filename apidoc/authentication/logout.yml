@@ -1,0 +1,65 @@
+info:
+  name: Keluar
+  type: http
+  seq: 4
+  tags:
+    - authentication
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/logout"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "all_devices": false
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.logged_out
+      operator: eq
+      value: true
+
+docs: |-
+  # Keluar
+
+  Mencabut sesi di **server**, bukan hanya menghapus cookie di browser.
+
+  Menghapus cookie saja tidak menghentikan token yang sudah tersalin. Yang
+  benar-benar mematikan akses adalah pencabutan di sisi server, dan itu yang
+  dilakukan di sini.
+
+  ## `all_devices`
+
+  | Nilai | Efek |
+  |---|---|
+  | `false` (bawaan) | Hanya sesi ini yang dicabut |
+  | `true` | **Seluruh** akses dicabut, termasuk access token yang beredar |
+
+  `all_devices=true` memakai mekanisme garis potong yang sama dengan
+  penggantian password: bukan hanya refresh token yang mati, tapi juga access
+  token di perangkat lain. Tanpa itu, permintaan "keluar dari semua perangkat"
+  tidak benar-benar dipenuhi — access token yang dipegang perangkat lain akan
+  tetap hidup sampai 24 jam.
+
+  Body boleh kosong; itu berarti hanya sesi ini.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"logged_out": true}}
+  ```
+
+  Cookie refresh dihapus pada balasan ini.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

@@ -1,0 +1,108 @@
+info:
+  name: Daftarkan Perangkat
+  type: http
+  seq: 3
+  tags:
+    - notification
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/device-tokens"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "platform": "web",
+        "token": "{\"endpoint\":\"https://fcm.googleapis.com/fcm/send/CONTOH\",\"keys\":{\"p256dh\":\"BEl62iUYgUivxIkv...\",\"auth\":\"BTtbTDc8CQXGZFNv3H1k2g\"}}",
+        "app_version": "1.0.0"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.platform
+      operator: eq
+      value: "web"
+  scripts:
+    - type: after-response
+      code: |-
+        // Token disimpan untuk unregister. Token berisi JSON yang di-encode
+        // URL saat dipakai di path DELETE /device-tokens/{token} (lihat
+        // handler: chi.URLParam mengembalikan nilai yang SUDAH di-decode,
+        // jadi klien harus mengirim bentuk ter-encode).
+        const raw = JSON.stringify({
+          endpoint: "https://fcm.googleapis.com/fcm/send/CONTOH",
+          keys: { p256dh: "BEl62iUYgUivxIkv...", auth: "BTtbTDc8CQXGZFNv3H1k2g" }
+        });
+        // Simpan apa adanya (bentuk di body) — URL-encode dilakukan
+        // langsung di variabel path supaya konsisten.
+        bru.setVar("device_token_encoded", encodeURIComponent(raw));
+
+docs: |-
+  # Daftarkan Perangkat
+
+  Mendaftarkan perangkat agar bisa menerima notifikasi push.
+
+  ## Idempoten per token
+
+  Memanggil endpoint ini berkali-kali dengan token yang sama **tidak**
+  menumpuk baris. Yang diperbarui hanya `last_seen_at` dan platformnya. Jadi
+  aplikasi boleh memanggilnya setiap kali dibuka tanpa khawatir.
+
+  ## Token unik GLOBAL, bukan per user
+
+  Kalau token itu sudah dimiliki user **lain**, kepemilikannya **dipindah**,
+  bukan dibuat baris baru.
+
+  Skenario nyatanya: dua orang berbagi satu ponsel, atau user berganti akun di
+  perangkat yang sama. Tanpa pemindahan, pengingat obat user sebelumnya akan
+  terus dikirim ke perangkat itu — dan untuk data kesehatan, itu kebocoran.
+
+  ## Bentuk token per platform
+
+  | Platform | Bentuk |
+  |---|---|
+  | `web` | JSON langganan push: `endpoint` + `keys.p256dh` + `keys.auth` |
+  | `android` | Token FCM |
+  | `ios` | Token APNs |
+
+  Tidak ada validasi bentuk lebih lanjut: bentuknya berbeda antar platform, dan
+  menebak-nebak hanya akan menolak token yang sah. Yang dibatasi hanya panjang
+  maksimum 512 karakter.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "id": "019dd1...",
+      "platform": "web",
+      "last_seen_at": "2026-10-11T10:00:00Z",
+      "created_at": "2026-10-11T10:00:00Z"
+    }
+  }
+  ```
+
+  Token itu sendiri **tidak dikembalikan**.
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "platform "blackberry" tidak dikenal",
+      "details": [{"field": "platform", "issue": "invalid"}]
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

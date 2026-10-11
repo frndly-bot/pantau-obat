@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notifikasi — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .chan-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
+    padding: 2px 7px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); }
+  .chan-chip.sent { background: var(color-mix(in oklab, var(--ok) 14%, transparent)); color: var(--ok); }
+  .chan-chip.failed { background: var(color-mix(in oklab, var(--err) 14%, transparent)); color: var(--err); }
+  .chan-chip.pending { background: var(color-mix(in oklab, var(--info) 14%, transparent)); color: var(--info); }
+  .chan-chip.skipped { background: var(color-mix(in oklab, var(--na) 14%, transparent)); color: var(--na); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<!-- Drawer: detail job -->
+<div class="scrim" data-for="d-job"></div>
+<div class="drawer" id="d-job" role="dialog" aria-modal="true" aria-labelledby="dj-t">
+  <div class="d-head"><div><h3 id="dj-t">Detail job</h3><div class="xs muted-3" id="dj-sub"></div></div>
+    <button class="icon-btn" data-close="d-job" aria-label="Tutup" id="dj-x"></button></div>
+  <div class="d-body" id="dj-body"></div>
+  <div class="d-foot">
+    <button class="btn btn-ghost" data-close="d-job">Tutup</button>
+    <button class="btn btn-outline" id="dj-cancel">Batalkan</button>
+    <button class="btn btn-primary" id="dj-retry">Ulangi job</button>
+  </div>
+</div>
+
+<!-- Modal: batalkan job -->
+<div class="scrim" data-for="m-cancel"></div>
+<div class="modal" id="m-cancel" role="dialog" aria-modal="true" aria-labelledby="mc-t">
+  <div class="m-head"><h3 id="mc-t">Batalkan job</h3>
+    <button class="icon-btn" data-close="m-cancel" aria-label="Tutup" id="mc-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="mc-about"></p>
+    <div class="field"><label for="mc-reason">Alasan <span class="req">*</span></label>
+      <select class="input" id="mc-reason">
+        <option value="dosis sudah dicatat manual">Dosis sudah dicatat manual</option>
+        <option value="perangkat pengguna dicabut">Perangkat pengguna dicabut</option>
+        <option value="jadwal berubah">Jadwal berubah</option>
+        <option value="pengguna menonaktifkan kanal">Pengguna menonaktifkan kanal</option>
+      </select></div>
+    <div class="banner warn"><span class="ic" id="mc-ic"></span><div><b>Membatalkan bukan menghapus</b>
+      <p>Status menjadi <span class="mono">cancelled</span> dan tetap terlihat di riwayat. Baris <span class="mono">bump_queue</span> yang belum selesai ditandai selesai tanpa dikirim.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-cancel">Batal</button>
+    <button class="btn btn-danger" id="mc-go">Batalkan job</button></div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  var status = "all", kind = "all";
+  var current = null;    // job di drawer
+  var cancelTarget = null;
+  var loading = true;    // render pertama = baris skeleton
+
+  function jobBadge(s) {
+    var map = { done: ["badge-ok", "Selesai"], failed: ["badge-miss", "Gagal"], pending: ["badge-info", "Menunggu"], claimed: ["badge-late", "Diproses"], cancelled: ["badge-na", "Dibatalkan"] };
+    var m = map[s] || ["badge-na", s];
+    return A.badge(m[1], m[0]);
+  }
+
+  function channels(job) {
+    var keys = Object.keys(job.channels || {});
+    if (!keys.length) return '<span class="xs muted-3">tidak ada kanal</span>';
+    return keys.map(function (k) {
+      return '<span class="chan-chip ' + job.channels[k] + '">' + A.esc(PO.t("channel", k).replace("Notifikasi ", "")) + " · " + A.esc(PO.t("delivery_status", job.channels[k])) + "</span>";
+    }).join(" ");
+  }
+
+  function filtered() {
+    return PO.jobs.filter(function (j) {
+      if (status !== "all" && j.status !== status) return false;
+      if (kind !== "all" && j.kind !== kind) return false;
+      return true;
+    }).sort(function (a, b) { return b.id - a.id; });
+  }
+
+  function render() {
+    var list = filtered();
+    var st = PO.stats;
+    var count = function (s) { return PO.jobs.filter(function (j) { return j.status === s; }).length; };
+
+    var html = "";
+
+    html += '<section class="stats">' +
+      A.stat({ ic: "send", k: "Kirim 24 jam", v: A.money(st.deliveries_sent_24h), s: st.deliveries_failed_24h + " gagal · sukses " + A.pct(1 - st.deliveries_failed_24h / (st.deliveries_sent_24h + st.deliveries_failed_24h), 1), tone: "ok" }) +
+      A.stat({ ic: "clock", k: "Menunggu", v: count("pending"), s: "belum diklaim dispatcher", tone: "info" }) +
+      A.stat({ ic: "alert", k: "Gagal", v: count("failed"), s: "butuh tindakan operator", tone: count("failed") ? "err" : "ok" }) +
+      A.stat({ ic: "ban", k: "Dibatalkan", v: count("cancelled"), s: "tetap terlihat di riwayat" }) +
+    "</section>";
+
+    /* tingkat keberhasilan kanal */
+    html += '<section class="grid-3">' +
+      [["push", st.push_success_rate, "Notifikasi push"], ["telegram", st.telegram_success_rate, "Telegram"], ["email", st.email_success_rate, "Email"]]
+        .map(function (c) {
+          var tone = c[1] >= 0.95 ? "ok" : c[1] >= 0.85 ? "warn" : "err";
+          return '<div class="card card-pad"><div class="k xs muted-3" style="text-transform:uppercase;letter-spacing:.5px;font-weight:750">' + A.esc(c[2]) + "</div>" +
+            '<div class="mono" style="font-size:22px;font-weight:700;margin-top:6px">' + A.pct(c[1], 1) + "</div>" +
+            '<div class="mt-8">' + A.meter(c[1], { tone: tone, thin: true }) + "</div>" +
+            '<div class="xs muted-3 mt-8">target ≥ 95% untuk kanal utama</div></div>';
+        }).join("") + "</section>";
+
+    /* toolbar */
+    html += '<section class="card"><div class="card-pad"><div class="toolbar">' +
+      '<div class="seg" id="seg-status">' +
+        [["all", "Semua"], ["pending", "Menunggu"], ["failed", "Gagal"], ["done", "Selesai"], ["cancelled", "Dibatalkan"]]
+          .map(function (s) { return '<button data-val="' + s[0] + '" class="' + (status === s[0] ? "on" : "") + '">' + s[1] + "</button>"; }).join("") +
+      "</div>" +
+      '<select class="input" id="f-kind" style="max-width:210px">' +
+        '<option value="all">Semua jenis job</option>' +
+        ["dose_reminder", "missed_escalation", "care_digest", "refill_reminder", "retention"].map(function (k) {
+          return '<option value="' + k + '"' + (kind === k ? " selected" : "") + ">" + A.esc(PO.t("job_kind", k)) + "</option>";
+        }).join("") +
+      "</select>" +
+      '<span class="xs muted-3">' + list.length + " job ditampilkan · dedup_key unik mencegah pengiriman ganda</span>" +
+    "</div></div></section>";
+
+    /* tabel job */
+    html += '<section class="panel"><div class="tbl-wrap"><table class="tbl"><thead><tr>' +
+      "<th>ID</th><th>Jenis</th><th>Pemilik</th><th>Jalan pada</th><th class='num'>Percobaan</th><th>Kanal</th><th>Error terakhir</th><th>Status</th><th></th></tr></thead><tbody>";
+
+    if (loading) {
+      html += A.skelRows(6, 9);
+    } else if (!list.length) {
+      html += "<tr><td colspan='9'>" + A.empty("Tidak ada job cocok", "Ubah filter status atau jenis.", "send") + "</td></tr>";
+    } else {
+      list.forEach(function (j) {
+        html += "<tr>" +
+          "<td class='mono sm tight'>#" + j.id + "</td>" +
+          "<td class='sm tight'>" + A.esc(PO.t("job_kind", j.kind)) + "</td>" +
+          "<td class='sm muted trunc' style='max-width:10rem'>" + A.esc(j.owner_email || "sistem") + "</td>" +
+          "<td class='sm muted tight'>" + A.esc(PO.fmtDateTime(j.run_at)) + "</td>" +
+          "<td class='num mono'>" + j.attempts + "/" + j.max_attempts + "</td>" +
+          "<td>" + channels(j) + "</td>" +
+          "<td class='sm muted trunc' style='max-width:15rem' title='" + A.esc(j.last_error || "") + "'>" + A.esc(j.last_error || "—") + "</td>" +
+          "<td>" + jobBadge(j.status) + "</td>" +
+          "<td><div class='tbl-actions'>" +
+            "<button class='btn btn-outline btn-sm' data-open-job='" + j.id + "'>" + A.icon("eye") + "Detail</button>" +
+            (j.status === "failed" ? "<button class='btn btn-ghost btn-sm' data-retry='" + j.id + "'>" + A.icon("refresh") + "Ulangi</button>" : "") +
+          "</div></td></tr>";
+      });
+    }
+    html += "</tbody></table></div></section>";
+
+    /* penjelasan dua antrean */
+    html += '<section class="card"><div class="card-head"><h2>Dua antrean, dua peran</h2></div>' +
+      '<div class="card-pad"><dl class="dl">' +
+        "<dt>bump_queue</dt><dd>Menjawab <b>kapan</b> sesuatu harus terjadi: dosis berikutnya, snooze, restock, digest. Snooze mengubah <span class='mono'>scheduled_at</span> baris yang sama, bukan menambah baris.</dd>" +
+        "<dt>notification_jobs</dt><dd>Mencatat <b>apa yang sudah dikirim</b> dan hasilnya per kanal. Disimpan 30 hari untuk menjawab “kenapa saya tidak dapat notifikasi”.</dd>" +
+        "<dt>Retry</dt><dd>Backoff 1 mnt → 5 mnt → 30 mnt → 2 jam, maksimal 5 percobaan. Kegagalan satu kanal tidak menggagalkan job selama ada kanal lain yang sukses.</dd>" +
+        "<dt>Batas spam</dt><dd>Dedup per dosis+kanal+jenis, jam sunyi per kanal, maks 3 snooze, eskalasi caregiver maks 1×/hari/pasien.</dd>" +
+      "</dl>" +
+      '<div class="banner info mt-16"><span class="ic">' + A.icon("alert") + "</span><div><b>Kegagalan notifikasi tidak memblokir pencatatan dosis</b>" +
+        "<p>Notifikasi bersifat best-effort. Log dosis tetap tersimpan walau seluruh kanal gagal.</p></div></div>" +
+    "</div></section>";
+
+    document.getElementById("main").innerHTML = html;
+    ["dj-x", "mc-x"].forEach(function (x) { document.getElementById(x).innerHTML = A.icon("x"); });
+    document.getElementById("mc-ic").innerHTML = A.icon("alert");
+
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll("#seg-status button").forEach(function (b) {
+      b.addEventListener("click", function () { status = b.getAttribute("data-val"); render(); });
+    });
+    document.getElementById("f-kind").addEventListener("change", function (e) { kind = e.target.value; render(); });
+
+    document.querySelectorAll("[data-retry]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = +b.getAttribute("data-retry");
+        PO.retryJob(id);
+        A.toast("ok", "Job #" + id + " diulang", "Status kembali pending, attempts direset, audit bertambah.");
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-open-job]").forEach(function (b) {
+      b.addEventListener("click", function () { openJob(+b.getAttribute("data-open-job")); });
+    });
+  }
+
+  function openJob(id) {
+    current = PO.jobs.filter(function (j) { return j.id === id; })[0];
+    if (!current) return;
+    var j = current;
+    document.getElementById("dj-sub").textContent = "#" + j.id + " · " + PO.t("job_kind", j.kind);
+
+    var html = "";
+    html += '<div class="row-wrap gap-6">' + jobBadge(j.status) +
+      A.badge(PO.t("job_kind", j.kind), "badge-accent") + (j.owner_email ? A.badge(j.owner_email, "badge-na") : A.badge("sistem", "badge-na")) + "</div>";
+    html += '<div class="divider"></div>';
+    html += '<dl class="dl">' +
+      "<dt>Dedup key</dt><dd class='mono xs'>" + A.esc(j.dedup_key) + "</dd>" +
+      "<dt>Jalan pada</dt><dd>" + A.esc(PO.fmtDateTime(j.run_at)) + "</dd>" +
+      "<dt>Percobaan</dt><dd>" + j.attempts + " dari maksimal " + j.max_attempts + "</dd>" +
+      "<dt>Error terakhir</dt><dd>" + A.esc(j.last_error || "—") + "</dd>" +
+    "</dl>";
+
+    html += '<div class="divider"></div><div><b class="sm">Pengiriman per kanal</b>' +
+      '<div class="tbl-wrap mt-8"><table class="tbl"><thead><tr><th>Kanal</th><th>Status</th><th>Catatan</th></tr></thead><tbody>' +
+      (Object.keys(j.channels || {}).length ? Object.keys(j.channels).map(function (k) {
+        var s = j.channels[k];
+        var note = s === "sent" ? "diterima penyedia" : s === "failed" ? "gagal setelah backoff" : s === "skipped" ? "tidak ada perangkat / kanal mati" : "menunggu giliran";
+        return "<tr><td class='sm'>" + A.esc(PO.t("channel", k)) + "</td><td>" + A.badge(PO.t("delivery_status", s),
+          s === "sent" ? "badge-ok" : s === "failed" ? "badge-miss" : s === "pending" ? "badge-info" : "badge-na") + "</td><td class='sm muted'>" + A.esc(note) + "</td></tr>";
+      }).join("") : "<tr><td colspan='3'>" + A.empty("Tanpa kanal", "Job ini tidak punya pengiriman per kanal.", "send") + "</td></tr>") +
+      "</tbody></table></div></div>";
+
+    if (j.last_error) {
+      html += '<div class="banner err"><span class="ic">' + A.icon("alert") + "</span><div><b>Penyebab gagal</b><p>" + A.esc(j.last_error) + "</p></div></div>";
+    }
+
+    html += '<div class="banner info"><span class="ic">' + A.icon("info") + "</span><div><b>Nama obat tidak ada di sini</b>" +
+      "<p>Log aplikasi memakai <span class='mono'>medication_id</span>, bukan nama obat. Batas privasi ini dipegang di kode logger.</p></div></div>";
+
+    document.getElementById("dj-body").innerHTML = html;
+    A.overlay("d-job", true);
+  }
+
+  document.getElementById("dj-retry").addEventListener("click", function () {
+    if (!current) return;
+    PO.retryJob(current.id);
+    A.overlay("d-job", false);
+    A.toast("ok", "Job #" + current.id + " diulang", "Percobaan direset, antrean mengambilnya pada siklus berikutnya.");
+    current = null;
+    render();
+  });
+
+  document.getElementById("dj-cancel").addEventListener("click", function () {
+    if (!current) return;
+    cancelTarget = current;
+    document.getElementById("mc-about").innerHTML = "Batalkan job <b>#" + current.id + "</b> (" + A.esc(PO.t("job_kind", current.kind)) + ")?";
+    A.overlay("d-job", false);
+    A.overlay("m-cancel", true);
+  });
+
+  document.getElementById("mc-go").addEventListener("click", function () {
+    if (!cancelTarget) return;
+    var reason = document.getElementById("mc-reason").value;
+    PO.cancelJob(cancelTarget.id, reason);
+    A.overlay("m-cancel", false);
+    A.toast("warn", "Job dibatalkan", "#" + cancelTarget.id + " · alasan: " + reason + ". Audit bertambah.");
+    cancelTarget = null; current = null;
+    render();
+  });
+
+  A.boot({
+    shell: "admin",
+    active: "notifications",
+    title: "Notifikasi",
+    crumb: "Antrean job · kanal · retry dengan backoff",
+    actions: '<button class="btn btn-outline btn-sm" data-dead="Kirim notifikasi uji">' + A.icon("send") + "Uji kirim</button>",
+    after: function () {
+      render();
+      setTimeout(function () { loading = false; render(); }, 450);
+    }
+  });
+})();
+</script>
+</body>
+</html>

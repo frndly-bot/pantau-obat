@@ -1,0 +1,83 @@
+info:
+  name: Agregat Sistem
+  type: http
+  seq: 16
+  tags:
+    - admin
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/admin/stats"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.users_active
+      operator: isNumber
+    - expression: res.body.data.medications_active
+      operator: isNumber
+
+docs: |-
+  # Agregat Sistem
+
+  Angka ringkas kondisi sistem. Butuh scope **`reports`**.
+
+  ## SELURUHNYA agregat — tidak ada identitas siapa pun
+
+  Tidak ada nama obat, tidak ada email pasien, tidak ada id pengguna. Itu yang
+  membuat halaman ini aman dilihat operator tanpa melanggar privasi.
+
+  `logs_today` adalah **jumlah** catatan dosis hari ini, bukan isinya. Operator
+  perlu tahu sistemnya dipakai, tanpa perlu tahu siapa yang minum obat apa.
+
+  ## Field
+
+  | Field | Isi |
+  |---|---|
+  | `users_active` | Akun aktif |
+  | `users_disabled` | Akun dinonaktifkan |
+  | `users_admin` | Akun berperan admin |
+  | `medications_active` | Obat aktif seluruh user |
+  | `catalog_presets` | Preset terpublikasi |
+  | `catalog_drafts` | Preset menunggu kurasi |
+  | `jobs_failed_24h` | Job notifikasi gagal 24 jam terakhir |
+  | `deliveries_sent_24h` | Pengiriman berhasil 24 jam terakhir |
+  | `logs_today` | Catatan dosis hari ini |
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "users_active": 128,
+      "users_disabled": 3,
+      "users_admin": 2,
+      "medications_active": 412,
+      "catalog_presets": 86,
+      "catalog_drafts": 4,
+      "jobs_failed_24h": 2,
+      "deliveries_sent_24h": 1530,
+      "logs_today": 289
+    }
+  }
+  ```
+
+  ## Contoh response — 403
+
+  ```json
+  {
+    "error": {
+      "code": "ADMIN_SCOPE_DENIED",
+      "message": "peran admin Anda tidak mencakup bidang ini",
+      "details": {"required_scope": "reports", "your_scope": ["catalog"]}
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

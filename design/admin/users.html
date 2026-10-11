@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pengguna — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<!-- Modal: cabut / beri peran admin -->
+<div class="scrim" data-for="m-admin"></div>
+<div class="modal" id="m-admin" role="dialog" aria-modal="true" aria-labelledby="ma-t">
+  <div class="m-head"><h3 id="ma-t">Peran admin</h3>
+    <button class="icon-btn" data-close="m-admin" aria-label="Tutup" id="ma-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="ma-about"></p>
+    <div class="field" id="ma-scope-wrap">
+      <label>Bidang yang dikelola (<span class="mono">admin_scope</span>)</label>
+      <div class="stack-6">
+        <label class="check"><input type="checkbox" value="users"><span class="cb-txt">users — kelola akun</span></label>
+        <label class="check"><input type="checkbox" value="catalog"><span class="cb-txt">catalog — kurasi preset</span></label>
+        <label class="check"><input type="checkbox" value="notifications"><span class="cb-txt">notifications — antrean job</span></label>
+        <label class="check"><input type="checkbox" value="reports"><span class="cb-txt">reports — statistik agregat</span></label>
+      </div>
+      <span class="hint">Tidak memilih apa pun = akses penuh (<span class="mono">admin_scope NULL</span>).</span>
+    </div>
+    <div class="field"><label for="ma-reason">Alasan <span class="req">*</span></label>
+      <input class="input" id="ma-reason" placeholder="Misalnya: ditunjuk mengurus katalog"></div>
+    <div class="banner warn"><span class="ic" id="ma-ic"></span><div><b>Peran admin tidak bisa lewat API</b>
+      <p>Di produksi ini hanya dilakukan lewat seed atau operasi database. Di prototipe, aksinya dicatat di audit dengan <span class="mono">before_state</span> / <span class="mono">after_state</span>.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-admin">Batal</button>
+    <button class="btn btn-primary" id="ma-go">Simpan</button></div>
+</div>
+
+<!-- Modal: nonaktifkan / aktifkan -->
+<div class="scrim" data-for="m-active"></div>
+<div class="modal" id="m-active" role="dialog" aria-modal="true" aria-labelledby="mv-t">
+  <div class="m-head"><h3 id="mv-t">Ubah status akun</h3>
+    <button class="icon-btn" data-close="m-active" aria-label="Tutup" id="mv-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="mv-about"></p>
+    <div class="field"><label for="mv-reason">Alasan <span class="req">*</span></label>
+      <select class="input" id="mv-reason">
+        <option value="permintaan pengguna">Permintaan pengguna</option>
+        <option value="penyalahgunaan">Indikasi penyalahgunaan</option>
+        <option value="akun duplikat">Akun duplikat</option>
+        <option value="pemeliharaan">Pemeliharaan / investigasi</option>
+      </select></div>
+    <div class="banner info"><span class="ic" id="mv-ic"></span><div><b>Blokir ≠ ubah peran</b>
+      <p>Menonaktifkan akun tidak mengubah peran maupun menghapus data. Middleware membaca ulang identitas tiap permintaan, jadi blokir berlaku seketika.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-active">Batal</button>
+    <button class="btn btn-primary" id="mv-go">Simpan</button></div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  var q = "", kind = "all", role = "all", page = 1;
+  var PER = 8;
+  var adminTarget = null, activeTarget = null;
+  /* Placeholder: render pertama menampilkan baris skeleton (gaya shadcn),
+     lalu data asli menggantikannya. Meniru keadaan "memuat" yang nyata. */
+  var loading = true;
+
+  function scopeBadge(u) {
+    if (u.role !== "admin") return "";
+    return A.badge(u.admin_scope ? u.admin_scope.join(", ") : "penuh", "badge-accent");
+  }
+
+  function filtered() {
+    var list = PO.users.filter(function (u) {
+      if (kind === "active" && !u.is_active) return false;
+      if (kind === "disabled" && u.is_active) return false;
+      if (kind === "admin" && u.role !== "admin") return false;
+      if (kind === "deleted" && !u.deleted_at) return false;
+      if (kind !== "deleted" && u.deleted_at) return false;
+      if (role !== "all" && u.role !== role) return false;
+      if (q) {
+        var hay = (u.full_name + " " + u.email + " " + u.id).toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    return list;
+  }
+
+  function render() {
+    var list = filtered();
+    var pages = Math.max(1, Math.ceil(list.length / PER));
+    if (page > pages) page = pages;
+    var slice = list.slice((page - 1) * PER, page * PER);
+
+    var counts = {
+      all: PO.users.filter(function (u) { return !u.deleted_at; }).length,
+      active: PO.users.filter(function (u) { return u.is_active && !u.deleted_at; }).length,
+      disabled: PO.users.filter(function (u) { return !u.is_active && !u.deleted_at; }).length,
+      admin: PO.users.filter(function (u) { return u.role === "admin" && !u.deleted_at; }).length,
+      deleted: PO.users.filter(function (u) { return !!u.deleted_at; }).length
+    };
+
+    var html = "";
+
+    html += '<section class="stats">' +
+      A.stat({ ic: "users", k: "Total akun", v: counts.all, s: counts.active + " aktif · " + counts.disabled + " nonaktif" }) +
+      A.stat({ ic: "shield", k: "Admin", v: counts.admin, s: "peran hanya lewat DB/seed", tone: "accent" }) +
+      A.stat({ ic: "trend-up", k: "Baru 7 hari", v: PO.stats.users_new_7d, s: "sebelumnya " + PO.stats.users_new_prev_7d, tone: "ok" }) +
+      A.stat({ ic: "ban", k: "Dihapus (soft)", v: counts.deleted, s: "purge setelah 30 hari", tone: "warn" }) +
+    "</section>";
+
+    /* toolbar */
+    html += '<section class="card"><div class="card-pad">' +
+      '<div class="toolbar">' +
+        '<div class="input-icon search"><span>' + A.icon("search") + "</span>" +
+          '<input class="input" id="q" placeholder="Cari nama, email, atau id akun…" value="' + A.esc(q) + '"></div>' +
+        '<div class="seg" id="seg-kind">' +
+          [["all", "Semua"], ["active", "Aktif"], ["disabled", "Nonaktif"], ["admin", "Admin"], ["deleted", "Dihapus"]].map(function (k) {
+            return '<button data-val="' + k[0] + '" class="' + (kind === k[0] ? "on" : "") + '">' + k[1] + "</button>";
+          }).join("") + "</div>" +
+        '<select class="input" id="f-role" style="max-width:150px">' +
+          '<option value="all"' + (role === "all" ? " selected" : "") + ">Semua peran</option>" +
+          '<option value="user"' + (role === "user" ? " selected" : "") + ">Pengguna</option>" +
+          '<option value="admin"' + (role === "admin" ? " selected" : "") + ">Admin</option>" +
+        "</select>" +
+        '<button class="btn btn-outline btn-sm" id="b-export">' + A.icon("download") + "Ekspor</button>" +
+      "</div>" +
+      '<div class="row-b mt-12"><span class="xs muted-3">Menampilkan <b data-count-out>' + slice.length + "</b> dari " + list.length + " akun (halaman " + page + "/" + pages + ")</span>" +
+        '<span class="xs muted-3">' + A.icon("lock") + " Nama obat pasien tidak ditampilkan di sini</span></div>" +
+    "</div></section>";
+
+    /* tabel */
+    html += '<section class="panel"><div class="tbl-wrap"><table class="tbl"><thead><tr>' +
+      "<th>Akun</th><th>Peran</th><th>Scope</th><th>Zona</th><th class='num'>Obat aktif</th><th>Kepatuhan 7h</th>" +
+      "<th>Login terakhir</th><th>Status</th><th></th></tr></thead><tbody>";
+
+    if (loading) {
+      html += A.skelRows(6, 9);
+    } else if (!slice.length) {
+      html += '<tr><td colspan="9">' + A.empty("Tidak ada akun cocok", "Ubah kata kunci atau filter.", "users") + "</td></tr>";
+    } else {
+      slice.forEach(function (u) {
+        var adh = u.adherence_7d;
+        var tone = adh === null ? "na" : adh >= 0.8 ? "ok" : adh >= 0.6 ? "warn" : "err";
+        html += "<tr data-id='" + u.id + "'>" +
+          "<td><div class=\"row gap-10\"><span class=\"avatar sm\">" + A.esc(u.full_name.slice(0, 2).toUpperCase()) + "</span>" +
+            "<div class=\"grow\"><div class=\"cell-name trunc\">" + A.esc(u.full_name) + " " + (u.deleted_at ? A.badge("dihapus", "badge-na") : "") + "</div>" +
+            "<div class=\"cell-sub trunc\">" + A.esc(u.email) + " · <span class=\"mono\">" + A.esc(u.id) + "</span></div></div></div></td>" +
+          "<td>" + A.badge(u.role === "admin" ? "admin" : "pengguna", u.role === "admin" ? "badge-accent" : "badge-na") + "</td>" +
+          "<td>" + (scopeBadge(u) || "<span class='muted-3'>—</span>") + "</td>" +
+          "<td class='sm muted tight'>" + A.esc(u.timezone) + "</td>" +
+          "<td class='num mono'>" + u.meds_active + "</td>" +
+          "<td><div class=\"row gap-8\"><div style=\"width:4.5rem\">" + A.meter(adh === null ? 0 : adh, { tone: tone, thin: true }) + "</div>" +
+            "<span class=\"xs mono\">" + (adh === null ? "—" : A.pct(adh)) + "</span></div></td>" +
+          "<td class='sm muted tight'>" + A.esc(u.last_login_at ? PO.relTime(u.last_login_at) : "belum pernah") + "</td>" +
+          "<td>" + (u.deleted_at ? A.badge("dihapus", "badge-na") : u.is_active ? A.badge("aktif", "badge-ok", true) : A.badge("nonaktif", "badge-miss")) + "</td>" +
+          "<td><div class=\"tbl-actions\">" +
+            "<a class=\"btn btn-outline btn-sm\" href='user-detail.html?id=" + u.id + "'>" + A.icon("eye") + "Detail</a>" +
+            (u.deleted_at ? "" :
+              '<button class="btn btn-ghost btn-sm" data-toggle="' + u.id + '">' + A.icon(u.is_active ? "ban" : "refresh") + (u.is_active ? "Nonaktifkan" : "Aktifkan") + "</button>") +
+            '<button class="btn btn-ghost btn-sm" data-admin="' + u.id + '">' + A.icon("shield") + (u.role === "admin" ? "Ubah peran" : "Beri admin") + "</button>" +
+          "</div></td></tr>";
+      });
+    }
+    html += "</tbody></table></div>";
+
+    /* paginasi */
+    html += '<div class="card-pad row-b" style="border-top:1px solid var(--border)">' +
+      '<div class="row gap-6">' +
+        '<button class="btn btn-outline btn-sm" id="prev"' + (page <= 1 ? " disabled" : "") + ">" + A.icon("chev-left") + "Sebelumnya</button>" +
+        '<button class="btn btn-outline btn-sm" id="next"' + (page >= pages ? " disabled" : "") + ">Berikutnya" + A.icon("chev-right") + "</button>" +
+      "</div>" +
+      '<span class="xs muted-3">Urut ' + (page * PER - PER + 1) + "–" + Math.min(page * PER, list.length) + " dari " + list.length + "</span>" +
+    "</div></section>";
+
+    html += '<div class="banner info"><span class="ic">' + A.icon("info") + "</span><div><b>Kenapa ada kolom “Obat aktif” tanpa nama obat</b>" +
+      "<p>Rute admin hanya menampilkan metadata akun dan angka agregat. Rincian obat pasien tidak pernah melewati rute ini — bukan karena UI menyembunyikannya, tapi karena query-nya tidak mengambilnya.</p></div></div>";
+
+    document.getElementById("main").innerHTML = html;
+    ["ma-x", "mv-x"].forEach(function (x) { document.getElementById(x).innerHTML = A.icon("x"); });
+    document.getElementById("ma-ic").innerHTML = A.icon("alert");
+    document.getElementById("mv-ic").innerHTML = A.icon("info");
+
+    bind();
+  }
+
+  function bind() {
+    var input = document.getElementById("q");
+    input.addEventListener("input", A.debounce(function () {
+      q = input.value.trim().toLowerCase();
+      page = 1;
+      render();
+      var nq = document.getElementById("q");
+      nq.focus();
+      nq.setSelectionRange(nq.value.length, nq.value.length);
+    }, 200));
+
+    document.querySelectorAll("#seg-kind button").forEach(function (b) {
+      b.addEventListener("click", function () { kind = b.getAttribute("data-val"); page = 1; render(); });
+    });
+    document.getElementById("f-role").addEventListener("change", function (e) { role = e.target.value; page = 1; render(); });
+
+    var prev = document.getElementById("prev"), next = document.getElementById("next");
+    if (prev) prev.addEventListener("click", function () { page--; render(); });
+    if (next) next.addEventListener("click", function () { page++; render(); });
+
+    document.getElementById("b-export").addEventListener("click", function () {
+      var rows = [["id", "nama", "email", "peran", "scope", "zona", "aktif", "obat_aktif", "kepatuhan_7h", "login_terakhir"]];
+      filtered().forEach(function (u) {
+        rows.push([u.id, u.full_name, u.email, u.role, (u.admin_scope || []).join("|"), u.timezone,
+          u.is_active ? "ya" : "tidak", u.meds_active, u.adherence_7d === null ? "" : u.adherence_7d, u.last_login_at || ""]);
+      });
+      var csv = rows.map(function (r) {
+        return r.map(function (c) {
+          var s = c === null || c === undefined ? "" : String(c);
+          return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(";");
+      }).join("\n");
+      var blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "pantau-obat-pengguna-" + PO.TODAY + ".csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      A.toast("ok", "Ekspor dibuat", (rows.length - 1) + " baris akun (tanpa isi obat).");
+    });
+
+    /* status akun */
+    document.querySelectorAll("[data-toggle]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        activeTarget = PO.user(b.getAttribute("data-toggle"));
+        if (!activeTarget) return;
+        document.getElementById("mv-about").innerHTML = (activeTarget.is_active ? "Nonaktifkan" : "Aktifkan") +
+          " akun <b>" + A.esc(activeTarget.full_name) + "</b> (" + A.esc(activeTarget.email) + ")?";
+        document.getElementById("mv-go").textContent = activeTarget.is_active ? "Nonaktifkan" : "Aktifkan";
+        document.getElementById("mv-go").className = "btn " + (activeTarget.is_active ? "btn-danger" : "btn-ok");
+        A.overlay("m-active", true);
+      });
+    });
+
+    /* peran admin */
+    document.querySelectorAll("[data-admin]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        adminTarget = PO.user(b.getAttribute("data-admin"));
+        if (!adminTarget) return;
+        var isAdmin = adminTarget.role === "admin";
+        document.getElementById("ma-about").innerHTML = (isAdmin ? "Ubah peran/scope untuk " : "Berikan peran admin kepada ") +
+          "<b>" + A.esc(adminTarget.full_name) + "</b>.";
+        document.getElementById("ma-scope-wrap").classList.toggle("hide", false);
+        document.querySelectorAll("#ma-scope-wrap input").forEach(function (c) {
+          c.checked = isAdmin && adminTarget.admin_scope ? adminTarget.admin_scope.indexOf(c.value) >= 0 : false;
+        });
+        document.getElementById("ma-reason").value = "";
+        document.getElementById("ma-go").textContent = isAdmin ? "Simpan perubahan" : "Beri peran admin";
+        A.overlay("m-admin", true);
+      });
+    });
+  }
+
+  document.getElementById("mv-go").addEventListener("click", function () {
+    if (!activeTarget) return;
+    var reason = document.getElementById("mv-reason").value;
+    var next = !activeTarget.is_active;
+    PO.setUserActive(activeTarget.id, next, reason);
+    A.overlay("m-active", false);
+    A.toast(next ? "ok" : "warn", next ? "Akun diaktifkan" : "Akun dinonaktifkan",
+      "#" + activeTarget.id + " · alasan: " + reason + ". Audit bertambah.");
+    activeTarget = null;
+    render();
+  });
+
+  document.getElementById("ma-go").addEventListener("click", function () {
+    if (!adminTarget) return;
+    var reason = document.getElementById("ma-reason").value.trim();
+    if (!reason) { A.toast("err", "Alasan wajib", "Setiap perubahan peran admin harus punya alasan tercatat."); return; }
+    var scopes = [];
+    document.querySelectorAll("#ma-scope-wrap input").forEach(function (c) { if (c.checked) scopes.push(c.value); });
+
+    var before = { role: adminTarget.role, admin_scope: adminTarget.admin_scope };
+    adminTarget.role = "admin";
+    adminTarget.admin_scope = scopes.length && scopes.length < 4 ? scopes : null;
+    adminTarget.admin_granted_at = new Date().toISOString();
+
+    PO.audit.unshift({
+      id: 55400 + PO.audit.length, actor_email: "admin@example.com", actor_role: "admin",
+      action: before.role === "admin" ? "admin_scope_change" : "admin_grant",
+      resource_type: "admin", resource_id: adminTarget.id, created_at: new Date().toISOString(),
+      ip: "10.20.0.5", meta: { reason: reason, scope: adminTarget.admin_scope },
+      before_state: before, after_state: { role: "admin", admin_scope: adminTarget.admin_scope }
+    });
+    PO.save();
+    A.overlay("m-admin", false);
+    A.toast("ok", "Peran diperbarui", adminTarget.full_name + " · scope " + (adminTarget.admin_scope ? adminTarget.admin_scope.join(", ") : "penuh") + ".");
+    adminTarget = null;
+    render();
+  });
+
+  A.boot({
+    shell: "admin",
+    active: "users",
+    title: "Pengguna",
+    crumb: "Kelola akun · nonaktifkan, aktifkan, atur peran admin",
+    actions: '<button class="btn btn-outline btn-sm" data-dead="Undang admin baru">' + A.icon("plus") + "Admin baru</button>",
+    after: function () {
+      render();
+      setTimeout(function () { loading = false; render(); }, 450);
+    }
+  });
+})();
+</script>
+</body>
+</html>

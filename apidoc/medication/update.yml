@@ -1,0 +1,68 @@
+info:
+  name: Ubah Obat
+  type: http
+  seq: 4
+  tags:
+    - medication
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Amlodipine 10mg",
+        "color_tag": "#10B981",
+        "notes": "Minum setelah sarapan, jangan lupa tensi"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+docs: |-
+  # Ubah Obat
+
+  Mengubah **data obat**. Jadwal dan stok punya endpoint sendiri, dan itu
+  disengaja: mengubah jadwal punya konsekuensi pada dosis yang sudah tercatat,
+  sehingga penanganannya berbeda.
+
+  ## Hanya field yang dikirim yang berubah
+
+  Field yang tidak dikirim dipertahankan. Body kosong ditolak:
+
+  ```json
+  {"error": {"code": "VALIDATION_FAILED", "message": "tidak ada field yang diubah"}}
+  ```
+
+  ## Mengosongkan tanggal selesai
+
+  `end_date` punya dua arti yang berbeda:
+
+  | Dikirim | Efek |
+  |---|---|
+  | Tidak ada | Tidak diubah |
+  | `null` atau `""` | **Dikosongkan**, terapi jadi tanpa batas |
+  | Tanggal | Diubah |
+
+  Bedanya penting: mengirim `""` berarti user memang ingin terapi berjalan
+  terus, bukan sekadar tidak mengubah apa pun.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"id": "019ccc...", "name": "Amlodipine 10mg", "color_tag": "#10B981", "route_code": "O"}}
+  ```
+
+  Perhatikan `route_code` tetap terisi walau tidak dikirim.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

@@ -1,0 +1,95 @@
+info:
+  name: Atur Stok
+  type: http
+  seq: 2
+  tags:
+    - stock
+
+http:
+  method: PUT
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/stock"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "unit_code": "tablet",
+        "qty_per_dose": 1,
+        "refill_threshold_qty": 5,
+        "refill_reminder": true
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.current_qty
+      operator: isNumber
+
+docs: |-
+  # Atur Stok
+
+  Membuat atau mengubah **pengaturan** stok. PUT, bukan PATCH, karena endpoint
+  ini menggantikan seluruh pengaturannya.
+
+  ## `initial_qty` hanya berlaku saat BARIS BARU dibuat
+
+  | Keadaan | Perilaku |
+  |---|---|
+  | Belum ada stok | Baris dibuat, `initial_qty` jadi saldo awal |
+  | Sudah ada stok | **Ditolak** bila `initial_qty > 0` |
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "stok sudah ada; pakai endpoint restock untuk menambah saldo"
+    }
+  }
+  ```
+
+  Penolakan itu disengaja. Menambah saldo lewat field `initial_qty` akan
+  membuat penambahan tanpa alasan tercatat. Lewat `restock`, setiap
+  penambahan punya catatan dan waktunya.
+
+  ## Saldo TIDAK diubah langsung
+
+  `current_qty` tidak pernah diisi langsung. Saat baris stok dibuat, saldonya
+  **0**, lalu transaksi `initial` menaikkannya — dan trigger `apply_stock_txn`
+  yang menghitung hasilnya.
+
+  Konsekuensinya: saldo dan riwayatnya tidak bisa berbeda, dan saldo negatif
+  mustahil.
+
+  ## Ambang restock
+
+  `refill_threshold_qty` diisi `null` berarti ambangnya **dikosongkan**,
+  sehingga peringatan restock tidak pernah muncul. Untuk mempertahankan
+  ambang yang ada, kirim nilainya.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "medication_id": "019ccc...",
+      "unit_code": "tablet",
+      "initial_qty": 30,
+      "current_qty": 30,
+      "qty_per_dose": 1,
+      "refill_threshold_qty": 5,
+      "refill_reminder": true,
+      "doses_remaining": 30,
+      "needs_refill": false,
+      "last_restocked_at": null
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

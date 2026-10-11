@@ -1,0 +1,105 @@
+info:
+  name: Buat Preset Baru
+  type: http
+  seq: 9
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/catalog"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "display_name": "{{preset_name}}",
+        "nama_dagang": "Amlodipine",
+        "generik_nama": "Amlodipine",
+        "dosage_form_code": "LOCAL-TAB",
+        "route_code": "O",
+        "ucum_code": "mg",
+        "uom_name": "Tablet",
+        "dose_value_text": "10 mg"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.curation_status
+      operator: eq
+      value: "draft"
+    - expression: res.body.data.is_preset
+      operator: eq
+      value: true
+  scripts:
+    - type: before-request
+      code: |-
+        // Nama preset WAJIB unik (uq_catalog_preset_name). Nama tetap
+        // membuat run kedua di database yang sama selalu bentrok 409,
+        // dan preset_id tidak pernah terisi sehingga publish/unpublish/
+        // archive sesudahnya ikut gagal. Koleksi harus idempoten.
+        const uniq = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        bru.setVar("preset_name", "Amlodipine Uji " + uniq);
+    - type: after-response
+      code: |-
+        bru.setVar("preset_id", res.body.data.id);
+
+docs: |-
+  # Buat Preset Baru
+
+  Membuat preset publik. Butuh scope **`catalog`**.
+
+  ## SELALU bermula sebagai `draft`
+
+  Preset yang langsung `published` akan **muncul ke seluruh user** sebelum
+  sempat diperiksa, dan itu sulit ditarik kembali — sebagian user mungkin
+  sudah memilihnya.
+
+  Karena itu statusnya ditetapkan server, bukan dibaca dari body. Untuk
+  mempublikasikannya, pakai endpoint `publish` secara terpisah.
+
+  ## Yang ditetapkan server
+
+  | Kolom | Nilai |
+  |---|---|
+  | `is_preset` | `true` |
+  | `owner_id` | `NULL` |
+  | `curation_status` | `draft` |
+  | `source` | `manual` |
+  | `curated_by` | id admin |
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "id": "019aaa...",
+      "display_name": "Amlodipine 10 mg Tablet",
+      "is_preset": true,
+      "curation_status": "draft",
+      "source": "manual",
+      "created_at": "2026-10-11T10:00:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "nama obat wajib diisi"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

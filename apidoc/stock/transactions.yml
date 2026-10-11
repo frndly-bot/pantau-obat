@@ -1,0 +1,58 @@
+info:
+  name: Riwayat Transaksi Stok
+  type: http
+  seq: 5
+  tags:
+    - stock
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/stock/transactions?limit=50"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Riwayat Transaksi Stok
+
+  Seluruh perubahan saldo, dari yang terbaru. Ini yang menjelaskan **kenapa**
+  saldonya sekarang sekian.
+
+  ## Setiap baris punya `balance_after`
+
+  Saldo setelah transaksi itu, dan nilainya diisi trigger — bukan dihitung
+  aplikasi. Konsekuensinya, menjumlahkan seluruh `qty_delta` dari awal akan
+  selalu sama dengan `current_qty`. Kalau tidak sama, itu tanda ada yang
+  menulis saldo di luar transaksi.
+
+  ## `log_id` menautkan ke dosis
+
+  Transaksi `consume` punya `log_id` yang menunjuk catatan dosisnya. Itu
+  membuat pertanyaan "kenapa saldo turun satu di tanggal ini" bisa dijawab
+  sampai ke dosis mana yang menyebabkannya.
+
+  Kolom itu juga **unik** — satu catatan dosis hanya boleh memotong saldo
+  sekali, walau request-nya dikirim berulang.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {"id": "019f1...", "kind": "consume", "qty_delta": -1, "balance_after": 28, "log_id": "019e1...", "note": null, "created_at": "2026-10-11T00:02:00Z"},
+      {"id": "019f0...", "kind": "restock", "qty_delta": 30, "balance_after": 29, "log_id": null, "note": "beli di apotek", "created_at": "2026-10-10T11:00:00Z"},
+      {"id": "019ef...", "kind": "initial", "qty_delta": 30, "balance_after": 30, "log_id": null, "note": "stok awal", "created_at": "2026-10-10T10:29:00Z"}
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 50}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

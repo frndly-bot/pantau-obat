@@ -1,0 +1,134 @@
+info:
+  name: Catat Dosis Terjadwal
+  type: http
+  seq: 1
+  tags:
+    - log
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/logs"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "schedule_id": "{{schedule_id}}",
+        "slot_date": "2026-10-11",
+        "scheduled_hour": 7,
+        "scheduled_minute": 0,
+        "scheduled_tz": "Asia/Jakarta",
+        "status": "taken"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.log.status
+      operator: isString
+    - expression: res.body.data.stock.consumed
+      operator: eq
+      value: true
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("log_id", res.body.data.log.id);
+
+docs: |-
+  # Catat Dosis Terjadwal
+
+  Mencatat bahwa dosis sudah diminum, terlewat, atau dilewati. Ini **inti
+  aplikasi**: di sinilah aturan jadwal bertemu kenyataan, dan di sinilah saldo
+  stok berubah.
+
+  ## Status yang mungkin
+
+  | Nilai | Arti | Memotong stok? |
+  |---|---|---|
+  | `taken` | Diminum dalam toleransi waktu | **ya** |
+  | `late` | Diminum, tapi lebih dari toleransi | **ya** |
+  | `skipped` | Sengaja dilewati | **tidak** |
+  | `snoozed` | Ditunda | **tidak** |
+
+  **`skipped` tidak memotong stok.** Obatnya tidak masuk ke tubuh, jadi
+  memotongnya akan melaporkan sisa obat lebih sedikit daripada kenyataan dan
+  memunculkan peringatan restock terlalu cepat. `snoozed` juga tidak: menunda
+  bukan meminum.
+
+  ## `taken` vs `late` dihitung server
+
+  Kalau `status` diisi `taken`, server menghitung sendiri apakah sebenarnya
+  `late`, berdasarkan selisih terhadap jam jadwal dan `tolerance_minutes` dari
+  aturan frekuensi (bawaan 60 menit).
+
+  Perbandingannya dilakukan dalam **waktu lokal pemilik**. Membandingkannya
+  dalam UTC akan menghitung selisih 7 jam untuk pengguna WIB hanya karena
+  zonanya berbeda, dan semua dosis akan berstatus `late`.
+
+  `taken_at` diambil dari waktu **server** bila klien tidak mengirimnya.
+  Waktu klien bisa dipalsukan atau salah zona.
+
+  ## Anti dosis ganda
+
+  Satu dosis terjadwal hanya boleh punya **satu** catatan hidup. Yang
+  menegakkan itu `uq_log_occurrence` di database, bukan pemeriksaan di
+  aplikasi — sehingga tidak ada jendela balapan antara "cek dulu" dan "tulis".
+
+  Mencatat ulang dosis yang sama:
+
+  ```json
+  {
+    "error": {
+      "code": "LOG_OCCURRENCE_TAKEN",
+      "message": "dosis pada jam itu sudah tercatat"
+    }
+  }
+  ```
+
+  Saldo stok **tidak** terpotong dua kali, karena `uq_stock_txn_log` juga
+  menegakkan satu transaksi per catatan dosis.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "log": {
+        "id": "019e1...",
+        "medication_id": "019ccc...",
+        "schedule_id": "019d1...",
+        "slot_date": "2026-10-11",
+        "scheduled_time": "07:00",
+        "status": "taken",
+        "source": "self",
+        "taken_at": "2026-10-11T00:02:00Z",
+        "occurrence_key": "019d1...|2026-10-11|07:00"
+      },
+      "stock": {
+        "consumed": true,
+        "qty_delta": -1,
+        "balance_after": 29,
+        "unit_code": "tablet",
+        "needs_refill": false
+      }
+    }
+  }
+  ```
+
+  Perubahan saldo ikut dilaporkan supaya klien bisa langsung memperbarui
+  tampilan tanpa GET ulang.
+
+  ## Catatan dosis PRN
+
+  Obat "bila perlu" memakai `POST /medications/{id}/logs/prn`, tanpa
+  `schedule_id`. Dosis PRN boleh berkali-kali sehari.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.

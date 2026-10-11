@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pengaturan — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .set-row:last-child { border-bottom: 0; }
+  .set-row .lbl b { font-size: 13.5px; }
+  .set-row .lbl span { display: block; font-size: 11.5px; color: var(--muted-foreground); margin-top: 2px; }
+  .chat-line { display: flex; gap: 8px; font-size: 11.5px; color: var(--muted-foreground); align-items: flex-start; }
+  .chat-line .ic { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--primary); }
+
+  /* Tampilan: pemilih tema berbasis ikon (senada dengan kontrol form lain) */
+  .theme-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .theme-opt {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    height: var(--control-lg); padding: 0 12px;
+    border: 1px solid var(--input); border-radius: var(--radius-md);
+    background: var(--background); color: var(--muted-foreground);
+    font-size: 13.5px; font-weight: 500;
+    transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .theme-opt svg { width: 1.125rem; height: 1.125rem; }
+  .theme-opt:hover { border-color: var(--ring); color: var(--foreground); }
+  .theme-opt.on { border-color: var(--primary); color: var(--primary); background: color-mix(in oklab, var(--primary) 12%, transparent); }
+  .theme-opt:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-user">
+  <header id="po-top"></header>
+  <main class="u-body" id="main"></main>
+</div>
+
+<nav id="po-nav"></nav>
+
+<!-- Modal: ganti sandi -->
+<div class="scrim" data-for="m-pass"></div>
+<div class="modal" id="m-pass" role="dialog" aria-modal="true" aria-labelledby="p-t">
+  <div class="m-head"><h3 id="p-t">Ganti sandi</h3>
+    <button class="icon-btn" data-close="m-pass" aria-label="Tutup" id="p-x"></button></div>
+  <div class="m-body">
+    <div class="field"><label for="p-old">Sandi sekarang <span class="req">*</span></label>
+      <input class="input" id="p-old" type="password" placeholder="Sandi lama"></div>
+    <div class="field"><label for="p-new">Sandi baru <span class="req">*</span></label>
+      <input class="input" id="p-new" type="password" placeholder="Minimal 8 karakter">
+      <span class="hint">Setelah diganti, seluruh sesi lain otomatis dicabut (aturan A3).</span></div>
+    <div class="field"><label for="p-new2">Ulangi sandi baru <span class="req">*</span></label>
+      <input class="input" id="p-new2" type="password"></div>
+    <div class="banner warn"><span class="ic" id="p-ic"></span><div><b>Refresh token lama dicabut</b>
+      <p>Perangkat lain harus login ulang. Deteksi pemakaian ulang token akan mencabut seluruh rantai sesi.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-pass">Batal</button>
+    <button class="btn btn-primary" id="p-go">Ganti sandi</button></div>
+</div>
+
+<!-- Modal: hapus akun -->
+<div class="scrim" data-for="m-del"></div>
+<div class="modal" id="m-del" role="dialog" aria-modal="true" aria-labelledby="d-t">
+  <div class="m-head"><h3 id="d-t">Hapus akun</h3>
+    <button class="icon-btn" data-close="m-del" aria-label="Tutup" id="d-x"></button></div>
+  <div class="m-body">
+    <div class="banner err"><span class="ic" id="d-ic"></span><div><b>Akun dinonaktifkan, lalu dihapus</b>
+      <p>Penghapusan bersifat soft delete 30 hari, lalu purge. Ekspor dulu data Anda bila masih dibutuhkan.</p></div></div>
+    <div class="field"><label for="d-confirm">Ketik <span class="mono">HAPUS</span> untuk melanjutkan</label>
+      <input class="input" id="d-confirm" placeholder="HAPUS"></div>
+    <div class="field"><label>Yang terjadi setelah ini</label>
+      <ul class="sm muted" style="padding-left:18px;line-height:1.7">
+        <li>Nama dan email dianonimkan.</li>
+        <li>Seluruh sesi dan token perangkat dicabut.</li>
+        <li>Relasi caregiver menjadi dicabut.</li>
+        <li>Riwayat kepatuhan tetap ada sampai masa retensi habis.</li>
+      </ul></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-del">Batal</button>
+    <button class="btn btn-danger" id="d-go">Hapus akun saya</button></div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  var session = A.requireUser();
+  if (!session) return;
+
+  var ME = session.user.id;
+  var me = PO.user(ME) || { full_name: session.user.full_name, email: session.user.email, timezone: "Asia/Jakarta", phone: null, created_at: PO.iso(PO.shiftDays(-120)) };
+
+  function platformIcon(p) { return p === "android" ? "phone" : p === "ios" ? "phone" : "monitor"; }
+
+  /* Opsi zona waktu: 3 zona Indonesia di paling atas, lalu sisanya
+     dikelompokkan per wilayah (optgroup). Dipakai untuk <select> profil. */
+  function tzOptions(current) {
+    var html = '<optgroup label="Indonesia">' +
+      PO.ID_TIMEZONES.map(function (z) {
+        return tzOpt(z, current);
+      }).join("") + "</optgroup>";
+    PO.timezoneGroups().forEach(function (g) {
+      if (g.key === "Asia") {
+        /* Asia: hanya zona Indonesia yang masuk grup Indonesia; sisanya tetap
+           di grup "Asia" (negara lain), tanpa duplikasi. */
+        var rest = g.items.filter(function (i) { return !i.indonesia; });
+        if (!rest.length) return;
+        html += '<optgroup label="Asia">' + rest.map(function (i) { return tzOptItem(i, current); }).join("") + "</optgroup>";
+        return;
+      }
+      html += '<optgroup label="' + A.esc(g.key) + '">' +
+        g.items.map(function (i) { return tzOptItem(i, current); }).join("") + "</optgroup>";
+    });
+    return html;
+  }
+  function tzOpt(z, current) {
+    return '<option value="' + A.esc(z) + '"' + (current === z ? " selected" : "") + ">" + A.esc(z) + "</option>";
+  }
+  function tzOptItem(i, current) {
+    var txt = i.id.replace(/_/g, " ") + " · " + i.offset;
+    return '<option value="' + A.esc(i.id) + '"' + (current === i.id ? " selected" : "") + ">" + A.esc(txt) + "</option>";
+  }
+
+  function render() {
+    var unread = PO.inbox.filter(function (n) { return !n.read; });
+    var html = "";
+
+    /* profil */
+    html += '<section class="card card-pad">' +
+      '<div class="row-t gap-14">' +
+        '<span class="avatar lg">' + A.esc((me.full_name || "?").slice(0, 2).toUpperCase()) + "</span>" +
+        '<div class="grow"><b style="font-size:16px">' + A.esc(me.full_name) + "</b>" +
+          '<div class="sm muted">' + A.esc(me.email) + "</div>" +
+          '<div class="row-wrap mt-8 gap-6">' +
+            A.badge(session.role === "admin" ? "admin" : "pengguna", session.role === "admin" ? "badge-accent" : "badge-na") +
+            A.badge(me.timezone, "badge-info") +
+            A.badge("aktif", "badge-ok", true) +
+          "</div></div>" +
+      "</div>" +
+      '<div class="divider mt-16"></div>' +
+      '<div class="grid-2 mt-12">' +
+        '<div class="field"><label for="s-name">Nama lengkap</label><input class="input" id="s-name" value="' + A.esc(me.full_name) + '"></div>' +
+        '<div class="field"><label for="s-phone">Nomor HP</label><input class="input" id="s-phone" value="' + A.esc(me.phone || "") + '" placeholder="+62812…"></div>' +
+      "</div>" +
+      '<div class="field mt-12"><label for="s-tz">Zona waktu</label>' +
+        '<select class="input" id="s-tz">' + tzOptions(me.timezone) + "</select>" +
+        '<span class="hint">Mengubah zona tidak mengubah log lama — hanya dosis ke depan yang dihitung ulang (aturan A4).</span></div>' +
+      '<button class="btn btn-primary btn-block mt-12" id="s-save">' + A.icon("check") + "Simpan profil</button>" +
+    "</section>";
+
+    /* tampilan: tema & bahasa — dua konfigurasi ini HANYA di sini */
+    var curTheme = A.theme.get();
+    var curLang = POI18N.get();
+    html += '<section class="card"><div class="card-head"><h2>' + A.icon("sun") + " Tampilan</h2>" +
+      '<div class="sub">Tema dan bahasa disimpan di perangkat ini</div></div>' +
+      '<div class="card-pad">' +
+        '<div class="field"><label data-i18n="settings.appearance.theme">' + POI18N.t("settings.appearance.theme") + "</label>" +
+          '<div class="theme-pick" id="theme-pick">' +
+            '<button type="button" class="theme-opt' + (curTheme === "light" ? " on" : "") + '" data-theme="light">' +
+              A.icon("sun") + "<span>" + POI18N.t("settings.appearance.light") + "</span></button>" +
+            '<button type="button" class="theme-opt' + (curTheme === "dark" ? " on" : "") + '" data-theme="dark">' +
+              A.icon("moon") + "<span>" + POI18N.t("settings.appearance.dark") + "</span></button>" +
+          "</div>" +
+          '<span class="hint" data-i18n="settings.appearance.theme_hint">' + POI18N.t("settings.appearance.theme_hint") + "</span></div>" +
+        '<div class="field mt-16"><label for="f-lang" data-i18n="settings.appearance.language">' + POI18N.t("settings.appearance.language") + "</label>" +
+          '<select class="input" id="f-lang">' +
+            POI18N.list().map(function (l) {
+              return '<option value="' + A.esc(l.code) + '"' + (curLang === l.code ? " selected" : "") + ">" + A.esc(l.label) + "</option>";
+            }).join("") + "</select>" +
+          '<span class="hint" data-i18n="settings.appearance.language_hint">' + POI18N.t("settings.appearance.language_hint") + "</span></div>" +
+      "</div></section>";
+
+    /* notifikasi */
+    html += '<section class="card" id="notifikasi">' +
+      '<div class="card-head"><div><h2>' + A.icon("bell") + " Notifikasi</h2>" +
+        '<div class="sub">Kanal, jam sunyi, dan waktu maju pengingat</div></div>' +
+        (unread.length ? A.badge(unread.length + " belum dibaca", "badge-info badge-pulse") : "") + "</div>" +
+      '<div class="card-pad">';
+    PO.notifPrefs.forEach(function (p) {
+      html += '<div class="set-row">' +
+        '<div class="lbl"><b>' + A.esc(PO.t("channel", p.channel)) + "</b>" +
+          "<span>" + (p.channel === "in_app" ? "cadangan di dalam aplikasi, selalu tersedia"
+            : p.channel === "push" ? "sampai walau aplikasi tertutup"
+            : p.channel === "telegram" ? "butuh tautan bot Telegram"
+            : "butuh alamat email terverifikasi") + "</span>" +
+          (p.notif_throttled ? '<span class="err-text">sedang diturunkan otomatis karena terlalu sering</span>' : "") +
+        "</div>" +
+        '<label class="sw"><input type="checkbox" data-ch="' + p.channel + '"' + (p.enabled ? " checked" : "") + '>' +
+          '<span class="track"></span></label>' +
+      "</div>";
+      if (p.enabled && p.channel !== "in_app") {
+        html += '<div class="grid-2 mt-8 mb-8">' +
+          '<div class="field"><label>Jam sunyi mulai</label><input class="input" type="time" data-quiet-start="' + p.channel + '" value="' + (p.quiet_start || "22:00") + '"></div>' +
+          '<div class="field"><label>Jam sunyi selesai</label><input class="input" type="time" data-quiet-end="' + p.channel + '" value="' + (p.quiet_end || "06:00") + '"></div>' +
+        "</div>" +
+        '<div class="field mb-12"><label>Maju lebih awal (menit)</label>' +
+          '<input class="input" type="number" min="0" max="120" data-adv="' + p.channel + '" value="' + p.advance_minutes + '">' +
+          '<span class="hint">0–120 menit. Pengingat dikirim lebih awal dari jam jadwal.</span></div>';
+      }
+    });
+    html += '<div class="banner info">' + '<span class="ic">' + A.icon("info") + "</span><div><b>Anti-spam bawaan</b>" +
+      "<p>Deduplikasi per dosis, maksimal 3 tunda per dosis, jam sunyi per kanal, dan eskalasi caregiver maksimal sekali sehari.</p></div></div>" +
+      "</div></section>";
+
+    /* kotak masuk — hanya yang belum dibaca; yang sudah dibaca hilang */
+    var inboxUnread = PO.inbox.filter(function (n) { return !n.read; });
+    html += '<section class="card"><div class="card-head"><div><h2>' + A.icon("mail") + " Kotak masuk</h2>" +
+      '<div class="sub">Pengingat yang belum dibaca — yang sudah dibaca otomatis hilang</div></div>' +
+      (inboxUnread.length ? '<button class="btn btn-ghost btn-sm" id="b-read">Tandai semua dibaca</button>' : "") + "</div>" +
+      '<div class="card-pad stack-8">' +
+      (inboxUnread.length ? inboxUnread.map(function (n) {
+        return '<div class="notif-item unread">' +
+          '<span class="avatar sm">' + A.icon(A.notifIcon(n.kind)) + "</span>" +
+          '<div class="grow">' +
+            '<div class="sm trunc"><b>' + A.esc(n.title) + "</b></div>" +
+            '<div class="xs muted-3 trunc">' + A.esc(n.body) + "</div>" +
+            '<div class="xs muted-3">' + A.icon(A.notifChannelIcon(n.channel)) +
+              " " + A.esc(PO.t("channel", n.channel)) + " · " + A.esc(PO.relTime(n.created_at)) + "</div>" +
+          "</div>" +
+        "</div>";
+      }).join("") : A.empty("Tidak ada notifikasi baru", "Semua pengingat sudah dibaca. Yang baru akan muncul di sini.", "check-check")) + "</div></section>";
+
+    /* perangkat */
+    html += '<section class="card"><div class="card-head"><div><h2>' + A.icon("monitor") + " Perangkat</h2>" +
+      '<div class="sub">Token push per perangkat — bisa dicabut tanpa mengubah sandi</div></div>' +
+      '<button class="btn btn-outline btn-sm" data-dead="Daftarkan perangkat">' + A.icon("plus") + "Tambah</button></div>" +
+      '<div class="card-pad stack-8">' +
+      PO.deviceTokens.map(function (d) {
+        var revoked = !!d.revoked_at;
+        return '<div class="list-card">' +
+          '<span class="avatar sm ' + (revoked ? "err" : "") + '">' + A.icon(platformIcon(d.platform)) + "</span>" +
+          '<div class="grow"><div class="row-b"><span class="sm"><b>' + A.esc(d.label) + "</b></span>" +
+            (revoked ? A.badge("dicabut", "badge-na") : A.badge("aktif", "badge-ok")) + "</div>" +
+            '<div class="xs muted-3">' + A.esc(d.platform) + " · terakhir " + A.esc(PO.relTime(d.last_seen_at)) + "</div></div>" +
+          (revoked ? "" : '<button class="btn btn-ghost btn-sm" data-revdev="' + d.id + '">Cabut</button>') +
+        "</div>";
+      }).join("") + "</div></section>";
+
+    /* keamanan */
+    html += '<section class="card"><div class="card-head"><h2>' + A.icon("lock") + " Keamanan</h2></div>" +
+      '<div class="card-pad">' +
+        '<div class="set-row"><div class="lbl"><b>Sandi</b><span>Terakhir diubah 3 bulan lalu (dummy)</span></div>' +
+          '<button class="btn btn-outline btn-sm" id="b-pass">Ganti</button></div>' +
+        '<div class="set-row"><div class="lbl"><b>Sesi aktif</b><span>2 perangkat · token dirotasi tiap dipakai</span></div>' +
+          '<button class="btn btn-ghost btn-sm" data-dead="Keluarkan semua perangkat">Keluarkan semua</button></div>' +
+        '<div class="set-row"><div class="lbl"><b>Verifikasi dua langkah</b><span>Belum tersedia di v0.1</span></div>' +
+          A.badge("rencana", "badge-na") + "</div>" +
+      "</div></section>";
+
+    /* privasi & data */
+    html += '<section class="card"><div class="card-head"><h2>' + A.icon("shield") + " Privasi &amp; data</h2></div>" +
+      '<div class="card-pad">' +
+        '<div class="set-row"><div class="lbl"><b>Ekspor data saya</b><span>CSV riwayat kepatuhan untuk dokter</span></div>' +
+          '<a class="btn btn-outline btn-sm" href="riwayat.html">Buka riwayat</a></div>' +
+        '<div class="set-row"><div class="lbl"><b>Riwayat akses data saya</b><span>Siapa membuka data obat Anda</span></div>' +
+          '<button class="btn btn-outline btn-sm" data-dead="Riwayat akses (audit log pasien)">Lihat</button></div>' +
+        '<div class="set-row"><div class="lbl"><b>Data kesehatan tidak dikirim ke analytics</b><span>Tidak ada pihak ketiga di v0.1</span></div>' +
+          A.badge("patuh", "badge-ok") + "</div>" +
+        '<div class="set-row"><div class="lbl"><b>Hapus akun</b><span>Soft delete 30 hari, lalu purge</span></div>' +
+          '<button class="btn btn-danger btn-sm" id="b-del">Hapus</button></div>' +
+      "</div></section>";
+
+    /* tentang */
+    html += '<section class="card card-pad">' +
+      '<div class="chat-line">' + A.icon("info") + "<div><b>Pengingat dihitung server, bukan browser</b><br>" +
+        "Aplikasi tetap mengirim pengingat walau browser ditutup. Setelah worker mati, satu pass catch-up mengejar dosis yang terlewat.</div></div>" +
+      '<div class="divider mt-12"></div>' +
+      '<div class="chat-line mt-12">' + A.icon("database") + "<div><b>Log hanya menyimpan id, bukan nama obat</b><br>" +
+        "Batas privasi ini dipegang di kode, bukan preferensi tampilan.</div></div>" +
+      '<div class="divider mt-12"></div>' +
+      '<div class="row-b mt-12"><span class="xs muted-3">Prototipe statis · data dummy · tanpa backend</span>' +
+        '<button class="btn btn-danger btn-sm" id="b-reset">' + A.icon("undo") + "Reset dummy</button></div>" +
+    "</section>";
+
+    document.getElementById("main").innerHTML = html;
+    ["p-x", "d-x"].forEach(function (x) { document.getElementById(x).innerHTML = A.icon("x"); });
+    document.getElementById("p-ic").innerHTML = A.icon("alert");
+    document.getElementById("d-ic").innerHTML = A.icon("alert");
+
+    bind();
+  }
+
+  function bind() {
+    document.getElementById("s-save").addEventListener("click", function () {
+      var name = document.getElementById("s-name").value.trim();
+      var phone = document.getElementById("s-phone").value.trim();
+      var tz = document.getElementById("s-tz").value;
+      if (name.length < 3) { A.toast("err", "Nama terlalu pendek", "Minimal 3 karakter."); return; }
+      if (phone && !/^\+?[0-9\s\-()]{6,20}$/.test(phone)) { A.toast("err", "Nomor HP tidak valid", "6–20 digit angka."); return; }
+      me.full_name = name; me.phone = phone; me.timezone = tz;
+      PO.session.user.full_name = name;
+      PO.session.user.timezone = tz;
+      PO.save();
+      A.toast("ok", "Profil tersimpan", "Zona waktu baru berlaku untuk dosis ke depan.");
+      render();
+    });
+
+    document.querySelectorAll("[data-ch]").forEach(function (c) {
+      c.addEventListener("change", function () {
+        var ch = c.getAttribute("data-ch");
+        var p = PO.notifPrefs.filter(function (x) { return x.channel === ch; })[0];
+        if (!p) return;
+        p.enabled = c.checked;
+        PO.save();
+        A.toast(c.checked ? "ok" : "warn", PO.t("channel", ch) + (c.checked ? " diaktifkan" : " dimatikan"),
+          c.checked ? "Pengingat akan dikirim lewat kanal ini." : "Kanal ini tidak akan dipakai.");
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-quiet-start]").forEach(function (i) {
+      i.addEventListener("change", function () {
+        var p = PO.notifPrefs.filter(function (x) { return x.channel === i.getAttribute("data-quiet-start"); })[0];
+        if (p) { p.quiet_start = i.value; PO.save(); A.toast("info", "Jam sunyi diperbarui", "Mulai " + i.value + "."); }
+      });
+    });
+    document.querySelectorAll("[data-quiet-end]").forEach(function (i) {
+      i.addEventListener("change", function () {
+        var p = PO.notifPrefs.filter(function (x) { return x.channel === i.getAttribute("data-quiet-end"); })[0];
+        if (p) { p.quiet_end = i.value; PO.save(); A.toast("info", "Jam sunyi diperbarui", "Selesai " + i.value + "."); }
+      });
+    });
+    document.querySelectorAll("[data-adv]").forEach(function (i) {
+      i.addEventListener("change", function () {
+        var p = PO.notifPrefs.filter(function (x) { return x.channel === i.getAttribute("data-adv"); })[0];
+        if (!p) return;
+        var v = Math.max(0, Math.min(120, +i.value || 0));
+        p.advance_minutes = v;
+        i.value = v;
+        PO.save();
+        A.toast("info", "Waktu maju diperbarui", v + " menit lebih awal (batas 0–120).");
+      });
+    });
+
+    var read = document.getElementById("b-read");
+    if (read) read.addEventListener("click", function () {
+      PO.inbox.forEach(function (n) { n.read = true; });
+      PO.save();
+      A.toast("ok", "Semua ditandai dibaca", "Badge notifikasi hilang dari bilah atas.");
+      render();
+    });
+
+    document.querySelectorAll("[data-revdev]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var d = PO.deviceTokens.filter(function (x) { return x.id === b.getAttribute("data-revdev"); })[0];
+        if (!d) return;
+        d.revoked_at = new Date().toISOString();
+        PO.save();
+        A.toast("warn", "Perangkat dicabut", "Token push tidak lagi valid. Perangkat lain tidak terpengaruh.");
+        render();
+      });
+    });
+
+    document.getElementById("b-pass").addEventListener("click", function () { A.overlay("m-pass", true); });
+    document.getElementById("b-del").addEventListener("click", function () { A.overlay("m-del", true); });
+
+    /* tampilan: tema langsung berlaku; bahasa menyimpan lalu memuat ulang */
+    document.querySelectorAll("#theme-pick .theme-opt").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var v = b.getAttribute("data-theme");
+        if (A.theme.get() === v) return;
+        A.theme.set(v);
+        document.querySelectorAll("#theme-pick .theme-opt").forEach(function (x) { x.classList.remove("on"); });
+        b.classList.add("on");
+        A.toast("ok", "Tema diganti", v === "light" ? "Mode terang aktif." : "Mode gelap aktif.");
+      });
+    });
+    document.getElementById("f-lang").addEventListener("change", function (e) {
+      var v = e.target.value;
+      if (POI18N.get() === v) return;
+      POI18N.set(v);
+      location.reload();
+    });
+    document.getElementById("b-reset").addEventListener("click", function () {
+      A.toast("warn", "Reset data dummy", "Semua perubahan dikembalikan ke data awal.");
+      setTimeout(function () { PO.reset(); }, 500);
+    });
+  }
+
+  document.getElementById("p-go").addEventListener("click", function () {
+    var oldv = document.getElementById("p-old").value;
+    var n1 = document.getElementById("p-new").value;
+    var n2 = document.getElementById("p-new2").value;
+    if (!oldv) { A.toast("err", "Sandi lama wajib", "Masukkan sandi sekarang untuk konfirmasi."); return; }
+    if (n1.length < 8) { A.toast("err", "Sandi baru terlalu pendek", "Minimal 8 karakter."); return; }
+    if (n1 !== n2) { A.toast("err", "Sandi tidak sama", "Ulangi sandi baru dengan benar."); return; }
+    A.overlay("m-pass", false);
+    A.toast("ok", "Sandi diganti", "Seluruh sesi lain dicabut — perangkat lain harus login ulang.");
+    ["p-old", "p-new", "p-new2"].forEach(function (id) { document.getElementById(id).value = ""; });
+  });
+
+  document.getElementById("d-go").addEventListener("click", function () {
+    var v = (document.getElementById("d-confirm").value || "").trim().toUpperCase();
+    if (v !== "HAPUS") { A.toast("err", "Konfirmasi belum cocok", "Ketik HAPUS (huruf besar) untuk melanjutkan."); return; }
+    A.overlay("m-del", false);
+    A.toast("warn", "Permintaan hapus dicatat", "Prototipe statis: akun tidak benar-benar dihapus.");
+    PO.logout();
+    setTimeout(function () { location.href = "login.html"; }, 900);
+  });
+
+  A.boot({
+    shell: "user",
+    active: "pengaturan",
+    title: "Pengaturan",
+    sub: "Profil, notifikasi, perangkat, privasi",
+    after: function () {
+      render();
+      if (location.hash === "#notifikasi") {
+        setTimeout(function () {
+          var el = document.getElementById("notifikasi");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

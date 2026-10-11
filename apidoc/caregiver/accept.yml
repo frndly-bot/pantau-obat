@@ -1,0 +1,93 @@
+info:
+  name: Terima Undangan
+  type: http
+  seq: 3
+  tags:
+    - caregiver
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/care-links/accept"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{caregiver_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "token": "{{invite_token}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.status
+      operator: eq
+      value: "accepted"
+
+docs: |-
+  # Terima Undangan
+
+  Menerima undangan caregiver. Setelah ini, akses baca langsung berlaku.
+
+  ## Undangan terikat pada alamat email
+
+  Hanya pemilik email yang diundang yang bisa menerimanya:
+
+  ```json
+  {"error": {"code": "FORBIDDEN", "message": "tidak berhak mengakses data ini"}}
+  ```
+
+  Tanpa pemeriksaan ini, siapa pun yang menemukan tautan undangan bisa
+  memantau data kesehatan orang lain.
+
+  ## Token hanya bisa dipakai sekali
+
+  Setelah diterima, tokennya dikosongkan. Percobaan kedua membalas 404.
+
+  ## Pasien tidak bisa menerima undangannya sendiri
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa menerima undangan sendiri"
+    }
+  }
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019cc1...",
+      "owner_id": "019...",
+      "caregiver_id": "019...",
+      "role": "viewer",
+      "status": "accepted",
+      "decided_at": "2026-10-10T12:00:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "undangan sudah kedaluwarsa"
+    }
+  }
+  ```
+
+  Statusnya sekaligus diubah menjadi `expired`, sehingga undangan baru untuk
+  email yang sama bisa dibuat.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

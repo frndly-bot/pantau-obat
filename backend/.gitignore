@@ -1,0 +1,11 @@
+# Artefak build
+bin/
+*.exe
+
+# Konfigurasi lokal — jangan pernah masuk git
+.env
+.env.local
+
+# Sampul test
+*.out
+coverage.html

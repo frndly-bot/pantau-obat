@@ -1,0 +1,78 @@
+info:
+  name: Daftar Akun Caregiver
+  type: http
+  seq: 8
+  tags:
+    - authentication
+    - caregiver
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/register"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{caregiver_email}}",
+        "password": "KataSandi2026kuat",
+        "full_name": "Siti Keluarga",
+        "timezone": "Asia/Jakarta"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.user.role
+      operator: eq
+      value: "user"
+  scripts:
+    - type: before-request
+      code: |-
+        // Akun KEDUA untuk alur caregiver. Undangan care-link terikat pada
+        // email yang diundang: hanya pemilik email itu yang bisa menerimanya.
+        // Tanpa akun kedua, accept harus dipanggil oleh pasien sendiri — dan
+        // backend menolaknya (tidak bisa menerima undangan sendiri). Koleksi
+        // karena itu butuh dua akun: pasien (user_email) dan caregiver.
+        const uniq = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        bru.setVar("caregiver_email", "uji-cg-" + uniq + "@example.com");
+    - type: after-response
+      code: |-
+        // Token caregiver disimpan TERPISAH. Variabel access_token tetap
+        // milik pasien — request pasien (medication, log, stock) memakai itu,
+        // sementara accept/reject memakai token caregiver.
+        bru.setVar("caregiver_access_token", res.body.data.access_token);
+        // Dipakai admin/* sebagai target_user_id (akun non-admin).
+        bru.setVar("target_user_id", res.body.data.user.id);
+
+docs: |-
+  # Daftar Akun Caregiver
+
+  Membuat akun kedua untuk alur caregiver. Ini bagian dari rantai e2e, bukan
+  fitur terpisah: relasi care-link menghubungkan DUA akun, dan undangan
+  caregiver terikat pada email yang diundang.
+
+  ## Kenapa harus dua akun
+
+  Undangan yang dikirim pasien ditujukan ke `caregiver_email`. Backend
+  menolak undangan yang diterima pasiennya sendiri — dan itu benar, karena
+  memantau diri sendiri bukan relasi caregiver. Dengan akun kedua, alur
+  undangan → terima → lihat data pasien bisa diuji utuh.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbG...",
+      "user": {"id": "019...", "email": "uji-cg-...@example.com", "role": "user"}
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

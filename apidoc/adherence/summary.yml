@@ -1,0 +1,115 @@
+info:
+  name: Ringkasan Kepatuhan
+  type: http
+  seq: 1
+  tags:
+    - adherence
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/adherence?from=2026-10-05&to=2026-10-11"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.scheduled_doses
+      operator: isNumber
+    - expression: res.body.data.adherence_ratio
+      operator: isDefined
+
+docs: |-
+  # Ringkasan Kepatuhan
+
+  Angka kepatuhan seluruh obat pada satu rentang tanggal.
+
+  ## PENYEBUT dihitung dari ATURAN, bukan dari catatan
+
+  Ini perbedaan yang menentukan, dan alasannya bukan kerapian melainkan
+  kebenaran:
+
+  Kalau penyebutnya berasal dari catatan yang ada, pasien yang **tidak pernah
+  membuka aplikasi** akan selalu tampak patuh 100% — karena tidak ada catatan
+  apa pun yang bisa dihitung sebagai terlewat. Justru pasien yang paling perlu
+  terlihat adalah yang tidak muncul sama sekali.
+
+  Jadi "berapa dosis yang seharusnya ada" dihitung dari aturan frekuensi,
+  aturan jam, rentang terapi, dan masa jeda siklus.
+
+  ## Dosis yang belum tiba waktunya TIDAK masuk penyebut
+
+  `pending_doses` dipisahkan dari `scheduled_doses` di penyebut:
+
+  ```
+  ratio = taken / (scheduled - pending)
+  ```
+
+  Tanpa pemisahan itu, pasien yang baru minum pagi ini akan terlihat patuh 50%
+  padahal dosis malamnya belum saatnya.
+
+  ## Rasio `null`, bukan 0
+
+  ```json
+  {"data": {"adherence_ratio": null, "scheduled_doses": 0}}
+  ```
+
+  `null` berarti **belum ada dosis yang keadaannya pasti**. Nol berarti "semua
+  terlewat", dan itu tuduhan yang salah untuk user baru.
+
+  ## Rasio 0% bisa berarti BENAR
+
+  Pasien dengan obat harian berjalan yang berhenti mencatat sejak beberapa
+  hari lalu **akan** mendapat rasio rendah. Itu jawaban yang benar, bukan bug:
+  terapinya masih berjalan, dosisnya memang seharusnya diminum, dan ia tidak
+  mencatatnya. Angka itulah yang membuat caregiver bisa melihat pasiennya
+  berhenti minum obat.
+
+  ## Rentang bawaan
+
+  Bila `from`/`to` tidak dikirim, dipakai **7 hari terakhir**.
+
+  Rentang bawaan disesuaikan ke masa terapi dalam dua hal saja:
+
+  1. Kalau terapi baru dimulai di dalam rentang, awalnya dimajukan.
+  2. Kalau **semua** terapi sudah berakhir, akhirnya dimundurkan ke hari
+     terakhir terapi.
+
+  Yang **tidak** dilakukan: memundurkan akhir rentang untuk terapi yang masih
+  berjalan. Rasio rendah untuk pasien yang berhenti mencatat memang disengaja.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "from": "2026-10-05",
+      "to": "2026-10-11",
+      "scheduled_doses": 14,
+      "taken_doses": 11,
+      "late_doses": 2,
+      "skipped_doses": 1,
+      "missed_doses": 2,
+      "pending_doses": 2,
+      "adherence_ratio": 0.9167
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tanggal harus berbentuk YYYY-MM-DD",
+      "details": [{"field": "from", "issue": "invalid"}]
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

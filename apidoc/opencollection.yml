@@ -1,0 +1,25 @@
+opencollection: 1.0.0
+
+info:
+  name: Pantau Obat API
+  version: 1.0.0
+  description: |-
+    Koleksi request untuk API Pantau Obat. Dipakai sebagai dokumentasi
+    endpoint sekaligus uji end-to-end backend.
+
+    Kontrak API: docs/design-v2/api-v2.md
+    Aturan penulisan: apidoc/README.md
+
+request:
+  headers:
+    - name: Accept
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+variables:
+  - name: base_url
+    value: http://localhost:8080
+
+bundled: true

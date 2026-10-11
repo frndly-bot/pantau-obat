@@ -1,0 +1,76 @@
+info:
+  name: Tunda Pengingat
+  type: http
+  seq: 4
+  tags:
+    - log
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/logs/{{schedule_id}}/snooze?medication_id={{medication_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "minutes": 10
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.snoozed
+      operator: eq
+      value: true
+
+docs: |-
+  # Tunda Pengingat
+
+  Menunda pengingat satu dosis. **Tidak membuat catatan dosis** — hanya
+  menggeser waktu pengirimannya.
+
+  ## Pilihan yang diizinkan
+
+  Hanya **5, 10, atau 30 menit**. Nilai lain ditolak:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "snooze hanya boleh 5, 10, atau 30 menit"
+    }
+  }
+  ```
+
+  Daftar tertutup dipakai supaya durasi tundanya dapat diprediksi, dan supaya
+  UI tidak perlu memvalidasi sendiri.
+
+  ## Mengapa tidak mencatat dosis
+
+  Snooze mengubah **waktu**, bukan isi pesan. Kalau disimpan sebagai catatan
+  dosis, riwayat pengiriman notifikasi jadi kotor: satu dosis akan tampak
+  tercatat berkali-kali padahal hanya ditunda.
+
+  Yang diperbarui adalah baris di `bump_queue`. Snooze kedua memperbarui baris
+  yang sama, bukan menambah baris baru.
+
+  ## Batas tiga kali beruntun
+
+  Setelah tiga snooze berturut-turut untuk dosis yang sama, dosis itu dianggap
+  terlewat. Tanpa batas, pengingatnya berputar tanpa akhir — dan itu justru
+  melatih user untuk mengabaikannya.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"snoozed": true, "minutes": 10}}
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.

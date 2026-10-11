@@ -1,0 +1,109 @@
+info:
+  name: Koreksi Stok
+  type: http
+  seq: 4
+  tags:
+    - stock
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/stock/adjust"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "qty_delta": -2,
+        "kind": "adjust",
+        "note": "dua tablet rusak"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
+docs: |-
+  # Koreksi Stok
+
+  Koreksi saldo manual. `qty_delta` boleh negatif maupun positif.
+
+  ## Alasan WAJIB
+
+  Koreksi tanpa alasan ditolak:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "alasan koreksi wajib diisi"
+    }
+  }
+  ```
+
+  Tanpa alasan, saldo yang berubah tidak bisa dijelaskan saat ditelusuri — dan
+  itu persis yang membuat data stok tidak bisa dipercaya.
+
+  ## Jenis yang diizinkan
+
+  | `kind` | Arti |
+  |---|---|
+  | `adjust` | Koreksi umum |
+  | `expire` | Obat kedaluwarsa |
+  | `restock` | Penambahan yang lupa dicatat |
+
+  **`consume` dan `initial` TIDAK diizinkan di sini:**
+
+  | Nilai | Alasan ditolak |
+  |---|---|
+  | `consume` | Hanya lahir dari pencatatan dosis, dan selalu menaut `log_id`. Memakainya manual akan membuat saldo tampak berkurang karena dosis, padahal karena koreksi |
+  | `initial` | Hanya boleh sekali per baris stok, saat stok dibuat |
+
+  Memakai `consume`:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "jenis koreksi "consume" tidak dikenal"
+    }
+  }
+  ```
+
+  ## Saldo negatif ditolak
+
+  ```json
+  {
+    "error": {
+      "code": "STOCK_INSUFFICIENT",
+      "message": "stok tidak cukup untuk mencatat dosis ini",
+      "details": {"current_qty": 5, "requested": 999}
+    }
+  }
+  ```
+
+  Pemeriksaannya dilakukan **sebelum** perubahan diterapkan, di dalam
+  transaksi yang sama. Kalau diperiksa sesudah, akan ada keadaan tidak sah
+  yang sempat terlihat transaksi lain.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "kind": "adjust",
+      "qty_delta": -2,
+      "balance_after": 26,
+      "unit_code": "tablet",
+      "needs_refill": false
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

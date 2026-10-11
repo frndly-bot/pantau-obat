@@ -1,0 +1,66 @@
+info:
+  name: Lihat Preferensi Notifikasi
+  type: http
+  seq: 1
+  tags:
+    - notification
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/notification-prefs"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Lihat Preferensi Notifikasi
+
+  Preferensi **seluruh kanal**, termasuk yang belum pernah diatur user.
+
+  ## Kanal yang belum diatur memakai nilai BAWAAN
+
+  Baris preferensi tidak dibuat otomatis saat registrasi. Kanal yang tidak
+  punya baris di database diisi nilai bawaan, dan itu yang membuat perilakunya
+  konsisten:
+
+  | Kanal | Aktif bawaan? |
+  |---|---|
+  | `push` | **ya** |
+  | `email` | tidak |
+  | `telegram` | tidak |
+  | `in_app` | tidak |
+
+  Push aktif secara bawaan karena aplikasi pengingat obat yang tidak mengirim
+  pengingat tidak ada gunanya. Kanal lain butuh langkah tambahan dari user.
+
+  Jam sunyi bawaan **22:00–06:00**. Itu keputusan yang disengaja: menahan
+  notifikasi tengah malam lebih baik daripada membuat user mematikan izin
+  notifikasi sepenuhnya setelah dibangunkan sekali.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {"channel": "push", "enabled": true, "quiet_start": "22:00", "quiet_end": "06:00", "advance_minutes": 0, "throttled": false},
+      {"channel": "email", "enabled": false, "quiet_start": "22:00", "quiet_end": "06:00", "advance_minutes": 0, "throttled": false},
+      {"channel": "telegram", "enabled": false, "quiet_start": "22:00", "quiet_end": "06:00", "advance_minutes": 0, "throttled": false},
+      {"channel": "in_app", "enabled": false, "quiet_start": "22:00", "quiet_end": "06:00", "advance_minutes": 0, "throttled": false}
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 4}
+  }
+  ```
+
+  `throttled` berarti sistem sedang **menahan** pengiriman ke kanal itu,
+  biasanya karena penyedia melaporkan kegagalan berulang. Kanai yang ditahan
+  dianggap tidak aktif, sehingga antreannya tidak menumpuk sebagai kegagalan.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

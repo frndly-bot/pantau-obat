@@ -1,0 +1,71 @@
+info:
+  name: Riwayat Dosis Pasien
+  type: http
+  seq: 10
+  tags:
+    - caregiver
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/care/{{owner_id}}/logs?from=2026-10-05&to=2026-10-11&limit=50"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Riwayat Dosis Pasien
+
+  Feed kronologis dosis pasien.
+
+  ## Catatan pribadi pasien TIDAK ikut
+
+  Field `note` (catatan bebas yang ditulis pasien) **tidak dikirim ke
+  caregiver**. Caregiver perlu tahu **apakah** dosis diminum dan kapan, bukan
+  apa yang ditulis pasien tentang dirinya sendiri.
+
+  Field yang dikirim:
+
+  | Field | Isi |
+  |---|---|
+  | `medication_id` | Obat mana |
+  | `slot_date`, `scheduled_time` | Kapan seharusnya |
+  | `status` | `taken`, `late`, `skipped`, `snoozed` |
+  | `source` | `self`, `caregiver`, atau `system` |
+  | `recorded_by` | Siapa yang mencatat |
+  | `taken_at` | Kapan benar-benar diminum |
+
+  `source` dan `recorded_by` penting untuk caregiver: keduanya menjelaskan
+  apakah catatan itu dibuat pasiennya sendiri, oleh caregiver lain, atau oleh
+  sistem.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019e1...",
+        "medication_id": "019ccc...",
+        "schedule_id": "019d1...",
+        "slot_date": "2026-10-11",
+        "scheduled_time": "07:00",
+        "status": "taken",
+        "source": "self",
+        "recorded_by": "019...",
+        "taken_at": "2026-10-11T00:02:00Z",
+        "created_at": "2026-10-11T00:02:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 50}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

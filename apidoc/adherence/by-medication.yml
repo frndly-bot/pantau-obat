@@ -1,0 +1,75 @@
+info:
+  name: Kepatuhan Satu Obat
+  type: http
+  seq: 3
+  tags:
+    - adherence
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/adherence?from=2026-10-05&to=2026-10-11"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.medication_id
+      operator: isString
+
+docs: |-
+  # Kepatuhan Satu Obat
+
+  Angka kepatuhan untuk satu obat, pada rentang tertentu.
+
+  ## Angkanya dijamin sama dengan ringkasan
+
+  Endpoint ini memakai **perhitungan yang sama** dengan ringkasan, lalu
+  menyaring ke satu obat. Bukan perhitungan khusus satu obat.
+
+  Itu disengaja: kalau ada dua jalur perhitungan, cepat atau lambat keduanya
+  berbeda, dan user melihat angka yang bertentangan untuk obat yang sama.
+
+  ## Obat PRN tidak muncul di sini
+
+  Obat "bila perlu" tidak dijadwalkan, jadi tidak ada dosis yang bisa dinilai
+  terlewat. Menghitungnya akan selalu menghasilkan angka rendah yang tidak
+  adil — dan itu sebabnya ia tidak dihitung sama sekali.
+
+  Permintaan untuk obat PRN membalas `404` dengan pesan yang menjelaskan:
+
+  ```json
+  {
+    "error": {
+      "code": "NOT_FOUND",
+      "message": "obat tidak ditemukan atau tidak punya dosis terjadwal pada rentang itu"
+    }
+  }
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "medication_id": "019ccc...",
+      "medication_name": "Amlodipine 10",
+      "color_tag": "#4F46E5",
+      "scheduled_doses": 14,
+      "taken_doses": 12,
+      "late_doses": 1,
+      "skipped_doses": 1,
+      "missed_doses": 1,
+      "pending_doses": 0,
+      "adherence_ratio": 0.8571
+    }
+  }
+  ```
+
+  `color_tag` ikut dikirim supaya grafik bisa mewarnai batangnya konsisten
+  dengan daftar obat.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

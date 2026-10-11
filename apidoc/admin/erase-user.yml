@@ -1,0 +1,98 @@
+info:
+  name: Hapus Akun Atas Permintaan
+  type: http
+  seq: 7
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/users/{{target_user_id}}/erase"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "reason": "permintaan penghapusan data pribadi"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.logs_preserved
+      operator: eq
+      value: true
+
+docs: |-
+  # Hapus Akun Atas Permintaan
+
+  Menghapus akun atas permintaan user. Butuh scope **`users`**.
+
+  ## Alasan WAJIB
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "alasan penghapusan wajib diisi"
+    }
+  }
+  ```
+
+  Penghapusan akun adalah tindakan yang tidak bisa dibatalkan. Tanpa alasan
+  tertulis, tidak ada cara menjelaskan **kenapa** itu dilakukan — dan alasan
+  itu tersimpan di audit.
+
+  ## Tiga hal terjadi bersamaan
+
+  | Yang terjadi | Kenapa |
+  |---|---|
+  | Identitas dianonimkan | Email dan nama diganti, karena itu data pribadi |
+  | Seluruh akses dicabut | Token yang beredar harus langsung mati |
+  | **Log kepatuhan dipertahankan** | Riwayat medis tidak hilang |
+
+  ## Kenapa log dipertahankan
+
+  Riwayat kepatuhan dipakai untuk keperluan medis. Menghapusnya berarti pasien
+  kehilangan catatan yang mungkin dibutuhkan dokternya. Yang dihapus adalah
+  **keterkaitannya dengan identitas** — email diganti menjadi pola yang tidak
+  mungkin dipakai orang lain, dan password hash-nya diganti nilai acak.
+
+  ## Admin tidak bisa menghapus dirinya sendiri
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa menghapus akun sendiri"
+    }
+  }
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "erased": true,
+      "anonymized": true,
+      "access_revoked": true,
+      "logs_preserved": true,
+      "purge_after_days": 30
+    }
+  }
+  ```
+
+  ## Auditnya berbeda dari penghapusan mandiri
+
+  Di sini `actor_id` adalah admin, dan `actor_role` tersalin sebagai `admin`.
+  Pasien yang menghapus akunnya sendiri menghasilkan `actor_role: user`.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

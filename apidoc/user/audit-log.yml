@@ -1,0 +1,84 @@
+info:
+  name: Riwayat Akses Data Saya
+  type: http
+  seq: 3
+  tags:
+    - user
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/users/me/audit-log?limit=20"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Riwayat Akses Data Saya
+
+  Menjawab pertanyaan: **siapa saja yang membuka data saya**. User melihat
+  jejak atas datanya sendiri, termasuk akses yang dilakukan caregiver.
+
+  ## Yang tercatat
+
+  | Kolom | Isi |
+  |---|---|
+  | `action` | Jenis aksi: `login`, `read`, `log_taken`, dan seterusnya |
+  | `actor_id` | Siapa yang melakukan |
+  | `actor_role` | Peran **saat aksi terjadi**, disalin bukan di-join |
+  | `resource_type` | Jenis data yang disentuh |
+  | `created_at` | Kapan |
+
+  `actor_role` disalin dengan sengaja: kalau peran seseorang berubah di
+  kemudian hari, jejak lamanya harus tetap menunjukkan peran pada saat aksi
+  itu dilakukan. Tanpa ini, riwayat lama jadi menyesatkan.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": 1234,
+        "actor_id": "019...",
+        "actor_role": "user",
+        "action": "log_taken",
+        "resource_type": "log",
+        "resource_id": "019...",
+        "created_at": "2026-10-10T10:32:00Z"
+      },
+      {
+        "id": 1233,
+        "actor_id": "019...",
+        "actor_role": "user",
+        "action": "login",
+        "resource_type": "auth",
+        "resource_id": "019...",
+        "created_at": "2026-10-10T10:29:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 2}
+  }
+  ```
+
+  ## Nama obat tidak pernah muncul
+
+  Jejak ini memuat **id**, bukan nama. Nama obat adalah data kesehatan, dan
+  jejak audit dibaca lebih luas daripada data kesehatannya sendiri — termasuk
+  oleh operator sistem. Batas itu ditegakkan sejak penulisan, bukan saat
+  menampilkan.
+
+  ## `limit`
+
+  Bawaan 50, maksimum 100. Nilai di luar rentang dibatasi, bukan ditolak:
+  parameter ini hanya memengaruhi jumlah baris, dan menolak seluruh permintaan
+  karena pagination yang aneh justru mengganggu.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 3.

@@ -1,0 +1,51 @@
+info:
+  name: Lihat Profil
+  type: http
+  seq: 1
+  tags:
+    - user
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/users/me"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.id
+      operator: isString
+    - expression: res.body.data.timezone
+      operator: isString
+
+docs: |-
+  # Lihat Profil
+
+  Profil user yang sedang masuk. **Tidak ada endpoint untuk melihat profil
+  user lain** — id selalu diambil dari token, bukan dari path maupun query.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019...",
+      "email": "budi@example.com",
+      "full_name": "Budi Santoso",
+      "phone": "+62812345678",
+      "timezone": "Asia/Jakarta",
+      "is_active": true,
+      "role": "user",
+      "admin_scope": null,
+      "last_login_at": "2026-10-10T10:29:00Z",
+      "created_at": "2026-10-10T10:00:00Z",
+      "updated_at": "2026-10-10T10:29:00Z"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 3.

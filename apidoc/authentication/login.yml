@@ -1,0 +1,101 @@
+info:
+  name: Masuk
+  type: http
+  seq: 2
+  tags:
+    - authentication
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/login"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{user_email}}",
+        "password": "KataSandi2026kuat"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.access_token
+      operator: isString
+    - expression: res.body.data.expires_in
+      operator: isNumber
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("access_token", res.body.data.access_token);
+
+docs: |-
+  # Masuk
+
+  Menukar kredensial menjadi sesi baru. Access token dikembalikan di body,
+  refresh token dipasang sebagai cookie.
+
+  ## Pesan yang sengaja disamakan
+
+  Dua kegagalan berbeda punya **pesan yang sama persis**:
+
+  | Keadaan | Balasan |
+  |---|---|
+  | Email tidak terdaftar | `401 INVALID_CREDENTIALS` |
+  | Password salah | `401 INVALID_CREDENTIALS` |
+
+  Digabung dengan sengaja: membedakannya memudahkan penyerang memetakan email
+  mana yang terdaftar. Email yang formatnya salah pun dijawab dengan pesan
+  yang sama.
+
+  ## Akun yang dinonaktifkan
+
+  ```json
+  {"error": {"code": "FORBIDDEN", "message": "akun ini dinonaktifkan"}}
+  ```
+
+  Diperiksa **setelah** password benar. Kalau diperiksa lebih dulu, pesan itu
+  bisa dipakai memastikan sebuah akun ada tanpa perlu tahu passwordnya.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbGciOiJIUzI1NiIs...",
+      "token_type": "Bearer",
+      "expires_in": 86400,
+      "user": {
+        "id": "019...",
+        "email": "budi@example.com",
+        "full_name": "Budi Santoso",
+        "timezone": "Asia/Jakarta",
+        "role": "user",
+        "admin_scope": null
+      }
+    }
+  }
+  ```
+
+  ## Contoh response — 401
+
+  ```json
+  {
+    "error": {
+      "code": "INVALID_CREDENTIALS",
+      "message": "email atau password salah"
+    }
+  }
+  ```
+
+  ## Rate limit
+
+  5 permintaan per 5 menit per IP. Endpoint ini paling menarik untuk percobaan
+  brute force, jadi batasnya jauh lebih ketat daripada endpoint lain.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

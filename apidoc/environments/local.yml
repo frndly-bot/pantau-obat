@@ -1,0 +1,15 @@
+name: local
+variables:
+  - name: base_url
+    value: http://localhost:8080
+  # Nilai rahasia TIDAK ditulis di sini. Diambil dari apidoc/.env (tidak masuk
+  # git) lewat interpolasi process.env. Salin apidoc/.env.example jadi
+  # apidoc/.env lalu isi nilainya agar cocok dengan backend yang dijalankan.
+  - name: email_webhook_secret
+    value: "{{process.env.EMAIL_WEBHOOK_SECRET}}"
+  - name: telegram_webhook_secret
+    value: "{{process.env.TELEGRAM_WEBHOOK_SECRET}}"
+  - name: admin_email
+    value: admin-uji@example.com
+  - name: admin_password
+    value: "{{process.env.ADMIN_PASSWORD}}"

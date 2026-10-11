@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Statistik — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .heat-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .legend-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .legend-row:last-child { border-bottom: 0; }
+  .legend-row .nm { min-width: 110px; flex: 0 1 auto; }
+  .legend-row .bar { flex: 1 1 90px; }
+  .legend-row .vl { min-width: 54px; text-align: right; font: 650 12.5px var(--font-mono); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  function render() {
+    var st = PO.stats;
+    var days = PO.adherenceDaily;
+    var avg7 = days.slice(-7).reduce(function (s, d) { return s + d.ratio; }, 0) / 7;
+    var avg30 = days.reduce(function (s, d) { return s + d.ratio; }, 0) / days.length;
+
+    var html = "";
+
+    /* KPI */
+    html += '<section class="stats">' +
+      A.stat({ ic: "users", k: "Akun aktif", v: A.money(st.users_active), s: st.users_disabled + " nonaktif · " + st.users_new_7d + " baru minggu ini", viz: A.spark([112, 116, 119, 121, 123, 126, st.users_active], { dot: false }) }) +
+      A.stat({ ic: "pill", k: "Obat aktif", v: A.money(st.medications_active), s: "rata-rata " + (st.medications_active / st.users_active).toFixed(1) + " obat per akun" }) +
+      A.stat({ ic: "target", k: "Kepatuhan 7 hari", v: A.pct(avg7), s: "30 hari " + A.pct(avg30), tone: avg7 >= 0.8 ? "ok" : "warn" }) +
+      A.stat({ ic: "send", k: "Kirim 24 jam", v: A.money(st.deliveries_sent_24h), s: st.deliveries_failed_24h + " gagal · " + st.jobs_failed_24h + " job gagal", tone: "info" }) +
+    "</section>";
+
+    html += '<div class="split-wide">';
+
+    /* kolom kiri */
+    html += "<div class=\"stack\">";
+
+    /* kepatuhan rata-rata 7 hari */
+    html += '<section class="card"><div class="card-head"><div><h2>Kepatuhan rata-rata harian</h2>' +
+      '<div class="sub">Rasio dosis tercatat terhadap dosis terjadwal, agregat semua akun</div></div>' +
+      '<span class="badge badge-accent">7 hari terakhir</span></div>' +
+      '<div class="card-pad">' +
+        A.bars(days.slice(-7).map(function (d) {
+          return { k: PO.HARI[new Date(d.date + "T00:00:00").getDay()].slice(0, 3), v: d.ratio };
+        }), { max: 1, fmt: function (v) { return A.pct(v); } }) +
+        '<div class="divider mt-16"></div>' +
+        '<div class="row-b mt-12"><span class="sm muted">Rata-rata 7 hari <b class="mono">' + A.pct(avg7) + "</b></span>" +
+          '<span class="sm muted">Rata-rata 30 hari <b class="mono">' + A.pct(avg30) + "</b></span>" +
+          '<span class="sm muted">Hari terburuk <b class="mono">' + A.pct(Math.min.apply(null, days.map(function (d) { return d.ratio; }))) + "</b></span></div>" +
+      "</div></section>";
+
+    /* peta 30 hari */
+    html += '<section class="card"><div class="card-head"><div><h2>Peta kepatuhan 30 hari</h2>' +
+      '<div class="sub">Satu kotak = satu hari · hijau tua paling baik, merah paling buruk</div></div>' +
+      '<span class="badge badge-na">' + days.length + " hari</span></div>" +
+      '<div class="card-pad"><div class="heat-scroll">' + A.heat(days) + "</div>" +
+      '<div class="cal-legend mt-12">' +
+        '<span><i style="background:var(--ok)"></i>≥ 98%</span>' +
+        '<span><i style="background:color-mix(in srgb, var(--ok) 76%, var(--muted))"></i>85–97%</span>' +
+        '<span><i style="background:color-mix(in srgb, var(--ok) 52%, var(--muted))"></i>60–84%</span>' +
+        '<span><i style="background:color-mix(in srgb, var(--err) 60%, var(--muted))"></i>&lt; 20%</span>' +
+      "</div></div></section>";
+
+    /* kepatuhan per akun */
+    html += '<section class="card"><div class="card-head"><div><h2>Sebaran kepatuhan akun</h2>' +
+      '<div class="sub">Kelompok 7 hari, hanya akun dengan data cukup</div></div></div>' +
+      '<div class="card-pad">' +
+      [["≥ 90%", PO.users.filter(function (u) { return u.adherence_7d >= 0.9; }).length, "ok"],
+       ["80–89%", PO.users.filter(function (u) { return u.adherence_7d >= 0.8 && u.adherence_7d < 0.9; }).length, "ok"],
+       ["60–79%", PO.users.filter(function (u) { return u.adherence_7d >= 0.6 && u.adherence_7d < 0.8; }).length, "warn"],
+       ["< 60%", PO.users.filter(function (u) { return u.adherence_7d !== null && u.adherence_7d < 0.6; }).length, "err"],
+       ["tanpa data", PO.users.filter(function (u) { return u.adherence_7d === null && !u.deleted_at; }).length, "na"]]
+        .map(function (row) {
+          var total = PO.users.filter(function (u) { return !u.deleted_at; }).length;
+          return '<div class="legend-row"><span class="nm"><span class="mini-dot ' + row[2] + '"></span> ' + row[0] + "</span>" +
+            '<span class="bar">' + A.meter(total ? row[1] / total : 0, { tone: row[2] === "na" ? "none" : row[2], thin: true }) + "</span>" +
+            '<span class="vl">' + row[1] + " akun</span></div>";
+        }).join("") +
+      "</div></section>";
+
+    /* tren pendaftaran */
+    html += '<section class="card"><div class="card-head"><h2>Pendaftaran akun</h2></div>' +
+      '<div class="card-pad">' +
+        '<div class="row-b"><div><div class="xs muted-3">7 hari terakhir</div><div class="big-num">' + st.users_new_7d + "</div></div>" +
+          '<div class="right"><div class="xs muted-3">7 hari sebelumnya</div><div class="mono" style="font-weight:700;font-size:20px">' + st.users_new_prev_7d + "</div>" +
+          '<div class="trend ' + (st.users_new_7d >= st.users_new_prev_7d ? "up" : "down") + '">' +
+            A.icon(st.users_new_7d >= st.users_new_prev_7d ? "trend-up" : "trend-down") +
+            (st.users_new_7d >= st.users_new_prev_7d ? "+" : "") + (st.users_new_7d - st.users_new_prev_7d) + " akun</div></div></div>" +
+        '<div class="divider mt-16"></div>' +
+        '<div class="mt-12">' + A.bars(st.series_7d.map(function (d, i) { return { k: d.d, v: 10 + i * 2 + (d.failed % 7) }; }),
+          { max: 30, tip: false }) + "</div>" +
+        '<p class="xs muted-3 mt-8">Batang bersifat ilustratif — angka resmi hanya 7 hari terakhir dan pembandingnya.</p>' +
+      "</div></section>";
+
+    html += "</div>";
+
+    /* kolom kanan */
+    html += "<div class=\"stack\">";
+
+    /* kesehatan kanal */
+    html += '<section class="card"><div class="card-head"><div><h2>Kesehatan kanal</h2>' +
+      '<div class="sub">Rasio sukses per kanal, 24 jam terakhir</div></div></div>' +
+      '<div class="card-pad">' +
+      [["push", st.push_success_rate, "Notifikasi push"], ["telegram", st.telegram_success_rate, "Telegram"], ["email", st.email_success_rate, "Email"]]
+        .map(function (c) {
+          var tone = c[1] >= 0.95 ? "ok" : c[1] >= 0.85 ? "warn" : "err";
+          return '<div class="legend-row"><span class="nm">' + A.esc(c[2]) + '</span><span class="bar">' +
+            A.meter(c[1], { tone: tone, thin: true }) + '</span><span class="vl">' + A.pct(c[1], 1) + "</span></div>";
+        }).join("") +
+      '<div class="banner warn mt-16"><span class="ic">' + A.icon("alert") + "</span><div><b>Email di bawah target</b>" +
+      "<p>Kanal email <span class='mono'>" + A.pct(st.email_success_rate, 1) + "</span> masih di bawah 95%. SMTP relay belum terpasang dan direncanakan di v0.2 — kanal email default mati.</p></div></div>" +
+      "</div></section>";
+
+    /* katalog */
+    html += '<section class="card"><div class="card-head"><h2>Katalog</h2></div>' +
+      '<div class="card-pad">' +
+        A.donut(st.catalog_presets / (st.catalog_presets + st.catalog_draft + st.catalog_archived), String(st.catalog_presets), "preset terbit", 132) +
+        '<div class="legend-row mt-16"><span class="nm"><span class="mini-dot ok"></span> Terbit</span><span class="bar"></span><span class="vl">' + st.catalog_presets + "</span></div>" +
+        '<div class="legend-row"><span class="nm"><span class="mini-dot warn"></span> Draf</span><span class="bar"></span><span class="vl">' + st.catalog_draft + "</span></div>" +
+        '<div class="legend-row"><span class="nm"><span class="mini-dot na"></span> Arsip</span><span class="bar"></span><span class="vl">' + st.catalog_archived + "</span></div>" +
+        '<div class="legend-row"><span class="nm"><span class="mini-dot info"></span> Pribadi user</span><span class="bar"></span><span class="vl">' +
+          PO.catalog.filter(function (c) { return !c.is_preset; }).length + "</span></div>" +
+      "</div></section>";
+
+    /* aksi admin terbanyak */
+    html += '<section class="card"><div class="card-head"><h2>Aksi admin terakhir</h2></div>' +
+      '<div class="card-pad stack-8">' +
+      PO.audit.filter(function (a) { return a.actor_role === "admin"; }).slice(0, 6).map(function (a) {
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("shield") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(PO.t("action", a.action) || a.action) + "</b></div>" +
+            '<div class="xs muted-3">' + A.esc(a.actor_email) + " · " + A.esc(PO.relTime(a.created_at)) +
+            (a.meta && a.meta.reason ? " · " + A.esc(a.meta.reason) : "") + "</div></div></div>";
+      }).join("") + "</div></section>";
+
+    /* retensi & pengerjaan */
+    html += '<section class="card"><div class="card-head"><h2>Operasional</h2></div>' +
+      '<div class="card-pad"><dl class="dl">' +
+        "<dt>Job gagal 24 jam</dt><dd>" + st.jobs_failed_24h + " · ambang perhatian &gt; 20</dd>" +
+        "<dt>Backlog antrean</dt><dd>aman · backpressure aktif di atas 1000</dd>" +
+        "<dt>Retensi log</dt><dd>audit 1 tahun · log kepatuhan 2 tahun · bump_queue 7 hari</dd>" +
+        "<dt>Sesi kedaluwarsa</dt><dd>dibersihkan harian (DELETE fisik)</dd>" +
+        "<dt>Backup</dt><dd>" + A.badge("belum aktif", "badge-late") + " service backup belum ada di compose</dd>" +
+      "</dl></div></section>";
+
+    html += '<div class="banner info"><span class="ic">' + A.icon("lock") + "</span><div><b>Kenapa tidak ada nama obat di halaman ini</b>" +
+      "<p>Statistik dihitung dari agregat. Melihat rincian obat pasien bukan bagian dari rute admin — itu keputusan privasi, bukan keterbatasan implementasi.</p></div></div>";
+
+    html += "</div></div>";
+
+    document.getElementById("main").innerHTML = html;
+  }
+
+  A.boot({
+    shell: "admin",
+    active: "stats",
+    title: "Statistik",
+    crumb: "Agregat kepatuhan & kesehatan kanal · tanpa identitas pasien",
+    actions: '<button class="btn btn-outline btn-sm" id="b-print">' + A.icon("printer") + "Cetak</button>",
+    after: function () {
+      render();
+      document.getElementById("b-print").addEventListener("click", function () {
+        A.toast("info", "Menyiapkan cetak", "Chrome bar navigation disembunyikan otomatis oleh @media print.");
+        setTimeout(function () { window.print(); }, 400);
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

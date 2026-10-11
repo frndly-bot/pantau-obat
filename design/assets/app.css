@@ -1,0 +1,1221 @@
+/* ============================================================
+   Pantau Obat — Design · App styles (gaya shadcn/ui)
+   Ditulis dengan resep komponen shadcn/ui di atas token tokens.css:
+   ukuran kontrol h-8/h-9/h-10, radius --radius-*, border + shadow-xs,
+   focus ring 3px, tabel bergaris bawah, badge rounded-md, dsb.
+   Nama kelas tidak berubah supaya 18 halaman prototipe tetap jalan.
+   Bagian: base · tombol · kartu · badge · form · tabel · stat ·
+           meter · shell user · shell admin · auth · toast · overlay ·
+           tab · timeline · wizard · katalog · kalender · bagan ·
+           peta · util · tema · target sentuh · cetak
+   ============================================================ */
+
+/* ---------------- Base ---------------- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+* { -webkit-tap-highlight-color: transparent; }
+
+html { scroll-behavior: smooth; }
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.875rem;      /* text-sm — basis shadcn */
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+img, svg { display: block; max-width: 100%; }
+/* Lucide dikirim TANPA atribut width/height (hanya path). Tanpa ukuran
+   eksplisit, SVG memuai mengikuti viewBox dan merembet keluar kartu
+   (terukur 283px di layar 360px). Aturan berikut mematok ukuran dasar
+   SEMUA svg inline; konteks tertentu menimpanya di bawah. */
+svg { width: 1rem; height: 1rem; flex: none; vertical-align: middle; }
+
+.mono, code, kbd, samp { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted-foreground); }
+.muted-3 { color: color-mix(in oklab, var(--muted-foreground) 72%, transparent); }
+.center { text-align: center; }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.hide { display: none !important; }
+.grow { flex: 1; min-width: 0; }
+.clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* pemotongan teks panjang: satu baris (truncate) dan banyak baris (clamp) */
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.trunc-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.break { overflow-wrap: anywhere; word-break: break-word; }
+
+.row { display: flex; align-items: center; gap: 0.5rem; }
+.row-t { display: flex; align-items: flex-start; gap: 0.5rem; }
+.row-b { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.row-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.stack-8 { display: flex; flex-direction: column; gap: 0.5rem; }
+.stack-6 { display: flex; flex-direction: column; gap: 0.375rem; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; }
+
+/* WAJIB: isi grid/flex default-nya `min-width: auto`, jadi anak grid menolak
+   menyusut di bawah lebar min-content-nya (tabel lebar, dl, segmen). Tanpa
+   aturan ini tata letak dua kolom merembet keluar layar di 390px. */
+.grid-2 > *, .grid-3 > *, .grid-auto > *, .stats > *,
+.flow > *, .pattern-pick > *, .dash-split > *, .split > *, .split-1-2 > * { min-width: 0; }
+
+.gap-4 { gap: 0.25rem; } .gap-6 { gap: 0.375rem; } .gap-8 { gap: 0.5rem; }
+.gap-14 { gap: 0.875rem; } .gap-20 { gap: 1.25rem; }
+.mt-4 { margin-top: 0.25rem; } .mt-8 { margin-top: 0.5rem; } .mt-12 { margin-top: 0.75rem; }
+.mt-16 { margin-top: 1rem; } .mt-24 { margin-top: 1.5rem; }
+.mb-4 { margin-bottom: 0.25rem; } .mb-8 { margin-bottom: 0.5rem; }
+.mb-12 { margin-bottom: 0.75rem; } .mb-16 { margin-bottom: 1rem; }
+
+small, .sm { font-size: 0.8125rem; }
+.xs { font-size: 0.75rem; }
+h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; }
+h1 { font-size: 1.5rem; } h2 { font-size: 1.125rem; }
+h3 { font-size: 1rem; } h4 { font-size: 0.875rem; font-weight: 600; }
+.pg-title { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+
+@media (max-width: 560px) {
+  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 1.25rem; }
+}
+
+::selection { background: color-mix(in oklab, var(--primary) 22%, transparent); }
+
+/* Latar dekoratif — sangat tipis, gaya shadcn yang datar. */
+.bg-glow {
+  position: fixed; inset: 0; z-index: -3; pointer-events: none;
+  background: radial-gradient(60rem 32rem at 10% -12%,
+    color-mix(in oklab, var(--primary) 10%, transparent), transparent 62%);
+}
+.bg-grid {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none; opacity: .35;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px);
+  background-size: 3rem 3rem;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 20%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 20%, transparent 72%);
+}
+.bg-noise { display: none; }   /* dibuang: gaya shadcn tidak memakai noise */
+
+/* ---------------- Tombol (shadcn Button) ----------------
+   Dasar: inline-flex items-center justify-center gap-2 whitespace-nowrap
+   rounded-md text-sm font-medium transition-all h-9 px-4 shadow-xs
+   [&_svg]:size-4 [&_svg]:shrink-0 focus-visible:ring-[3px] */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  height: var(--control); padding: 0 1rem;
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  font-size: 0.875rem; font-weight: 500; line-height: 1; color: var(--foreground);
+  background: transparent; cursor: pointer; white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+              border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+  user-select: none; -webkit-user-select: none;
+}
+.btn > svg, .btn .ic { width: 1rem; height: 1rem; flex: none; }
+.btn:hover { transform: none; }
+.btn:active { transform: scale(.98); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; pointer-events: none; }
+.btn:focus-visible {
+  outline: none; border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+.btn-ok { background: var(--ok); color: oklch(0.16 0.02 150); }
+.btn-ok:hover { background: color-mix(in oklab, var(--ok) 90%, transparent); }
+.btn-outline { border-color: var(--input); background: var(--background); }
+.btn-outline:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn-ghost { box-shadow: none; }
+.btn-ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn-danger { background: var(--destructive); color: var(--destructive-foreground); }
+.btn-danger:hover { background: color-mix(in oklab, var(--destructive) 90%, transparent); }
+.btn-warn { border-color: var(--input); color: var(--warn); background: var(--background); }
+.btn-warn:hover { background: color-mix(in oklab, var(--warn) 14%, transparent); }
+.btn-link { box-shadow: none; color: var(--primary); text-decoration: underline; text-underline-offset: 4px; }
+
+.btn-sm { height: var(--control-sm); padding: 0 0.75rem; font-size: 0.8125rem; border-radius: var(--radius-md); }
+.btn-lg { height: var(--control-lg); padding: 0 1.5rem; font-size: 0.9375rem; }
+.btn-block { width: 100%; }
+.btn-icon { width: var(--control); padding: 0; }
+.btn-icon.btn-sm { width: var(--control-sm); }
+.btn-pill { border-radius: var(--radius-pill); }
+
+/* ---------------- Kartu (shadcn Card) ----------------
+   rounded-xl border bg-card text-card-foreground shadow-xs */
+.card {
+  position: relative;
+  background: var(--card); color: var(--card-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.card-pad { padding: 1rem 1.25rem; }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--border);
+}
+.card-head h2, .card-head h3 { font-size: 0.9375rem; font-weight: 600; }
+/* Ikon + teks heading sejajar horizontal. Ikon Lucide inline adalah `display:block`
+   (lihat aturan global `img, svg`), sehingga tanpa ini teks terdorong ke baris kedua
+   dan heading jadi setinggi 2 baris. */
+.card-head h2:has(svg), .card-head h3:has(svg), .card-head h4:has(svg), .card-head b:has(svg) {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.card-head h2:has(svg) > svg, .card-head h3:has(svg) > svg, .card-head h4:has(svg) > svg, .card-head b:has(svg) > svg {
+  width: 1rem; height: 1rem; flex: none; color: var(--primary);
+}
+.card-head .sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+.panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-xs);
+}
+.glass { background: color-mix(in oklab, var(--card) 85%, transparent); backdrop-filter: blur(8px); }
+.lift:hover { box-shadow: var(--shadow-md); border-color: color-mix(in oklab, var(--border) 60%, var(--foreground)); }
+.hoverable { cursor: pointer; }
+.hoverable:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); box-shadow: var(--shadow-sm); }
+
+/* ---------------- Badge (shadcn Badge) ----------------
+   inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium */
+.badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.125rem 0.5rem; border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem; font-weight: 500; line-height: 1.35;
+  background: var(--secondary); color: var(--secondary-foreground);
+  white-space: nowrap; width: fit-content;
+}
+.badge > svg, .badge .ic { width: 0.75rem; height: 0.75rem; }
+.badge .dot { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: currentColor; flex: none; }
+.badge-ok { background: color-mix(in oklab, var(--ok) 16%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 28%, transparent); }
+.badge-late { background: color-mix(in oklab, var(--warn) 18%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 30%, transparent); }
+.badge-miss { background: color-mix(in oklab, var(--err) 16%, transparent); color: var(--err); border-color: color-mix(in oklab, var(--err) 28%, transparent); }
+.badge-info { background: color-mix(in oklab, var(--info) 16%, transparent); color: var(--info); border-color: color-mix(in oklab, var(--info) 28%, transparent); }
+.badge-na { background: var(--muted); color: var(--muted-foreground); }
+.badge-draft { background: color-mix(in oklab, var(--warn) 18%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 30%, transparent); }
+.badge-published { background: color-mix(in oklab, var(--ok) 16%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 28%, transparent); }
+.badge-archived { background: var(--muted); color: var(--muted-foreground); }
+.badge-private { background: color-mix(in oklab, var(--private) 16%, transparent); color: var(--private); border-color: color-mix(in oklab, var(--private) 28%, transparent); }
+.badge-accent { background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); border-color: color-mix(in oklab, var(--primary) 26%, transparent); }
+.badge-pulse .dot { animation: dot-pulse 1.8s var(--ease) infinite; }
+@keyframes dot-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  height: var(--control); padding: 0 0.75rem;
+  border: 1px solid var(--input); border-radius: var(--radius-md);
+  background: var(--background); color: var(--muted-foreground);
+  font-size: 0.8125rem; font-weight: 500; cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.chip > svg { width: 0.875rem; height: 0.875rem; }
+.chip:hover { background: var(--accent); color: var(--accent-foreground); }
+.chip.on { border-color: var(--primary); color: var(--primary); background: color-mix(in oklab, var(--primary) 12%, transparent); }
+
+/* ---------------- Form (shadcn Input/Select/Label) ----------------
+   Input: h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm
+   shadow-xs + placeholder:text-muted-foreground + focus ring 3px */
+.field { display: flex; flex-direction: column; gap: 0.375rem; }
+.field > label { font-size: 0.8125rem; font-weight: 500; color: var(--foreground); }
+.field > label .req { color: var(--destructive); margin-left: 0.125rem; }
+.field .hint { font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.45; }
+
+.input, select.input, textarea.input {
+  width: 100%; height: var(--control); padding: 0.25rem 0.75rem;
+  font-family: inherit; font-size: 0.875rem; line-height: 1.4; color: var(--foreground);
+  background: transparent; border: 1px solid var(--input); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+textarea.input { height: auto; min-height: 4.5rem; padding: 0.5rem 0.75rem; resize: vertical; line-height: 1.55; }
+select.input {
+  appearance: none; cursor: pointer; padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat; background-position: right 0.625rem center;
+}
+.input::placeholder { color: var(--muted-foreground); }
+.input:hover { border-color: color-mix(in oklab, var(--ring) 45%, var(--input)); }
+.input:focus, select.input:focus, textarea.input:focus {
+  outline: none; border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+.input[aria-invalid="true"] { border-color: var(--destructive); }
+.input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 30%, transparent); }
+.err-text { font-size: 0.75rem; color: var(--destructive); }
+.ok-text { font-size: 0.75rem; color: var(--ok); }
+
+.input-group { display: flex; align-items: stretch; gap: 0.5rem; }
+.input-group .input { flex: 1; }
+.input-icon { position: relative; }
+.input-icon .input { padding-left: 2.25rem; }
+/* Ikon boleh ditulis langsung (<svg>) ATAU dibungkus <span>; keduanya harus
+   terukur 1rem. Tanpa aturan pembungkus ini, SVG tanpa width mengisi seluruh
+   lebar input sehingga ikon tampak raksasa. */
+.input-icon > svg,
+.input-icon > span {
+  position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%);
+  width: 1rem; height: 1rem; display: grid; place-items: center;
+  color: var(--muted-foreground); pointer-events: none;
+}
+.input-icon svg { width: 1rem; height: 1rem; flex: none; }
+.input-affix { position: relative; }
+.input-affix .affix {
+  position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.75rem; color: var(--muted-foreground); font-weight: 500;
+}
+
+.check { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8125rem; cursor: pointer; line-height: 1.45; }
+.check input[type="checkbox"], .check input[type="radio"] {
+  width: 1rem; height: 1rem; flex: none; margin-top: 0.1875rem;
+  accent-color: var(--primary); cursor: pointer;
+}
+.check .cb-txt small { display: block; color: var(--muted-foreground); font-size: 0.75rem; margin-top: 0.125rem; }
+
+/* Switch (shadcn Switch): track 2rem x 1.15rem, thumb 1rem */
+.sw { position: relative; display: inline-flex; align-items: center; gap: 0.625rem; cursor: pointer; min-height: var(--control); }
+.sw input { position: absolute; opacity: 0; width: 0; height: 0; }
+.sw .track {
+  position: relative; width: 2rem; height: 1.15rem; border-radius: var(--radius-pill); flex: none;
+  background: var(--input); border: 1px solid transparent;
+  transition: background-color var(--dur) var(--ease);
+}
+.sw .track::after {
+  content: ""; position: absolute; left: 1px; top: 50%; transform: translateY(-50%);
+  width: 1rem; height: 1rem; border-radius: 50%; background: var(--background);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease);
+}
+.sw input:checked + .track { background: var(--primary); }
+.sw input:checked + .track::after { transform: translateY(-50%) translateX(0.85rem); }
+.sw input:focus-visible + .track { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.sw .sw-lbl { font-size: 0.8125rem; }
+.sw .sw-lbl small { display: block; color: var(--muted-foreground); font-size: 0.75rem; }
+
+/* Segmented control = shadcn TabsList
+   inline-flex items-center rounded-lg bg-muted p-1 text-muted-foreground */
+.seg {
+  display: inline-flex; flex-wrap: wrap; max-width: 100%; align-items: center;
+  padding: 0.25rem; gap: 0.25rem; border-radius: var(--radius-lg);
+  background: var(--muted); color: var(--muted-foreground);
+}
+.seg button {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  height: 1.75rem; padding: 0 0.625rem; border: 1px solid transparent;
+  border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 500;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.seg button:hover { color: var(--foreground); }
+.seg button.on {
+  background: var(--background); color: var(--foreground);
+  box-shadow: var(--shadow-xs); border-color: color-mix(in oklab, var(--border) 80%, transparent);
+}
+
+/* ---------------- Tabel (shadcn Table) ----------------
+   Wrapper: relative w-full overflow-x-auto
+   head  : [&_tr]:border-b ; th h-10 px-2 text-left font-medium text-muted-foreground
+   body  : [&_tr]:border-b ; tr hover:bg-muted/50 ; td p-2 align-middle          */
+.tbl-wrap { position: relative; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.tbl {
+  width: 100%; border-collapse: collapse; caption-side: bottom;
+  font-size: 0.875rem; line-height: 1.4;
+}
+table.tbl thead tr { border-bottom: 1px solid var(--border); }
+table.tbl th {
+  height: 2.5rem; padding: 0.5rem 0.75rem;
+  text-align: left; vertical-align: middle; white-space: nowrap;
+  font-size: 0.75rem; font-weight: 500; letter-spacing: 0.01em;
+  color: var(--muted-foreground); text-transform: none;
+  background: var(--card); position: sticky; top: 0; z-index: 1;
+}
+table.tbl th:first-child, table.tbl td:first-child { padding-left: 1.25rem; }
+table.tbl th:last-child, table.tbl td:last-child { padding-right: 1.25rem; }
+table.tbl tbody tr { border-bottom: 1px solid var(--border); transition: background-color var(--dur) var(--ease); }
+table.tbl tbody tr:hover { background: color-mix(in oklab, var(--muted) 50%, transparent); }
+table.tbl tbody tr:last-child { border-bottom: 0; }
+table.tbl td { padding: 0.75rem; vertical-align: middle; }
+table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.tbl td.tight { padding-top: 0.5rem; padding-bottom: 0.5rem; white-space: nowrap; }
+table.tbl .cell-name { font-weight: 500; }
+table.tbl .cell-sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+.tbl-actions { display: flex; gap: 0.25rem; justify-content: flex-end; align-items: center; }
+@media (max-width: 640px) {
+  table.tbl th { padding-left: 0.75rem; padding-right: 0.75rem; }
+  table.tbl th:first-child, table.tbl td:first-child { padding-left: 1rem; }
+  table.tbl th:last-child, table.tbl td:last-child { padding-right: 1rem; }
+}
+
+/* ---------------- Stat card ---------------- */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; }
+.stat {
+  position: relative; overflow: hidden;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 1rem 1.125rem;
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.stat:hover { border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); box-shadow: var(--shadow-sm); }
+.stat .k {
+  display: flex; align-items: center; gap: 0.375rem;
+  font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground);
+}
+.stat .k svg { width: 0.875rem; height: 0.875rem; }
+.stat .v {
+  margin-top: 0.5rem; font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600;
+  line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.stat .s { margin-top: 0.25rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.stat .s .trend { font-size: 0.75rem; }
+.stat .v.accent { color: var(--primary); }
+.stat .v.ok { color: var(--ok); }
+.stat .v.warn { color: var(--warn); }
+.stat .v.err { color: var(--err); }
+.stat .v.info { color: var(--info); }
+.stat .viz { margin-top: 0.625rem; }
+
+.trend { display: inline-flex; align-items: center; gap: 0.1875rem; font-weight: 500; }
+.trend svg { width: 0.75rem; height: 0.75rem; }
+.trend.up { color: var(--ok); } .trend.down { color: var(--err); } .trend.flat { color: var(--muted-foreground); }
+
+.mini-dot { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; display: inline-block; flex: none; }
+.mini-dot.ok { background: var(--ok); } .mini-dot.err { background: var(--err); }
+.mini-dot.warn { background: var(--warn); } .mini-dot.info { background: var(--info); }
+.mini-dot.na { background: var(--na); }
+
+/* ---------------- Progress / meter (shadcn Progress) ---------------- */
+.meter { height: 0.5rem; width: 100%; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--primary) 18%, transparent); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width var(--dur-slow) var(--ease); }
+.meter.ok > i { background: var(--ok); }
+.meter.warn > i { background: var(--warn); }
+.meter.err > i { background: var(--err); }
+.meter.thin { height: 0.3125rem; }
+
+/* ring skor */
+.ring { position: relative; display: inline-grid; place-items: center; }
+/* Ukuran host .ring/.donut dipatok inline (width/height px) oleh A.ring()/A.donut().
+   SVG harus MENGISI host itu. Tanpa baris ini, aturan global `svg { width:1rem;
+   height:1rem }` (spesifisitas lebih tinggi dari atribut width/height pada <svg>)
+   mengecilkan lingkaran jadi 16px di dalam kotak 84–132px — terlihat sangat kecil
+   dengan celah kosong besar. */
+.ring > svg, .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .track { stroke: var(--muted); }
+.ring .val { stroke: var(--primary); stroke-linecap: round; transition: stroke-dashoffset var(--dur-slow) var(--ease); }
+.ring .lbl { position: absolute; display: grid; place-items: center; text-align: center; padding: 0 0.5rem; }
+.ring .lbl b { font-family: var(--font-mono); font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em; }
+.ring .lbl span { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+
+/* ---------------- Placeholder: skeleton & blok kosong ----------------
+   shadcn Skeleton: animate-pulse rounded-md bg-accent */
+.skel, .skeleton {
+  background: var(--accent); border-radius: var(--radius-md);
+  animation: skel-pulse 1.6s var(--ease) infinite;
+}
+.skel-line { height: 0.75rem; }
+.skel-line.w-40 { width: 40%; } .skel-line.w-60 { width: 60%; } .skel-line.w-80 { width: 80%; }
+.skel-box { height: 10rem; }
+.skel-circle { border-radius: 50%; }
+@keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+.ph-img {
+  display: grid; place-items: center; gap: 0.375rem; color: var(--muted-foreground);
+  border: 1px dashed var(--border); border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(135deg,
+    color-mix(in oklab, var(--muted) 60%, transparent) 0 0.75rem,
+    transparent 0.75rem 1.5rem);
+  font-size: 0.75rem; text-align: center;
+}
+
+/* ---------------- Shell USER (mobile-first) ---------------- */
+.app-user { max-width: var(--wrap-user); margin: 0 auto; min-height: 100vh; padding-bottom: calc(var(--nav-h) + 1.5rem); position: relative; }
+
+.u-topbar {
+  position: sticky; top: 0; z-index: 30; padding: 0.75rem 1rem 0.625rem;
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.u-topbar .t { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.u-topbar .sub { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+.u-topbar .acts { display: flex; align-items: center; gap: 0.375rem; }
+/* Tombol kembali: rata kiri, sedikit ditarik ke tepi agar sejajar judul. */
+.u-topbar .back-btn { flex: none; margin-left: -0.375rem; }
+
+.u-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.875rem; }
+.u-body.tight { gap: 0.625rem; padding: 0.75rem 1rem 1.25rem; }
+
+.u-bottomnav {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40;
+  width: 100%; max-width: var(--wrap-user); height: var(--nav-h);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: color-mix(in oklab, var(--background) 94%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.u-bottomnav.nav-5 { grid-template-columns: repeat(5, 1fr); }
+.u-nav-item {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1875rem;
+  color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 500;
+  transition: color var(--dur) var(--ease);
+  min-height: var(--touch);
+}
+.u-nav-item svg { width: 1.25rem; height: 1.25rem; }
+.u-nav-item:hover { color: var(--foreground); }
+.u-nav-item.active { color: var(--primary); }
+.u-nav-item.active::before {
+  content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 1.75rem; height: 2px; border-radius: 0 0 0.125rem 0.125rem; background: var(--primary);
+}
+.u-nav-badge {
+  position: absolute; top: 0.375rem; left: 50%; margin-left: 0.25rem;
+  min-width: 1rem; height: 1rem; padding: 0 0.25rem; border-radius: var(--radius-pill);
+  background: var(--destructive); color: var(--destructive-foreground);
+  font-size: 0.625rem; font-weight: 600; display: grid; place-items: center;
+  border: 2px solid var(--background);
+}
+
+/* hero kartu kepatuhan */
+.hero {
+  position: relative; overflow: hidden;
+  border-radius: var(--radius-xl); padding: 1.125rem;
+  border: 1px solid var(--border); background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(24rem 12rem at 88% -30%,
+    color-mix(in oklab, var(--primary) 12%, transparent), transparent 66%);
+}
+.hero .big { font-family: var(--font-mono); font-size: 2rem; font-weight: 600; line-height: 1; letter-spacing: -0.03em; }
+.hero .hd { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+
+/* kartu dosis (mobile) */
+.dose {
+  position: relative; overflow: hidden;
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl);
+  padding: 0.875rem 0.875rem 0.875rem 1rem; box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.dose::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--muted-foreground); }
+.dose.st-taken::before { background: var(--ok); }
+.dose.st-late::before { background: var(--warn); }
+.dose.st-missed::before { background: var(--err); }
+.dose.st-skipped::before { background: var(--na); }
+.dose.st-pending::before { background: var(--info); }
+.dose.st-prn::before { background: var(--private); }
+.dose.due { border-color: color-mix(in oklab, var(--primary) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent); }
+.dose .time { font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 600; min-width: 3rem; letter-spacing: -0.01em; }
+.dose .nm { font-size: 0.875rem; font-weight: 600; }
+.dose .meta { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.1875rem; }
+/* Baris catatan pengingat (ikon + teks) harus SATU baris. `svg` global
+   display:block membuat ikon turun ke barisnya sendiri; flex + nowrap
+   menahan keduanya sebaris, teks memakai ellipsis bila terlalu panjang. */
+.dose .meta.meta-note { display: flex; align-items: center; gap: 0.25rem; }
+.dose .meta.meta-note > svg { flex: none; width: 0.75rem; height: 0.75rem; }
+.dose .meta.meta-note > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- aksi dosis: baris tetap satu baris, tidak pernah wrap ---
+   dose-status : baris status (badge), selalu di atas tombol
+   dose-actions: baris tombol ikon + label kecil di bawah ikon.
+   Grid 3 kolom sama lebar: 3 tombol mengisi penuh, dan tombol tunggal
+   (mis. "Koreksi") tetap 1/3 lebar — konsisten antar kartu, tidak melebar
+   penuh yang terlihat janggal. */
+.dose-status { margin-top: 0.5rem; min-height: 1.375rem; }
+.dose-status .badge { max-width: 100%; }
+.dose-status .badge > svg { width: 0.75rem; height: 0.75rem; }
+
+.dose-actions {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem; margin-top: 0.5rem;
+}
+.dose-act {
+  min-width: 0; min-height: 2.75rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.125rem; padding: 0.375rem 0.375rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border); background: var(--background);
+  color: var(--foreground); cursor: pointer;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.dose-act > svg { width: 1.125rem; height: 1.125rem; flex: none; }
+.dose-act > span {
+  font-size: 0.625rem; font-weight: 600; line-height: 1.2;
+  white-space: nowrap; letter-spacing: 0.01em;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.dose-act:hover { background: var(--accent); color: var(--accent-foreground); border-color: var(--border); }
+.dose-act:active { transform: scale(.97); }
+.dose-act:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.dose-act-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.dose-act-primary:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); color: var(--primary-foreground); }
+.dose-act-primary.due-glow { box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 30%, transparent); }
+.dose-act.due-glow { border-color: color-mix(in oklab, var(--primary) 55%, var(--border)); }
+
+/* Layar sangat sempit: tombol mengisi ruang yang ada, cukup kecilkan label. */
+@media (max-width: 360px) {
+  .dose-act > span { font-size: 0.5625rem; }
+}
+
+.dose .swatch { width: 0.625rem; height: 0.625rem; border-radius: 0.1875rem; flex: none; display: inline-block; }
+
+/* kartu list generik */
+.list-card {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.75rem 0.875rem; border-radius: var(--radius-lg);
+  background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.list-card.hoverable:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); box-shadow: var(--shadow-sm); }
+.avatar {
+  width: 2.25rem; height: 2.25rem; border-radius: var(--radius-lg); flex: none;
+  display: grid; place-items: center; font-size: 0.8125rem; font-weight: 600;
+  background: var(--muted); color: var(--muted-foreground); border: 1px solid var(--border);
+}
+.avatar svg { width: 1rem; height: 1rem; }
+.avatar.sq { border-radius: var(--radius-md); }
+.avatar.rd { border-radius: 50%; }
+.avatar.lg { width: 3.25rem; height: 3.25rem; font-size: 1rem; border-radius: var(--radius-xl); }
+.avatar.sm { width: 1.75rem; height: 1.75rem; font-size: 0.6875rem; border-radius: var(--radius-md); }
+.avatar.sm svg { width: 0.875rem; height: 0.875rem; }
+.avatar.med { background: color-mix(in oklab, var(--private) 14%, transparent); color: var(--private); }
+.avatar.err { background: color-mix(in oklab, var(--err) 14%, transparent); color: var(--err); }
+
+/* FAB */
+.fab {
+  position: fixed; z-index: 45; right: max(1rem, calc(50% - var(--wrap-user) / 2 + 1rem));
+  bottom: calc(var(--nav-h) + 1rem + env(safe-area-inset-bottom, 0));
+  width: 3.25rem; height: 3.25rem; border-radius: var(--radius-xl);
+  display: grid; place-items: center;
+  background: var(--primary); color: var(--primary-foreground);
+  box-shadow: var(--shadow-lg);
+  transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.fab svg { width: 1.5rem; height: 1.5rem; }
+.fab:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+
+/* ---------------- Shell ADMIN (desktop-first, shadcn Sidebar) ---------------- */
+.app-admin { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+
+.a-side {
+  position: sticky; top: 0; height: 100vh; z-index: 40;
+  background: var(--sidebar); color: var(--sidebar-foreground);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex; flex-direction: column; gap: 0.25rem;
+  padding: 1rem 0.75rem 0.875rem; overflow-y: auto;
+}
+.a-brand { display: flex; align-items: center; gap: 0.625rem; padding: 0.25rem 0.5rem 1rem; }
+.logo-mark {
+  width: 2.25rem; height: 2.25rem; border-radius: var(--radius-lg); display: grid; place-items: center;
+  background: var(--primary); color: var(--primary-foreground); flex: none;
+}
+.logo-mark svg { width: 1.25rem; height: 1.25rem; }
+.a-brand .nm { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; }
+.a-brand .sb { font-size: 0.75rem; color: var(--muted-foreground); }
+
+.a-nav { display: flex; flex-direction: column; gap: 0.125rem; }
+.a-nav a {
+  display: flex; align-items: center; gap: 0.625rem;
+  height: 2.25rem; padding: 0 0.625rem; border-radius: var(--radius-md);
+  color: var(--muted-foreground); font-size: 0.8125rem; font-weight: 500;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.a-nav a svg { width: 1rem; height: 1rem; flex: none; }
+.a-nav a:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.a-nav a.active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font-weight: 600; }
+.a-nav a .cnt {
+  margin-left: auto; font-size: 0.6875rem; font-weight: 600;
+  padding: 0.0625rem 0.375rem; border-radius: var(--radius-md);
+  background: var(--muted); color: var(--muted-foreground);
+}
+.a-nav a.active .cnt { background: var(--primary); color: var(--primary-foreground); }
+.a-nav .grp {
+  font-size: 0.6875rem; font-weight: 500; color: var(--muted-foreground);
+  padding: 0.875rem 0.625rem 0.25rem;
+}
+.a-side .foot { margin-top: auto; padding: 0.75rem 0.25rem 0.125rem; border-top: 1px solid var(--sidebar-border); }
+.a-side .who {
+  display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem;
+  border-radius: var(--radius-md); transition: background-color var(--dur) var(--ease);
+}
+.a-side .who:hover { background: var(--sidebar-accent); }
+.a-side .who .nm { font-size: 0.8125rem; font-weight: 500; }
+.a-side .who .rl { font-size: 0.6875rem; color: var(--muted-foreground); }
+
+.a-main { min-width: 0; display: flex; flex-direction: column; }
+.a-top {
+  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.875rem;
+  padding: 0.875rem 1.5rem;
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.a-top .ttl { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.a-top .crumb { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+.a-body {
+  padding: 1.5rem 1.5rem 3rem; display: flex; flex-direction: column; gap: 1.125rem;
+  max-width: var(--wrap-admin); width: 100%;
+}
+.a-body.flush { gap: 0.875rem; }
+.a-body > * { min-width: 0; }
+
+/* dua kolom halaman admin; runtuh di bawah 1100px (media query, bukan style inline) */
+.split      { display: grid; grid-template-columns: 1.15fr .85fr; gap: 1.125rem; align-items: start; }
+.split-wide { display: grid; grid-template-columns: 1.20fr .80fr; gap: 1.125rem; align-items: start; }
+.split-1-2  { display: grid; grid-template-columns: 1.00fr .85fr; gap: 1.125rem; align-items: start; }
+@media (max-width: 1100px) { .split, .split-wide, .split-1-2 { grid-template-columns: minmax(0, 1fr); } }
+
+.sidebar-toggle { display: none; }
+.a-scrim { position: fixed; inset: 0; background: var(--overlay); z-index: 39; display: none; }
+.a-scrim.on { display: block; animation: fade-in var(--dur) var(--ease); }
+
+@media (max-width: 1040px) {
+  .app-admin { grid-template-columns: minmax(0, 1fr); }
+  .a-side {
+    position: fixed; left: 0; top: 0; width: 16rem;
+    transform: translateX(-103%); transition: transform var(--dur-slow) var(--ease);
+  }
+  .a-side.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .sidebar-toggle { display: inline-flex; }
+  .a-top { padding: 0.75rem 1rem; }
+  .a-body { padding: 1rem 1rem 4rem; }
+}
+@media (max-width: 640px) {
+  .a-body { gap: 0.875rem; }
+  .stat .v { font-size: 1.25rem; }
+}
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
+.toolbar .search { flex: 1 1 13rem; min-width: 0; }
+
+/* ---------------- Auth ---------------- */
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem 1rem; position: relative; z-index: 1; }
+.auth-card { width: 100%; max-width: 25rem; }
+.auth-card .hd { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; text-align: center; }
+.auth-card .hd .logo-mark { width: 3rem; height: 3rem; border-radius: var(--radius-xl); }
+.auth-card .hd .logo-mark svg { width: 1.5rem; height: 1.5rem; }
+.auth-card .hd h1 { font-size: 1.25rem; }
+.auth-card .hd p { font-size: 0.8125rem; color: var(--muted-foreground); max-width: 20rem; }
+.auth-split { display: grid; grid-template-columns: 1.05fr .95fr; min-height: 100vh; }
+.auth-split .side-art {
+  position: relative; padding: 2.75rem; display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--muted); border-right: 1px solid var(--border);
+}
+.auth-split .side-art::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(30rem 18rem at 15% 0%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 65%);
+}
+.auth-split .form-side { display: grid; place-items: center; padding: 2.5rem 1.5rem; }
+@media (max-width: 900px) { .auth-split { grid-template-columns: minmax(0, 1fr); } .auth-split .side-art { display: none; } }
+
+.demo-note {
+  display: flex; align-items: flex-start; gap: 0.625rem; padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-md); border: 1px dashed var(--border);
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+  font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.5;
+}
+.demo-note b { color: var(--foreground); }
+.demo-note svg { width: 1rem; height: 1rem; flex: none; color: var(--primary); margin-top: 0.0625rem; }
+
+/* ---------------- Toast (gaya sonner shadcn) ---------------- */
+.toasts {
+  position: fixed; z-index: 90; bottom: calc(var(--nav-h) + 1.125rem); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column-reverse; gap: 0.5rem;
+  width: calc(100% - 2rem); max-width: 26rem; pointer-events: none;
+}
+.toasts.admin { bottom: 1.375rem; left: auto; right: 1.375rem; transform: none; max-width: 25rem; }
+.toast {
+  display: flex; align-items: flex-start; gap: 0.625rem; padding: 0.75rem 0.875rem;
+  background: var(--popover); color: var(--popover-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); font-size: 0.8125rem; pointer-events: auto;
+  animation: toast-in var(--dur) var(--ease);
+}
+.toast.out { animation: toast-out 150ms var(--ease) forwards; }
+.toast > .ic, .toast > svg { width: 1rem; height: 1rem; flex: none; margin-top: 0.0625rem; }
+.toast.ok > .ic, .toast.ok > svg { color: var(--ok); }
+.toast.warn > .ic, .toast.warn > svg { color: var(--warn); }
+.toast.err > .ic, .toast.err > svg { color: var(--err); }
+.toast.info > .ic, .toast.info > svg { color: var(--primary); }
+.toast b { display: block; font-size: 0.8125rem; font-weight: 500; }
+.toast span { font-size: 0.75rem; color: var(--muted-foreground); }
+.toast [data-x] { padding: 0.125rem; border-radius: var(--radius-sm); color: var(--muted-foreground); }
+.toast [data-x] svg { width: 0.875rem; height: 0.875rem; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(0.25rem); } }
+
+/* ---------------- Overlay: dialog / sheet / drawer (shadcn) ---------------- */
+.scrim { position: fixed; inset: 0; z-index: 80; background: var(--overlay); display: none; animation: fade-in var(--dur) var(--ease); }
+.scrim.on { display: block; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  position: fixed; z-index: 81; left: 50%; top: 50%; transform: translate(-50%, -48%);
+  width: calc(100% - 2rem); max-width: 32rem; max-height: 88vh; overflow: auto;
+  background: var(--popover); color: var(--popover-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg); display: none;
+}
+.modal.wide { max-width: 44rem; }
+.modal.on { display: block; animation: modal-in var(--dur) var(--ease) forwards; }
+@keyframes modal-in { from { opacity: 0; transform: translate(-50%, -46%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.modal .m-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 2;
+  background: var(--popover); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.modal .m-head h3 { font-size: 0.9375rem; font-weight: 600; }
+.modal .m-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.modal .m-foot {
+  display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border); position: sticky; bottom: 0;
+  background: var(--popover); border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+@media (max-width: 560px) {
+  .modal { max-height: 92vh; }
+  .modal .m-foot { flex-direction: column-reverse; }
+  .modal .m-foot .btn { width: 100%; }
+}
+
+.drawer {
+  position: fixed; z-index: 81; right: 0; top: 0; height: 100vh; width: 100%; max-width: 31rem;
+  background: var(--popover); color: var(--popover-foreground);
+  border-left: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  transform: translateX(103%); transition: transform var(--dur-slow) var(--ease);
+  display: flex; flex-direction: column;
+}
+.drawer.on { transform: none; }
+.drawer .d-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.drawer .d-body { padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; flex: 1; }
+.drawer .d-foot { padding: 1rem 1.25rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+.sheet {
+  position: fixed; z-index: 81; left: 0; right: 0; bottom: 0; max-height: 92vh; overflow-y: auto;
+  background: var(--popover); color: var(--popover-foreground);
+  border-top: 1px solid var(--border); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(102%); transition: transform var(--dur-slow) var(--ease);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.sheet.on { transform: none; }
+.sheet .grip { width: 2.5rem; height: 0.25rem; border-radius: var(--radius-pill); background: var(--border); margin: 0.625rem auto 0.25rem; }
+@media (min-width: 620px) {
+  .sheet { left: 50%; right: auto; transform: translate(-50%, 102%); max-width: 35rem; border-radius: var(--radius-xl); bottom: 1rem; border: 1px solid var(--border); }
+  .sheet.on { transform: translate(-50%, 0); }
+}
+
+/* ---------------- Tab (shadcn Tabs, varian underline) ---------------- */
+.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.625rem 0.75rem; margin-bottom: -1px;
+  font-size: 0.8125rem; font-weight: 500; color: var(--muted-foreground);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.tab:hover { color: var(--foreground); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab .cnt {
+  font-size: 0.6875rem; font-weight: 600; padding: 0.0625rem 0.375rem;
+  border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground);
+}
+.tab.active .cnt { background: color-mix(in oklab, var(--primary) 14%, transparent); color: var(--primary); }
+
+/* ---------------- Timeline ---------------- */
+.tl { display: flex; flex-direction: column; }
+.tl-item { display: grid; grid-template-columns: 3.75rem 1fr; gap: 0.75rem; padding: 0.625rem 0; position: relative; }
+.tl-item::before {
+  content: ""; position: absolute; left: 4.375rem; top: 1.375rem; bottom: -0.125rem; width: 1px;
+  background: var(--border);
+}
+.tl-item:last-child::before { display: none; }
+.tl-item .t { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); padding-top: 0.125rem; }
+.tl-item .c { position: relative; padding-left: 1rem; min-width: 0; }
+.tl-item .c::before {
+  content: ""; position: absolute; left: -0.25rem; top: 0.375rem;
+  width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted-foreground);
+  box-shadow: 0 0 0 3px var(--background);
+}
+.tl-item.k-taken .c::before { background: var(--ok); }
+.tl-item.k-late .c::before { background: var(--warn); }
+.tl-item.k-missed .c::before { background: var(--err); }
+.tl-item.k-skipped .c::before { background: var(--na); }
+
+/* ---------------- Wizard langkah ---------------- */
+.steps { display: flex; gap: 0.375rem; align-items: center; flex-wrap: nowrap; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 0.125rem; }
+.steps::-webkit-scrollbar { display: none; }
+.step-dot { display: flex; align-items: center; gap: 0.4375rem; font-size: 0.75rem; color: var(--muted-foreground); white-space: nowrap; }
+.step-dot i {
+  width: 1.375rem; height: 1.375rem; border-radius: 50%; display: grid; place-items: center;
+  font-size: 0.6875rem; font-weight: 600; font-style: normal;
+  background: var(--muted); color: var(--muted-foreground);
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.step-dot.on { color: var(--primary); }
+.step-dot.on i { background: var(--primary); color: var(--primary-foreground); }
+.step-dot.done i { background: color-mix(in oklab, var(--ok) 20%, transparent); color: var(--ok); }
+.step-sep { flex: 1; height: 1px; background: var(--border); min-width: 0.75rem; }
+/* Bantalan ujung agar langkah pertama/terakhir bisa dipusatkan (lebarnya
+   diatur runtime oleh centerStep()). */
+.step-pad { flex: 0 0 auto; width: 0; }
+
+.pattern-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.625rem; }
+.pattern-opt {
+  display: flex; flex-direction: column; gap: 0.3125rem; padding: 0.8125rem; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.pattern-opt:hover { border-color: color-mix(in oklab, var(--primary) 50%, var(--border)); }
+.pattern-opt.on { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 8%, var(--card)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent); }
+.pattern-opt svg { width: 1.125rem; height: 1.125rem; color: var(--primary); }
+.pattern-opt b { font-size: 0.8125rem; font-weight: 600; }
+.pattern-opt span { font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.4; }
+
+.days { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.day-opt {
+  width: 2.75rem; height: 2.75rem; border-radius: var(--radius-md); display: grid; place-items: center;
+  font-size: 0.75rem; font-weight: 600;
+  background: var(--background); border: 1px solid var(--input); color: var(--muted-foreground);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.day-opt:hover { border-color: var(--primary); color: var(--primary); }
+.day-opt.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+/* ---------------- Katalog / hasil cari ---------------- */
+.result {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.75rem 0.875rem; border: 1px solid var(--border);
+  border-radius: var(--radius-lg); background: var(--card); cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.result:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); background: color-mix(in oklab, var(--muted) 40%, var(--card)); }
+.result .t { font-size: 0.8125rem; font-weight: 500; overflow-wrap: anywhere; }
+.result .s { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; }
+.result .src { font-size: 0.6875rem; font-weight: 500; color: var(--muted-foreground); margin-top: 0.125rem; }
+
+.suggest-list { display: flex; flex-direction: column; gap: 0.375rem; }
+.autocomplete { position: relative; }
+.autocomplete .ac-list {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 0.375rem);
+  background: var(--popover); color: var(--popover-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md); max-height: 20rem; overflow-y: auto;
+}
+.autocomplete .ac-item { padding: 0.625rem 0.75rem; font-size: 0.8125rem; cursor: pointer; border-bottom: 1px solid var(--border); }
+.autocomplete .ac-item:last-child { border-bottom: 0; }
+.autocomplete .ac-item:hover, .autocomplete .ac-item.hl { background: var(--accent); color: var(--accent-foreground); }
+.autocomplete .ac-item small { display: block; color: var(--muted-foreground); font-size: 0.75rem; }
+
+/* ---------------- Kalender ---------------- */
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.375rem; }
+.cal .d {
+  aspect-ratio: 1; border-radius: var(--radius-md); display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500;
+  background: var(--background); border: 1px solid var(--border); color: var(--card-foreground);
+}
+.cal .d:not(.head):hover { border-color: var(--primary); }
+.cal .d.head { background: none; border: 0; color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 500; font-family: var(--font-sans); }
+.cal .d.g { background: color-mix(in oklab, var(--ok) 14%, transparent); border-color: color-mix(in oklab, var(--ok) 28%, transparent); color: var(--ok); }
+.cal .d.y { background: color-mix(in oklab, var(--warn) 16%, transparent); border-color: color-mix(in oklab, var(--warn) 30%, transparent); color: var(--warn); }
+.cal .d.r { background: color-mix(in oklab, var(--err) 14%, transparent); border-color: color-mix(in oklab, var(--err) 28%, transparent); color: var(--err); }
+.cal .d.i { background: color-mix(in oklab, var(--info) 12%, transparent); border-color: color-mix(in oklab, var(--info) 26%, transparent); color: var(--info); }
+.cal .d.mute { opacity: .4; }
+.cal .d.today { box-shadow: inset 0 0 0 2px var(--primary); }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.75rem; color: var(--muted-foreground); align-items: center; }
+.cal-legend i { width: 0.6875rem; height: 0.6875rem; border-radius: 0.1875rem; display: inline-block; margin-right: 0.3125rem; vertical-align: -0.0625rem; }
+
+/* ---------------- Bagan ---------------- */
+.bars { display: flex; align-items: flex-end; gap: 0.5rem; height: 8.5rem; padding-top: 0.375rem; }
+.bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0.375rem; height: 100%; position: relative; min-width: 0; }
+.bars .b i { width: 100%; border-radius: var(--radius-sm) var(--radius-sm) 0 0; min-height: 3px; background: var(--primary); }
+.bars .b.low i { background: var(--err); }
+.bars .b.mid i { background: var(--warn); }
+.bars .b span { font-size: 0.6875rem; color: var(--muted-foreground); font-weight: 500; }
+.bars .b .tip {
+  position: absolute; top: -0.125rem; font-size: 0.6875rem; font-weight: 600; color: var(--muted-foreground);
+  opacity: 0; transition: opacity var(--dur) var(--ease);
+}
+.bars .b:hover .tip { opacity: 1; }
+
+.spark { display: block; width: 100%; height: 2.375rem; overflow: visible; }
+.spark path.line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linecap: round; }
+.spark path.area { fill: color-mix(in oklab, var(--primary) 14%, transparent); }
+.spark circle { fill: var(--primary); }
+
+.donut { display: grid; place-items: center; position: relative; }
+
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 0.1875rem; overflow-x: auto; padding-bottom: 0.25rem; }
+.heat i { width: 0.8125rem; height: 0.8125rem; border-radius: 0.1875rem; background: var(--muted); }
+.heat i.l1 { background: color-mix(in oklab, var(--ok) 30%, var(--muted)); }
+.heat i.l2 { background: color-mix(in oklab, var(--ok) 55%, var(--muted)); }
+.heat i.l3 { background: color-mix(in oklab, var(--ok) 78%, var(--muted)); }
+.heat i.l4 { background: var(--ok); }
+.heat i.bad { background: color-mix(in oklab, var(--err) 65%, var(--muted)); }
+.heat i.none { background: var(--background); border: 1px solid var(--border); }
+
+/* ---------------- Peta interaksi (index) ---------------- */
+.flow { display: grid; gap: 0.875rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.flow-col { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0.875rem; background: color-mix(in oklab, var(--muted) 40%, transparent); }
+.flow-col h4 { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); margin-bottom: 0.625rem; }
+.flow-link {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.5rem 0.625rem; border-radius: var(--radius-md); background: var(--card);
+  font-size: 0.75rem; margin-bottom: 0.375rem; border: 1px solid var(--border);
+  transition: border-color var(--dur) var(--ease);
+}
+.flow-link:hover { border-color: color-mix(in oklab, var(--primary) 45%, var(--border)); }
+.flow-link b { color: var(--primary); font-weight: 600; }
+.flow-link svg { width: 0.875rem; height: 0.875rem; color: var(--muted-foreground); flex: none; margin-top: 0.125rem; }
+.arrow-note { font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.5; }
+
+/* ---------------- Utilities ---------------- */
+.big-num { font-family: var(--font-mono); font-size: 1.75rem; font-weight: 600; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.divider { height: 1px; background: var(--border); }
+.divider.dashed { background: none; border-top: 1px dashed var(--border); }
+.link { color: var(--primary); font-weight: 500; }
+.link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.kbd {
+  font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 500;
+  padding: 0.125rem 0.375rem; border-radius: var(--radius-sm);
+  background: var(--muted); color: var(--muted-foreground); border: 1px solid var(--border);
+}
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center;
+  padding: 2.5rem 1.25rem; color: var(--muted-foreground);
+}
+.empty svg { width: 1.5rem; height: 1.5rem; opacity: .6; }
+.empty b { color: var(--foreground); font-size: 0.875rem; font-weight: 500; }
+.empty span { font-size: 0.8125rem; max-width: 26rem; line-height: 1.5; }
+.count-up { display: inline-block; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* scrollbar tipis */
+@media (min-width: 720px) {
+  ::-webkit-scrollbar { width: 0.625rem; height: 0.625rem; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-pill); border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: content-box; }
+}
+
+/* ---------------- Tema toggle ---------------- */
+.theme-toggle {
+  position: relative; width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: var(--background);
+  display: grid; place-items: center; flex: none; cursor: pointer; color: var(--muted-foreground);
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.theme-toggle:hover { background: var(--accent); color: var(--accent-foreground); }
+.theme-toggle .knob { display: grid; place-items: center; }
+.theme-toggle .knob svg { width: 1rem; height: 1rem; }
+
+/* pilihan bahasa (ID | EN) — bergaya segmented control shadcn */
+.lang-switch {
+  display: inline-flex; padding: 0.125rem; gap: 0.125rem;
+  border-radius: var(--radius-md); background: var(--muted);
+  border: 1px solid var(--border); flex: none;
+}
+.lang-btn {
+  display: inline-grid; place-items: center; min-width: 2rem; height: 1.5rem;
+  padding: 0 0.375rem; border-radius: var(--radius-sm);
+  font: 600 0.6875rem/1 var(--font-sans); letter-spacing: 0.02em;
+  color: var(--muted-foreground); background: transparent;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.lang-btn:hover { color: var(--foreground); }
+.lang-btn.on { background: var(--background); color: var(--primary); box-shadow: var(--shadow-xs); }
+@media (max-width: 720px) {
+  .lang-btn { min-width: 2.25rem; height: 2rem; font-size: 0.75rem; }
+}
+
+/* ---------------- Tombol ikon di bilah atas ---------------- */
+.icon-btn {
+  width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md);
+  display: grid; place-items: center; color: var(--muted-foreground);
+  border: 1px solid transparent; position: relative;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.icon-btn svg { width: 1.125rem; height: 1.125rem; }
+.icon-btn:hover { background: var(--accent); color: var(--accent-foreground); border-color: var(--border); }
+.icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
+.icon-btn .dot-badge {
+  position: absolute; top: 0.375rem; right: 0.375rem; width: 0.5rem; height: 0.5rem; border-radius: 50%;
+  background: var(--destructive); border: 2px solid var(--background);
+}
+
+/* ---------------- Banner (shadcn Alert) ---------------- */
+.banner {
+  display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.875rem 1rem;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+}
+.banner > .ic, .banner > span > svg, .banner > svg { width: 1rem; height: 1rem; flex: none; margin-top: 0.125rem; }
+.banner.warn { border-color: color-mix(in oklab, var(--warn) 35%, var(--border)); background: color-mix(in oklab, var(--warn) 8%, var(--card)); }
+.banner.warn > .ic, .banner.warn > svg { color: var(--warn); }
+.banner.err { border-color: color-mix(in oklab, var(--err) 35%, var(--border)); background: color-mix(in oklab, var(--err) 8%, var(--card)); }
+.banner.err > .ic, .banner.err > svg { color: var(--err); }
+.banner.info { border-color: color-mix(in oklab, var(--info) 30%, var(--border)); background: color-mix(in oklab, var(--info) 7%, var(--card)); }
+.banner.info > .ic, .banner.info > svg { color: var(--info); }
+.banner.ok { border-color: color-mix(in oklab, var(--ok) 30%, var(--border)); background: color-mix(in oklab, var(--ok) 8%, var(--card)); }
+.banner.ok > .ic, .banner.ok > svg { color: var(--ok); }
+.banner b { font-size: 0.8125rem; font-weight: 500; }
+.banner p { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.125rem; line-height: 1.5; }
+
+/* ---------------- Detail list (label–value) ---------------- */
+.dl { display: grid; grid-template-columns: minmax(7.5rem, 34%) 1fr; gap: 0.625rem 1rem; font-size: 0.8125rem; }
+.dl dt { color: var(--muted-foreground); font-weight: 500; min-width: 0; }
+.dl dd { color: var(--foreground); min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .dl { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; } .dl dd { margin-bottom: 0.625rem; } }
+
+/* baris field katalog (label kiri, nilai kanan) */
+.field-row { display: grid; grid-template-columns: minmax(8.75rem, 30%) 1fr; gap: 0.5rem 1rem; font-size: 0.8125rem; padding: 0.5625rem 0; border-bottom: 1px solid var(--border); }
+.field-row:last-child { border-bottom: 0; }
+.field-row .k { color: var(--muted-foreground); font-weight: 500; }
+.field-row .v { min-width: 0; overflow-wrap: anywhere; }
+.field-row .v.null { color: var(--muted-foreground); font-style: italic; }
+@media (max-width: 560px) { .field-row { grid-template-columns: minmax(0, 1fr); gap: 0.125rem; } }
+
+.json {
+  font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6;
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 0.75rem 0.875rem; overflow-x: auto; color: var(--muted-foreground); white-space: pre;
+}
+
+/* pita status kurasi */
+.ribbon {
+  position: absolute; top: 0.75rem; right: -1.875rem; transform: rotate(45deg);
+  width: 7.5rem; text-align: center; font-size: 0.625rem; font-weight: 600; letter-spacing: 0.03em;
+  padding: 0.25rem 0; z-index: 2;
+}
+.ribbon.draft { background: var(--warn); color: oklch(0.18 0.03 70); }
+.ribbon.published { background: var(--ok); color: oklch(0.18 0.03 150); }
+.ribbon.archived { background: var(--na); color: var(--background); }
+
+/* chip jam jadwal */
+.time-chip {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  height: 2rem; padding: 0 0.625rem; border-radius: var(--radius-md);
+  background: var(--muted); color: var(--foreground);
+  font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.time-chip > svg { width: 0.875rem; height: 0.875rem; color: var(--muted-foreground); }
+.time-chip:hover { background: var(--accent); color: var(--accent-foreground); }
+.time-chip.muted { opacity: .55; }
+.time-chip .x { font-family: var(--font-sans); font-weight: 600; color: var(--muted-foreground); }
+.time-chip .x:hover { color: var(--destructive); }
+
+/* baris stok */
+.stock-row { display: flex; align-items: center; gap: 0.625rem; min-width: 0; }
+.stock-row .meter { flex: 1 1 auto; }
+.stock-row .q { font-family: var(--font-mono); font-size: 0.75rem; min-width: 4rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------------- Notifikasi user (kotak masuk & kanal) ----------------
+   Item notifikasi: avatar kanal + judul trunc + badge status flex-none +
+   isi satu baris + baris meta (kanal · waktu). Item belum dibaca diberi
+   garis aksen di kiri dan latar lembut supaya terpisah jelas dari yang
+   sudah dibaca — tanpa mengubah ukuran kartu. */
+.notif-item {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.75rem 0.875rem; border-radius: var(--radius-lg);
+  background: var(--card); border: 1px solid var(--border);
+  position: relative; overflow: hidden;
+}
+.notif-item::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: transparent;
+}
+.notif-item.unread { background: color-mix(in oklab, var(--primary) 5%, var(--card)); }
+.notif-item.unread::before { background: var(--primary); }
+.notif-item .avatar { margin-top: 0.0625rem; }
+.notif-item .grow { min-width: 0; }
+.notif-item .row-b { align-items: flex-start; }
+.notif-item .row-b > .badge { flex: none; margin-left: 0.5rem; }
+.notif-item .xs > svg { width: 0.75rem; height: 0.75rem; vertical-align: -0.125rem; margin-right: 0.1875rem; }
+
+/* ---------------- Popup notifikasi (ikon lonceng di bilah atas user) ----------------
+   Klik lonceng membuka ringkasan notifikasi langsung di tempat — bukan melompat
+   ke halaman Pengaturan. Tautan ke Pengaturan tetap ada sebagai aksi sekunder. */
+.notif-scrim { position: fixed; inset: 0; z-index: 84; display: none; background: transparent; }
+.notif-scrim.on { display: block; }
+.notif-pop {
+  position: fixed; z-index: 85; display: none;
+  width: min(21rem, calc(100vw - 1rem)); max-height: min(72vh, 30rem);
+  flex-direction: column; overflow: hidden;
+  background: var(--popover); color: var(--popover-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.notif-pop.on { display: flex; animation: notif-pop-in var(--dur) var(--ease); }
+@keyframes notif-pop-in { from { opacity: 0; transform: translateY(-0.375rem); } to { opacity: 1; transform: none; } }
+.notif-pop .np-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border);
+}
+.notif-pop .np-head .grow { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.notif-pop .np-head h3 { display: flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; font-weight: 600; }
+.notif-pop .np-head h3 > svg { width: 1rem; height: 1rem; flex: none; color: var(--primary); }
+.notif-pop .np-head .icon-btn { width: 2rem; height: 2rem; }
+.notif-pop .np-head .icon-btn svg { width: 1rem; height: 1rem; }
+.notif-pop .np-list { overflow-y: auto; min-height: 0; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.notif-pop .np-list .notif-item {
+  width: 100%; padding: 0.625rem 0.75rem; text-align: left;
+  font: inherit; cursor: pointer;
+  touch-action: pan-y;
+  will-change: transform;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.notif-pop .np-list .notif-item.np-out { transition: transform 0.2s var(--ease), opacity 0.2s var(--ease); }
+.notif-pop .np-foot { flex: none; }
+.notif-pop .np-list .notif-item:hover { border-color: color-mix(in oklab, var(--primary) 40%, var(--border)); }
+.notif-pop .np-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  flex-wrap: wrap; padding: 0.625rem 0.75rem; border-top: 1px solid var(--border);
+}
+.notif-pop .np-foot .xs { display: inline-flex; align-items: center; gap: 0.25rem; }
+.notif-pop .np-foot .xs svg { width: 0.875rem; height: 0.875rem; color: var(--ok); }
+
+/* baris kanal notifikasi di pengaturan: label kiri, switch kanan, rapi */
+.set-row .sw { flex: none; }
+
+/* ---------------- Target sentuh (TRD §7.4: min 44×44 px di app user) ----------------
+   Ukuran h-8/h-9 bawaan shadcn dipakai di desktop admin. Di layar sentuh,
+   kontrol interaktif dinaikkan ke 44px supaya tetap memenuhi requirement. */
+@media (max-width: 720px) {
+  .btn { height: var(--touch); padding: 0 1rem; font-size: 0.875rem; }
+  .btn-sm { height: var(--touch); padding: 0 0.875rem; font-size: 0.8125rem; }
+  .btn-icon { width: var(--touch); }
+  .btn-icon.btn-sm { width: var(--touch); }
+  .chip { height: var(--touch); padding: 0 0.875rem; }
+  .tab { min-height: var(--touch); }
+  .seg button { height: 2.25rem; }
+  .icon-btn { width: 2.5rem; height: 2.5rem; }
+  /* Popup notifikasi: jaga target sentuh ≥44px (TRD §7.4) — aturan .notif-pop
+     lebih spesifik, jadi harus dinaikkan eksplisit di sini. */
+  .notif-pop .np-head .icon-btn { width: var(--touch); height: var(--touch); }
+  .notif-pop .np-foot .btn { flex: 1 1 auto; }
+  .theme-toggle { width: 2.5rem; height: 2.5rem; }
+  .input, select.input { height: var(--touch); }
+  .u-nav-item { min-height: var(--touch); }
+}
+
+/* ---------------- Cetak ---------------- */
+@media print {
+  .u-bottomnav, .a-side, .a-top, .fab, .toasts, .icon-btn, .theme-toggle, .bg-grid, .bg-glow { display: none !important; }
+  body { background: #fff; color: #000; }
+  .card, .panel, .stat { box-shadow: none; break-inside: avoid; }
+}

@@ -1,0 +1,120 @@
+info:
+  name: Ubah Preferensi Notifikasi
+  type: http
+  seq: 2
+  tags:
+    - notification
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/notification-prefs"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "channel": "push",
+        "enabled": true,
+        "quiet_start": "22:00",
+        "quiet_end": "06:00",
+        "advance_minutes": 10
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.channel
+      operator: eq
+      value: "push"
+
+docs: |-
+  # Ubah Preferensi Notifikasi
+
+  Mengubah preferensi **satu kanal**. Field yang tidak dikirim dipertahankan.
+
+  ## Jam sunyi boleh melewati tengah malam
+
+  Jendela `22:00`–`06:00` adalah yang paling lazim, dan penanganannya
+  khusus: jendelanya melewati pergantian hari, sehingga pemeriksaan sederhana
+  "mulai ≤ sekarang < selesai" akan **selalu salah** untuk kasus itu.
+
+  Aturannya:
+
+  | Isi | Arti |
+  |---|---|
+  | `quiet_start < quiet_end` | Jendela biasa, mis. 13:00–15:00 |
+  | `quiet_start > quiet_end` | Melewati tengah malam, mis. 22:00–06:00 |
+  | `quiet_start == quiet_end` | **Tidak ada jam sunyi**, bukan 24 jam |
+
+  Yang terakhir itu keputusan yang disengaja: user yang mengisi kedua jam sama
+  jelas tidak berniat menahan notifikasi sepanjang hari.
+
+  ## Jam sunyi harus diisi KEDUANYA
+
+  Mengisi satu sisi saja ditolak:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "jam sunyi harus diisi keduanya atau dikosongkan keduanya",
+      "details": [{"field": "quiet_start", "issue": "invalid"}]
+    }
+  }
+  ```
+
+  Tanpa penolakan itu, jendelanya tidak bisa dihitung, dan user akan mengira
+  sudah mengaturnya padahal tidak.
+
+  ## Mengosongkan jam sunyi
+
+  Kirim keduanya sebagai string kosong:
+
+  ```json
+  {"channel": "push", "quiet_start": "", "quiet_end": ""}
+  ```
+
+  ## `advance_minutes`
+
+  Memajukan pengiriman 0–120 menit sebelum jam dosis. Nilai di luar itu
+  ditolak.
+
+  Urutan penyesuaiannya: **maju lebih awal dulu, baru jam sunyi**. Dosis 06:05
+  dengan `advance_minutes: 10` menjadi 05:55 — yang **masuk** jam sunyi — lalu
+  ditahan ke 06:00. Kalau urutannya dibalik, hasilnya justru jatuh di dalam
+  jam sunyi lagi.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "channel": "push",
+      "enabled": true,
+      "quiet_start": "22:00",
+      "quiet_end": "06:00",
+      "advance_minutes": 10,
+      "throttled": false
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "maju lebih awal harus antara 0 dan 120 menit"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

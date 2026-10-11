@@ -1,0 +1,69 @@
+info:
+  name: Arsipkan Preset
+  type: http
+  seq: 12
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/catalog/{{preset_id}}/archive"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "reason": "kode KFA sudah tidak berlaku"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.curation_status
+      operator: eq
+      value: "archived"
+
+docs: |-
+  # Arsipkan Preset
+
+  Mengarsipkan preset. Butuh scope **`catalog`**.
+
+  ## Arti arsip
+
+  Preset yang diarsipkan **tidak muncul** dalam pencarian user, dan tidak bisa
+  dikembalikan langsung ke `published`. Untuk memakainya lagi, kembalikan ke
+  `draft` lebih dulu.
+
+  Dipakai untuk entri yang **sudah tidak relevan lagi** — misalnya kode KFA-nya
+  tidak berlaku, atau obatnya ditarik dari peredaran.
+
+  ## Beda `archived` dan `draft`
+
+  | Status | Terlihat user? | Bisa dipakai lagi? |
+  |---|---|---|
+  | `draft` | tidak | ya, langsung publish |
+  | `archived` | tidak | perlu kembali ke draft |
+
+  Dengan aturan itu, entri yang diarsipkan tidak bisa "hidup lagi" tanpa
+  sengaja.
+
+  ## Alasan wajib
+
+  Alasan tersimpan di audit, supaya jawaban atas "kenapa obat ini hilang dari
+  daftar" bisa ditemukan.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"id": "019aaa...", "curation_status": "archived"}}
+  ```
+
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Detail Pengguna — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<!-- Modal: hapus akun -->
+<div class="scrim" data-for="m-erase"></div>
+<div class="modal" id="m-erase" role="dialog" aria-modal="true" aria-labelledby="er-t">
+  <div class="m-head"><h3 id="er-t">Hapus akun atas permintaan</h3>
+    <button class="icon-btn" data-close="m-erase" aria-label="Tutup" id="er-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="er-about"></p>
+    <div class="field"><label for="er-reason">Alasan tertulis <span class="req">*</span></label>
+      <textarea class="input" id="er-reason" placeholder="Misalnya: permintaan pengguna lewat email 2026-10-11"></textarea></div>
+    <div class="banner err"><span class="ic" id="er-ic"></span><div><b>Tidak bisa dibatalkan dari UI</b>
+      <p>Akun dianonimkan, seluruh sesi dicabut, relasi caregiver diputus. Riwayat kepatuhan tetap tersimpan sampai masa retensi habis.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-erase">Batal</button>
+    <button class="btn btn-danger" id="er-go">Hapus akun</button></div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  var id = A.qs("id") || "u-01";
+  var u = PO.user(id);
+
+  if (!u) {
+    A.boot({
+      shell: "admin", active: "users", title: "Akun tidak ditemukan",
+      after: function () {
+        document.getElementById("main").innerHTML =
+          A.empty("Akun tidak ditemukan", "Id tidak cocok dengan data dummy.", "users") +
+          '<a class="btn btn-outline" href="users.html">Kembali ke daftar pengguna</a>';
+      }
+    });
+    return;
+  }
+
+  function auditFor() {
+    return PO.audit.filter(function (a) {
+      return a.resource_id === u.id || (a.meta && a.meta.recorded_for === u.id) || (a.actor_email === u.email);
+    });
+  }
+
+  function render() {
+    var links = PO.careLinks.filter(function (l) { return l.owner_id === u.id || l.caregiver_id === u.id; });
+    var audit = auditFor();
+    var tone = u.adherence_7d === null ? "na" : u.adherence_7d >= 0.8 ? "ok" : u.adherence_7d >= 0.6 ? "warn" : "err";
+
+    var html = "";
+
+    /* header */
+    html += '<section class="card card-pad">' +
+      '<div class="row-t gap-14">' +
+        '<span class="avatar lg">' + A.esc(u.full_name.slice(0, 2).toUpperCase()) + "</span>" +
+        '<div class="grow">' +
+          '<div class="row gap-6"><h1 style="font-size:19px">' + A.esc(u.full_name) + "</h1>" +
+            (u.role === "admin" ? A.badge("admin", "badge-accent") : A.badge("pengguna", "badge-na")) +
+            (u.deleted_at ? A.badge("dihapus", "badge-na") : u.is_active ? A.badge("aktif", "badge-ok", true) : A.badge("nonaktif", "badge-miss")) +
+          "</div>" +
+          '<div class="sm muted mt-4">' + A.esc(u.email) + " · <span class=\"mono\">" + A.esc(u.id) + "</span></div>" +
+          '<div class="row-wrap mt-8 gap-6">' +
+            A.badge(u.timezone, "badge-info") +
+            (u.admin_scope ? A.badge("scope: " + u.admin_scope.join(", "), "badge-accent") : (u.role === "admin" ? A.badge("scope: penuh", "badge-accent") : "")) +
+            A.badge("dibuat " + PO.fmtDate(String(u.created_at).slice(0, 10), { mid: true }), "badge-na") +
+          "</div>" +
+        "</div>" +
+        '<div class="right">' + A.ring(u.adherence_7d === null ? 0 : u.adherence_7d, u.adherence_7d === null ? "—" : A.pct(u.adherence_7d), "kepatuhan 7h", 92) + "</div>" +
+      "</div>" +
+      '<div class="divider mt-16"></div>' +
+      '<div class="row-wrap mt-12 gap-8">' +
+        '<button class="btn ' + (u.is_active ? "btn-danger" : "btn-ok") + ' btn-sm" id="b-toggle">' +
+          A.icon(u.is_active ? "ban" : "refresh") + (u.is_active ? "Nonaktifkan akun" : "Aktifkan akun") + "</button>" +
+        '<button class="btn btn-outline btn-sm" id="b-admin">' + A.icon("shield") + (u.role === "admin" ? "Cabut peran admin" : "Beri peran admin") + "</button>" +
+        '<button class="btn btn-outline btn-sm" data-dead="Kirim email ke pengguna">' + A.icon("mail") + "Hubungi</button>" +
+        '<button class="btn btn-ghost btn-sm" id="b-erase"' + (u.deleted_at ? " disabled" : "") + ">" + A.icon("trash") + "Hapus akun</button>" +
+        '<a class="btn btn-ghost btn-sm" href="users.html">' + A.icon("arrow-left") + "Kembali</a>" +
+      "</div>" +
+    "</section>";
+
+    /* dua kolom */
+    html += '<div class="split">';
+
+    /* kiri: metadata + relasi */
+    html += '<div class="stack">';
+    html += '<section class="card"><div class="card-head"><div><h2>Metadata akun</h2>' +
+      '<div class="sub">Yang boleh dilihat admin — tanpa isi obat</div></div></div>' +
+      '<div class="card-pad"><dl class="dl">' +
+        "<dt>Nama lengkap</dt><dd>" + A.esc(u.full_name) + "</dd>" +
+        "<dt>Email</dt><dd>" + A.esc(u.email) + "</dd>" +
+        "<dt>Telepon</dt><dd>" + A.esc(u.phone || "—") + "</dd>" +
+        "<dt>Zona waktu</dt><dd>" + A.esc(u.timezone) + "</dd>" +
+        "<dt>Peran</dt><dd>" + A.esc(u.role) + "</dd>" +
+        "<dt>Admin scope</dt><dd>" + A.esc(u.admin_scope ? u.admin_scope.join(", ") : (u.role === "admin" ? "penuh (NULL)" : "—")) + "</dd>" +
+        "<dt>Diberi peran</dt><dd>" + (u.admin_granted_at ? A.esc(PO.fmtDateTime(u.admin_granted_at)) : "—") + "</dd>" +
+        "<dt>Status</dt><dd>" + (u.deleted_at ? "dihapus " + A.esc(PO.relTime(u.deleted_at)) : u.is_active ? "aktif" : "nonaktif") + "</dd>" +
+        "<dt>Dibuat</dt><dd>" + A.esc(PO.fmtDateTime(u.created_at)) + "</dd>" +
+        "<dt>Login terakhir</dt><dd>" + A.esc(u.last_login_at ? PO.fmtDateTime(u.last_login_at) : "belum pernah") + "</dd>" +
+        "<dt>Obat aktif</dt><dd>" + u.meds_active + " <span class='xs muted-3'>(jumlah saja, tanpa nama)</span></dd>" +
+      "</dl>" +
+      '<div class="banner info mt-16"><span class="ic">' + A.icon("lock") + "</span><div><b>Isi obat tidak diambil</b>" +
+        "<p>Query rute admin tidak menyertakan tabel obat atau log pasien. Kalau butuh investigasi, jalurnya terpisah dengan alasan tertulis.</p></div></div>" +
+      "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>Relasi caregiver</h2>' +
+      '<div class="sub">Siapa memantau siapa</div></div><span class="badge badge-info">' + links.length + "</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (links.length ? links.map(function (l) {
+        var asOwner = l.owner_id === u.id;
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("users") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(asOwner ? (l.caregiver_name || l.invite_email) : (l.owner_name || "Pasien")) + "</b> " +
+            A.badge(asOwner ? "memantau akun ini" : "dipantau akun ini", asOwner ? "badge-accent" : "badge-info") + "</div>" +
+            '<div class="xs muted-3">' + A.esc(PO.t("relation", l.relation)) + " · " + A.esc(PO.t("care_role", l.role)) + " · " +
+              A.esc(PO.t("care_status", l.status)) + " · " + A.esc(PO.relTime(l.created_at)) + "</div></div></div>";
+      }).join("") : A.empty("Tidak ada relasi", "Akun ini tidak terkait caregiver mana pun.", "users")) +
+      "</div></section>";
+
+    html += "</div>";
+
+    /* kanan: audit + kepatuhan */
+    html += '<div class="stack">';
+
+    html += '<section class="card"><div class="card-head"><h2>Kepatuhan (agregat)</h2></div>' +
+      '<div class="card-pad">' +
+        '<div class="row-b"><div><div class="xs muted-3">7 hari</div><div class="big-num">' + (u.adherence_7d === null ? "—" : A.pct(u.adherence_7d)) + "</div></div>" +
+          '<div class="right"><div class="xs muted-3">30 hari</div><div class="mono" style="font-weight:700;font-size:18px">' +
+          (u.adherence_7d === null ? "—" : A.pct(Math.max(0, u.adherence_7d - 0.06))) + "</div></div></div>" +
+        '<div class="mt-12">' + A.meter(u.adherence_7d === null ? 0 : u.adherence_7d, { tone: tone }) + "</div>" +
+        '<div class="row-wrap mt-12 gap-6">' +
+          A.badge(u.meds_active + " obat aktif", "badge-na") +
+          A.badge("login " + (u.last_login_at ? PO.relTime(u.last_login_at) : "belum pernah"), "badge-na") +
+        "</div>" +
+        '<p class="xs muted-3 mt-12">Angka ini dihitung dari log pasien, tapi yang ditampilkan hanya rasio. Nama obat tidak ikut.</p>' +
+      "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>Jejak audit akun</h2>' +
+      '<div class="sub">aksi atas akun ini atau oleh akun ini</div></div><span class="badge badge-na">' + audit.length + "</span></div>" +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Aksi</th><th>Aktor</th><th>Perubahan</th></tr></thead><tbody>' +
+      (audit.length ? audit.slice(0, 12).map(function (a) {
+        var b = a.before_state && a.before_state.is_active, af = a.after_state && a.after_state.is_active;
+        var diff = "";
+        if (b !== undefined && af !== undefined) diff = (b ? "aktif" : "nonaktif") + " → " + (af ? "aktif" : "nonaktif");
+        else if (a.after_state && a.after_state.role) diff = "peran → " + a.after_state.role;
+        else if (a.after_state && a.after_state.status) diff = "status → " + a.after_state.status;
+        else diff = "—";
+        return "<tr><td class='sm muted nowrap'>" + A.esc(PO.relTime(a.created_at)) + "</td>" +
+          "<td class='mono sm'>" + A.esc(a.action) + "</td>" +
+          "<td class='sm'>" + A.esc(a.actor_email || "sistem") + " " + A.badge(a.actor_role, a.actor_role === "admin" ? "badge-accent" : a.actor_role === "system" ? "badge-na" : "badge-info") + "</td>" +
+          "<td class='sm muted'>" + A.esc(diff) + (a.meta && a.meta.reason ? " · " + A.esc(a.meta.reason) : "") + "</td></tr>";
+      }).join("") : "<tr><td colspan='4'>" + A.empty("Belum ada jejak", "Aksi terhadap akun ini belum tercatat.", "file") + "</td></tr>") +
+      "</tbody></table></div></section>";
+
+    html += "</div></div>";
+
+    document.getElementById("main").innerHTML = html;
+    document.getElementById("er-x").innerHTML = A.icon("x");
+    document.getElementById("er-ic").innerHTML = A.icon("alert");
+
+    bind();
+  }
+
+  function bind() {
+    document.getElementById("b-toggle").addEventListener("click", function () {
+      var next = !u.is_active;
+      PO.setUserActive(u.id, next, "aksi dari konsol admin");
+      A.toast(next ? "ok" : "warn", next ? "Akun diaktifkan" : "Akun dinonaktifkan",
+        u.full_name + " · audit actor_role=admin, before/after tercatat.");
+      u = PO.user(id);
+      render();
+    });
+
+    document.getElementById("b-admin").addEventListener("click", function () {
+      if (u.role === "admin") {
+        var before = { role: "admin", admin_scope: u.admin_scope };
+        u.role = "user"; u.admin_scope = null;
+        PO.audit.unshift({
+          id: 55500 + PO.audit.length, actor_email: "admin@example.com", actor_role: "admin",
+          action: "admin_revoke", resource_type: "admin", resource_id: u.id,
+          created_at: new Date().toISOString(), ip: "10.20.0.5",
+          meta: { reason: "dicabut dari konsol admin" }, before_state: before, after_state: { role: "user" }
+        });
+        PO.save();
+        A.toast("warn", "Peran admin dicabut", u.full_name + " kembali menjadi pengguna biasa.");
+        u = PO.user(id);
+        render();
+      } else {
+        location.href = "users.html";
+        A.toast("info", "Beri peran admin dari daftar", "Buka Pengguna → tombol “Beri admin” agar scope bisa dipilih.");
+      }
+    });
+
+    document.getElementById("b-erase").addEventListener("click", function () {
+      document.getElementById("er-about").innerHTML = "Hapus akun <b>" + A.esc(u.full_name) + "</b> (" + A.esc(u.email) + ")? " +
+        "Obat aktif: " + u.meds_active + ", relasi caregiver: " + PO.careLinks.filter(function (l) { return l.owner_id === u.id || l.caregiver_id === u.id; }).length + ".";
+      document.getElementById("er-reason").value = "";
+      A.overlay("m-erase", true);
+    });
+  }
+
+  document.getElementById("er-go").addEventListener("click", function () {
+    var reason = document.getElementById("er-reason").value.trim();
+    if (reason.length < 8) { A.toast("err", "Alasan terlalu pendek", "Tulis alasan yang bisa ditelusuri nanti."); return; }
+    var before = { is_active: u.is_active, deleted_at: u.deleted_at };
+    u.is_active = false;
+    u.deleted_at = new Date().toISOString();
+    u.full_name = "Akun Dihapus";
+    PO.audit.unshift({
+      id: 55600 + PO.audit.length, actor_email: "admin@example.com", actor_role: "admin",
+      action: "user_erase", resource_type: "user", resource_id: u.id, created_at: new Date().toISOString(),
+      ip: "10.20.0.5", meta: { reason: reason }, before_state: before, after_state: { is_active: false, deleted_at: u.deleted_at }
+    });
+    PO.save();
+    A.overlay("m-erase", false);
+    A.toast("err", "Akun dianonimkan", "Seluruh sesi dicabut. Purge setelah masa retensi.");
+    u = PO.user(id);
+    render();
+  });
+
+  A.boot({
+    shell: "admin",
+    active: "users",
+    title: u.full_name,
+    crumb: "Pengguna · " + u.email,
+    actions: '<a class="btn btn-outline btn-sm" href="users.html">' + A.icon("arrow-left") + "Daftar</a>",
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

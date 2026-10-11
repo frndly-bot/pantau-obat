@@ -1,0 +1,83 @@
+info:
+  name: Kotak Masuk Notifikasi
+  type: http
+  seq: 6
+  tags:
+    - notification
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/notifications?limit=30"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Kotak Masuk Notifikasi
+
+  Riwayat pengingat yang pernah dikirim ke user.
+
+  ## Judul TIDAK memuat nama obat
+
+  Kotak masuk bisa dilihat siapa pun yang memegang ponsel yang tidak terkunci.
+  Riwayat "obat apa yang diminum" adalah data kesehatan, jadi judulnya dibuat
+  umum:
+
+  | Jenis | Judul |
+  |---|---|
+  | `dose_reminder` | Pengingat minum obat |
+  | `refill_reminder` | Pengingat restock obat |
+  | `missed_escalation` | Pemberitahuan dosis terlewat |
+  | `care_digest` | Ringkasan harian |
+
+  Nama obat tetap muncul di **isi notifikasi** yang benar-benar dikirim, karena
+  pengingat tanpa nama obat tidak berguna. Yang dikecualikan adalah riwayat yang
+  bisa dilihat orang lain di perangkat yang sama.
+
+  ## Isi pesan disusun ulang, bukan dibaca dari payload
+
+  `notification_jobs.payload` disimpan untuk keperluan penelusuran teknis dan
+  bisa memuat detail internal. Yang ditampilkan ke user dibuat dari data yang
+  sudah dipastikan aman.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": 1234,
+        "kind": "dose_reminder",
+        "status": "done",
+        "channel": "push",
+        "title": "Pengingat minum obat",
+        "created_at": "2026-10-11T00:00:00Z",
+        "sent_at": "2026-10-11T00:00:01Z"
+      },
+      {
+        "id": 1233,
+        "kind": "refill_reminder",
+        "status": "failed",
+        "channel": "push",
+        "title": "Pengingat restock obat",
+        "created_at": "2026-10-10T20:00:00Z",
+        "sent_at": null
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 30}
+  }
+  ```
+
+  ## `limit`
+
+  Bawaan 30, maksimum 100.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

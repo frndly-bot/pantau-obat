@@ -1,0 +1,16 @@
+info:
+  name: stock
+  type: folder
+  seq: 6
+
+docs: |-
+  # Stok
+
+  Folder ini dijalankan pada urutan ke-6 dalam satu kali
+  run koleksi.
+
+  `seq` di sini WAJIB ada. Bruno mengurutkan folder dengan
+  `sortByNameThenSequence`: folder tanpa seq jatuh ke urutan alfabetis.
+  Tanpa seq, `adherence/` dan `admin/` akan berjalan SEBELUM
+  `authentication/`, sehingga `access_token` belum ada dan puluhan
+  request menanggung 401 berantai.

@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caregiver — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .ring-mini { display: flex; align-items: center; gap: 12px; }
+  .viewer-note { display: flex; gap: 8px; font-size: 11.5px; color: var(--muted-foreground); align-items: flex-start; }
+  .viewer-note .ic { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--info); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-user">
+  <header id="po-top"></header>
+  <main class="u-body" id="main"></main>
+</div>
+
+<nav id="po-nav"></nav>
+
+<!-- Modal: undang caregiver -->
+<div class="scrim" data-for="m-invite"></div>
+<div class="modal" id="m-invite" role="dialog" aria-modal="true" aria-labelledby="i-t">
+  <div class="m-head"><h3 id="i-t">Undang pemantau</h3>
+    <button class="icon-btn" data-close="m-invite" aria-label="Tutup" id="i-x"></button></div>
+  <div class="m-body">
+    <div class="field"><label for="i-mail">Email <span class="req">*</span></label>
+      <input class="input" id="i-mail" type="email" placeholder="keluarga@example.com">
+      <span class="hint">Boleh email yang belum terdaftar — undangan menunggu sampai mereka membuat akun.</span></div>
+    <div class="grid-2">
+      <div class="field"><label for="i-rel">Hubungan</label>
+        <select class="input" id="i-rel">
+          <option value="spouse">Pasangan</option>
+          <option value="child">Anak</option>
+          <option value="parent">Orang tua</option>
+          <option value="family">Keluarga</option>
+          <option value="friend">Sahabat</option>
+          <option value="nurse">Perawat</option>
+          <option value="other">Lainnya</option>
+        </select></div>
+      <div class="field"><label for="i-role">Izin</label>
+        <select class="input" id="i-role">
+          <option value="viewer" selected>Baca saja</option>
+          <option value="helper">Bisa edit (boleh catat dosis)</option>
+        </select></div>
+    </div>
+    <div class="banner warn"><span class="ic" id="i-ic"></span><div><b>Bisa edit hanya untuk mencatat dosis</b>
+      <p>Peran <span class="mono">helper</span> hanya bisa menambah catatan dosis atas nama Anda — tidak bisa menambah, mengubah, atau menghapus obat dan jadwal.</p></div></div>
+    <div class="field"><label for="i-note">Pesan undangan (opsional)</label>
+      <textarea class="input" id="i-note" placeholder="Bud, tolong pantau obat tensi ayah ya."></textarea></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-invite">Batal</button>
+    <button class="btn btn-primary" id="i-go">Kirim undangan</button></div>
+</div>
+
+<!-- Modal: cabut akses -->
+<div class="scrim" data-for="m-revoke"></div>
+<div class="modal" id="m-revoke" role="dialog" aria-modal="true" aria-labelledby="v-t">
+  <div class="m-head"><h3 id="v-t">Cabut akses</h3>
+    <button class="icon-btn" data-close="m-revoke" aria-label="Tutup" id="v-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="v-about"></p>
+    <div class="banner err"><span class="ic" id="v-ic"></span><div><b>Akses hilang seketika</b>
+      <p>Status relasi menjadi <span class="mono">revoked</span>. Verifikasi relasi dilakukan di setiap permintaan, bukan hanya di UI, jadi pemantau langsung kehilangan akses.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-revoke">Batal</button>
+    <button class="btn btn-danger" id="v-go">Cabut akses</button></div>
+</div>
+
+<!-- Modal: catat dosis atas nama pasien (helper) -->
+<div class="scrim" data-for="m-helper"></div>
+<div class="modal" id="m-helper" role="dialog" aria-modal="true" aria-labelledby="h-t">
+  <div class="m-head"><h3 id="h-t">Catat dosis atas nama pasien</h3>
+    <button class="icon-btn" data-close="m-helper" aria-label="Tutup" id="h-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="h-about"></p>
+    <div class="field"><label for="h-status">Status</label>
+      <select class="input" id="h-status">
+        <option value="taken" selected>Sudah diminum</option>
+        <option value="late">Diminum terlambat</option>
+        <option value="skipped">Dilewati</option>
+      </select></div>
+    <div class="field"><label for="h-note">Catatan</label>
+      <input class="input" id="h-note" placeholder="Misalnya: diminum setelah makan siang"></div>
+    <div class="banner info"><span class="ic" id="h2-ic"></span><div><b>Jejaknya jelas</b>
+      <p>Log disimpan dengan <span class="mono">source='caregiver'</span> dan <span class="mono">recorded_by</span> = id Anda, sehingga pasien tahu siapa yang mencatat.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-helper">Batal</button>
+    <button class="btn btn-ok" id="h-go">Simpan catatan</button></div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  var session = A.requireUser();
+  if (!session) return;
+
+  var ME = session.user.id;
+  var inviteTarget = null;   // {ownerId, medName, time, schedId} untuk helper
+  var revokeTarget = null;
+
+  function initials(n) { return (n || "?").split(" ").map(function (w) { return w[0]; }).slice(0, 2).join("").toUpperCase(); }
+
+  function render() {
+    var asOwner = PO.careLinks.filter(function (l) { return l.owner_id === ME; });
+    var asCare = PO.careLinks.filter(function (l) { return l.caregiver_id === ME; });
+    var patients = PO.carePatients;
+
+    var html = "";
+
+    /* ringkasan peran */
+    html += '<section class="card card-pad">' +
+      '<div class="row-b gap-14">' +
+        '<div class="grow"><div class="hd xs muted-3" style="text-transform:uppercase;letter-spacing:.6px">Peran Anda</div>' +
+          '<div class="row-wrap mt-8 gap-6">' +
+            A.badge(asOwner.length + " pemantau pada saya", "badge-accent") +
+            A.badge(patients.length + " saya pantau", "badge-info") +
+          "</div>" +
+          '<p class="sm muted mt-12">Anda bisa menjadi pasien sekaligus pemantau. Dua peran itu tidak saling mengunci.</p>' +
+        "</div>" +
+        '<button class="btn btn-primary btn-sm" id="b-invite">' + A.icon("plus") + "Undang</button>" +
+      "</div>" +
+    "</section>";
+
+    /* siapa yang memantau saya */
+    html += '<section class="stack-8">' +
+      '<div class="row-b"><b class="pg-title">Memantau saya</b><span class="xs muted-3">' + asOwner.length + " relasi</span></div>";
+    if (!asOwner.length) {
+      html += A.empty("Belum ada pemantau", "Undang keluarga atau perawat agar mereka menerima ringkasan dan peringatan.", "users");
+    } else {
+      html += asOwner.map(function (l) {
+        var live = l.status === "accepted";
+        return '<article class="card card-pad">' +
+          '<div class="row-t gap-14">' +
+            '<span class="avatar">' + A.esc(initials(l.caregiver_name || l.invite_email)) + "</span>" +
+            '<div class="grow">' +
+              '<div class="row gap-6"><b>' + A.esc(l.caregiver_name || l.invite_email) + "</b>" +
+                A.badge(PO.t("care_status", l.status), live ? "badge-ok" : l.status === "pending" ? "badge-info badge-pulse" : "badge-na", live) + "</div>" +
+              '<div class="sm muted">' + A.esc(PO.t("relation", l.relation)) + " · " + A.esc(PO.t("care_role", l.role)) + "</div>" +
+              '<div class="xs muted-3 mt-4">' + (live ? "Diterima " + A.esc(PO.relTime(l.decided_at)) : "Diundang " + A.esc(PO.relTime(l.created_at)) +
+                (l.invite_expires_at ? " · berlaku sampai " + A.esc(PO.fmtDate(String(l.invite_expires_at).slice(0, 10), { mid: true })) : "")) + "</div>" +
+            "</div>" +
+          "</div>" +
+          '<div class="row-wrap mt-12 gap-8">' +
+            '<button class="btn btn-outline btn-sm" data-role="' + l.id + '">' + A.icon("sliders") + "Ubah izin</button>" +
+            (l.status === "pending"
+              ? '<button class="btn btn-ghost btn-sm" data-dead="Kirim ulang undangan">' + A.icon("send") + "Kirim ulang</button>"
+              : "") +
+            '<button class="btn btn-ghost btn-sm" data-revoke="' + l.id + '">' + A.icon("ban") + (live ? "Cabut akses" : "Batalkan") + "</button>" +
+          "</div>" +
+          (live ? '<div class="viewer-note mt-12">' + A.icon(l.role === "helper" ? "info" : "eye") +
+            "<div>" + (l.role === "helper"
+              ? "Bisa edit: boleh menambah catatan dosis atas nama Anda, tapi tidak bisa mengubah obat atau jadwal."
+              : "Baca saja: hanya bisa membaca. Tidak ada tombol tulis yang muncul untuk peran ini.") + "</div></div>" : "") +
+        "</article>";
+      }).join("");
+    }
+    html += "</section>";
+
+    /* yang saya pantau */
+    html += '<section class="stack-8">' +
+      '<div class="row-b"><b class="pg-title">Saya memantau</b><span class="xs muted-3">' + patients.length + " orang</span></div>";
+    if (!patients.length) {
+      html += A.empty("Belum memantau siapa pun", "Anda bisa memantau setelah seseorang mengundang email Anda.", "heart");
+    } else {
+      html += patients.map(function (p) {
+        var tone = p.adherence_ratio >= 0.8 ? "ok" : p.adherence_ratio >= 0.6 ? "warn" : "err";
+        var canWrite = p.role === "helper";
+        return '<article class="card" id="p-' + p.owner_id + '">' +
+          '<div class="card-head">' +
+            '<div class="row gap-10"><span class="avatar">' + A.esc(initials(p.name)) + "</span>" +
+              "<div><b>" + A.esc(p.name) + "</b>" +
+                '<div class="sub">' + A.esc(PO.t("relation", p.relation)) + " · " + A.esc(p.timezone) + " · " +
+                  A.esc(PO.t("care_role", p.role)) + "</div></div></div>" +
+            A.badge(PO.t("care_role", p.role), canWrite ? "badge-accent" : "badge-info") +
+          "</div>" +
+          '<div class="card-pad">' +
+            '<div class="ring-mini">' +
+              A.ring(p.adherence_ratio, A.pct(p.adherence_ratio), "hari ini", 88) +
+              '<div class="grow">' +
+                '<div class="sm"><b>' + p.taken + "/" + p.doses_total + "</b> dosis tercatat hari ini</div>" +
+                '<div class="row-wrap mt-8 gap-6">' +
+                  '<span class="badge badge-ok">' + p.taken + " diminum</span>" +
+                  (p.late ? '<span class="badge badge-late">' + p.late + " terlambat</span>" : "") +
+                  (p.missed ? '<span class="badge badge-miss">' + p.missed + " terlewat</span>" : "") +
+                  (p.pending ? '<span class="badge badge-info">' + p.pending + " menunggu</span>" : "") +
+                "</div>" +
+                '<div class="xs muted-3 mt-8">Kepatuhan 7 hari ' + A.pct(p.adherence_7d) +
+                  (p.streak_missed >= 3 ? " · ⚠ " + p.streak_missed + " dosis berturut-turut terlewat" : "") + "</div>" +
+                '<div class="mt-8">' + A.meter(p.adherence_7d, { tone: tone, thin: true }) + "</div>" +
+              "</div>" +
+            "</div>" +
+            '<div class="divider mt-16"></div>' +
+            '<div class="stack-6 mt-12">' +
+              '<div class="row-b"><b class="sm">Jadwal hari ini</b>' +
+                (canWrite ? "" : '<span class="badge badge-na">' + A.icon("eye") + "baca saja</span>") + "</div>" +
+              p.items.map(function (it, i) {
+                return '<div class="list-card">' +
+                  '<span class="avatar sm" style="background:linear-gradient(140deg,' + A.esc(it.color_tag) + '33,var(--muted));color:' + A.esc(it.color_tag) + '">' + A.icon("pill") + "</span>" +
+                  '<div class="grow"><div class="row-b"><span class="sm"><b>' + A.esc(it.name) + "</b></span>" + A.doseBadge(it.status) + "</div>" +
+                    '<div class="xs muted-3">jadwal ' + A.esc(it.time_local) +
+                      (it.taken_at ? " · tercatat " + A.esc(A.clockAt(it.taken_at)) : "") +
+                      (it.recorded_by === "caregiver" ? " · dicatat pemantau" : "") + "</div></div>" +
+                  (canWrite && it.status !== "taken" ? '<button class="btn btn-ok btn-sm" data-helper="' + p.owner_id + "|" + i + '">' + A.icon("check") + "Catat</button>" : "") +
+                "</div>";
+              }).join("") +
+            "</div>" +
+            (canWrite ? "" : '<div class="viewer-note mt-12">' + A.icon("eye") +
+              "<div>Peran <b>baca saja</b> tidak punya tombol tulis — sesuai aturan, tombol tidak dirender sama sekali, bukan hanya dinonaktifkan.</div></div>") +
+          "</div>" +
+        "</article>";
+      }).join("");
+    }
+    html += "</section>";
+
+    /* undangan masuk */
+    var incoming = PO.careLinks.filter(function (l) { return l.status === "pending" && l.caregiver_id === ME; });
+    html += '<section class="card"><div class="card-head"><div><b>' + A.icon("mail") + " Undangan untuk saya</b>" +
+      '<div class="sub">Terima atau tolak permintaan pemantauan</div></div>' +
+      '<span class="badge ' + (incoming.length ? "badge-info badge-pulse" : "badge-na") + '">' + incoming.length + "</span></div>" +
+      '<div class="card-pad stack-8">' +
+      (incoming.length ? incoming.map(function (l) {
+        return '<div class="list-card"><span class="avatar">' + A.esc(initials(l.owner_name || l.invite_email)) + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(l.owner_name || l.invite_email) + "</b></div>" +
+            '<div class="xs muted-3">' + A.esc(PO.t("relation", l.relation)) + " · izin " + A.esc(PO.t("care_role", l.role)) + " · " + A.esc(PO.relTime(l.created_at)) + "</div></div>" +
+          '<div class="row gap-6"><button class="btn btn-ok btn-sm" data-accept="' + l.id + '">Terima</button>' +
+            '<button class="btn btn-ghost btn-sm" data-reject="' + l.id + '">Tolak</button></div></div>';
+      }).join("") : A.empty("Tidak ada undangan", "Undangan dari pasien akan muncul di sini.", "mail")) +
+      "</div></section>";
+
+    html += '<div class="xs muted-3">' + A.icon("lock") +
+      " Peran baca saja tidak pernah melihat foto resep, catatan pribadi pasien, maupun audit log pasien. Field itu dihapus di query layer, bukan hanya disembunyikan di UI.</div>";
+
+    document.getElementById("main").innerHTML = html;
+    ["i-x", "v-x", "h-x"].forEach(function (x) { document.getElementById(x).innerHTML = A.icon("x"); });
+    document.getElementById("i-ic").innerHTML = A.icon("alert");
+    document.getElementById("v-ic").innerHTML = A.icon("alert");
+    document.getElementById("h2-ic").innerHTML = A.icon("info");
+
+    bind();
+  }
+
+  function bind() {
+    document.getElementById("b-invite").addEventListener("click", function () { A.overlay("m-invite", true); });
+
+    document.querySelectorAll("[data-role]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var l = PO.careLinks.filter(function (x) { return x.id === b.getAttribute("data-role"); })[0];
+        if (!l) return;
+        l.role = l.role === "viewer" ? "helper" : "viewer";
+        PO.save();
+        A.toast("ok", "Izin diubah", "Sekarang: " + PO.t("care_role", l.role) + ".");
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-revoke]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-revoke");
+        revokeTarget = PO.careLinks.filter(function (x) { return x.id === id; })[0];
+        if (!revokeTarget) return;
+        document.getElementById("v-about").innerHTML = "Cabut akses <b>" + A.esc(revokeTarget.caregiver_name || revokeTarget.invite_email) +
+          "</b> sebagai " + A.esc(PO.t("care_role", revokeTarget.role)) + "?";
+        A.overlay("m-revoke", true);
+      });
+    });
+
+    document.querySelectorAll("[data-helper]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-helper").split("|");
+        var patient = PO.carePatients.filter(function (x) { return x.owner_id === p[0]; })[0];
+        var item = patient.items[+p[1]];
+        inviteTarget = { patient: patient, item: item };
+        document.getElementById("h-about").innerHTML = "Catat dosis <b>" + A.esc(item.name) + " " + A.esc(item.time_local) +
+          "</b> untuk <b>" + A.esc(patient.name) + "</b>.";
+        A.overlay("m-helper", true);
+      });
+    });
+
+    document.querySelectorAll("[data-accept]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var l = PO.careLinks.filter(function (x) { return x.id === b.getAttribute("data-accept"); })[0];
+        if (!l) return;
+        l.status = "accepted";
+        l.decided_at = new Date().toISOString();
+        l.caregiver_id = ME;
+        PO.save();
+        A.toast("ok", "Undangan diterima", "Sekarang Anda bisa memantau " + (l.owner_name || l.invite_email) + ".");
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-reject]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var l = PO.careLinks.filter(function (x) { return x.id === b.getAttribute("data-reject"); })[0];
+        if (!l) return;
+        l.status = "rejected";
+        l.decided_at = new Date().toISOString();
+        PO.save();
+        A.toast("warn", "Undangan ditolak", "Pasien akan melihat status ditolak.");
+        render();
+      });
+    });
+  }
+
+  document.getElementById("i-go").addEventListener("click", function () {
+    var mail = (document.getElementById("i-mail").value || "").trim();
+    var rel = document.getElementById("i-rel").value;
+    var role = document.getElementById("i-role").value;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      A.toast("err", "Email belum benar", "Isi email yang valid untuk menerima undangan.");
+      return;
+    }
+    var dup = PO.careLinks.filter(function (l) {
+      return l.owner_id === ME && l.invite_email === mail && l.status === "pending";
+    });
+    if (dup.length) {
+      A.toast("warn", "Undangan masih menganggur", "Kode INVITE_PENDING — undangan untuk email ini belum dijawab.");
+      return;
+    }
+    PO.careLinks.push({
+      id: "cl-" + Math.random().toString(36).slice(2, 8), owner_id: ME, caregiver_id: null,
+      invite_email: mail, relation: rel, role: role, status: "pending", invited_by: ME,
+      decided_at: null, created_at: new Date().toISOString(),
+      invite_expires_at: PO.iso(PO.shiftDays(7, 10, 0)),
+      caregiver_name: mail.split("@")[0]
+    });
+    PO.save();
+    A.overlay("m-invite", false);
+    A.toast("ok", "Undangan dikirim", "Token satu pakai, berlaku 7 hari, bisa dibatalkan.");
+    document.getElementById("i-mail").value = "";
+    document.getElementById("i-note").value = "";
+    render();
+  });
+
+  document.getElementById("v-go").addEventListener("click", function () {
+    if (!revokeTarget) return;
+    revokeTarget.status = "revoked";
+    revokeTarget.decided_at = new Date().toISOString();
+    PO.save();
+    A.overlay("m-revoke", false);
+    A.toast("warn", "Akses dicabut", "Verifikasi relasi dilakukan tiap permintaan, jadi akses hilang seketika.");
+    revokeTarget = null;
+    render();
+  });
+
+  document.getElementById("h-go").addEventListener("click", function () {
+    if (!inviteTarget) return;
+    var status = document.getElementById("h-status").value;
+    var note = document.getElementById("h-note").value || null;
+    inviteTarget.item.status = status;
+    inviteTarget.item.recorded_by = "caregiver";
+    if (status !== "skipped") inviteTarget.item.taken_at = new Date().toISOString();
+    PO.save();
+    A.overlay("m-helper", false);
+    A.toast("ok", "Catatan tersimpan", "source=caregiver, recorded_by=Anda. Pasien melihat siapa yang mencatat.");
+    inviteTarget = null;
+    render();
+  });
+
+  A.boot({
+    shell: "user",
+    active: "caregiver",
+    title: "Caregiver",
+    sub: "Pemantauan dua arah: siapa memantau saya, siapa saya pantau",
+    after: function () {
+      render();
+      if (location.hash.indexOf("#p-") === 0) {
+        setTimeout(function () {
+          var el = document.getElementById(location.hash.slice(1));
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

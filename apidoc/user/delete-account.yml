@@ -1,0 +1,63 @@
+info:
+  name: Hapus Akun
+  type: http
+  seq: 4
+  tags:
+    - user
+
+http:
+  method: DELETE
+  url: "{{base_url}}/api/v1/users/me"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.anonymized
+      operator: eq
+      value: true
+    - expression: res.body.data.logs_preserved
+      operator: eq
+      value: true
+
+docs: |-
+  # Hapus Akun
+
+  Menghapus akun sendiri. Tiga hal terjadi bersamaan, dan ketiganya wajib:
+
+  | Yang terjadi | Alasan |
+  |---|---|
+  | Identitas dianonimkan | Soft-delete saja tidak cukup: email dan nama masih tersimpan, dan itu data pribadi |
+  | Seluruh akses dicabut | Token yang sudah beredar harus langsung mati |
+  | **Log kepatuhan dipertahankan** | Riwayat medis tidak hilang, dan sudah terputus dari identitas |
+
+  ## Kenapa log dipertahankan
+
+  Riwayat kepatuhan dipakai untuk keperluan medis. Menghapusnya berarti pasien
+  kehilangan catatan yang mungkin dibutuhkan dokternya. Yang dihapus adalah
+  **keterkaitannya dengan identitas**, bukan catatannya.
+
+  Email diganti menjadi pola yang tidak mungkin dipakai orang lain
+  (`deleted+<id>@invalid.local`), dan password hash-nya diganti nilai acak.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "deleted": true,
+      "anonymized": true,
+      "access_revoked": true,
+      "logs_preserved": true,
+      "purge_after_days": 30
+    }
+  }
+  ```
+
+  Cookie refresh ikut dihapus pada balasan ini.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 3.

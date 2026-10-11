@@ -1,0 +1,63 @@
+info:
+  name: Ringkasan Hari Ini
+  type: http
+  seq: 5
+  tags:
+    - log
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/logs/today"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Ringkasan Hari Ini
+
+  Seluruh catatan dosis hari ini, untuk halaman utama aplikasi.
+
+  ## "Hari ini" memakai zona waktu user
+
+  Bukan UTC. Tanpa itu, pukul 06:00 WIB tanggal 11 Oktober masih dianggap
+  10 Oktober karena UTC-nya belum lewat tengah malam — dan halaman utama akan
+  menampilkan hari yang salah sepanjang pagi.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019e1...",
+        "medication_id": "019ccc...",
+        "slot_date": "2026-10-11",
+        "scheduled_time": "07:00",
+        "status": "taken",
+        "taken_at": "2026-10-11T00:02:00Z",
+        "source": "self"
+      },
+      {
+        "id": "019e2...",
+        "medication_id": "019ccc...",
+        "slot_date": "2026-10-11",
+        "scheduled_time": "19:00",
+        "status": null
+      }
+    ]
+  }
+  ```
+
+  Catatan yang belum ada tidak muncul di sini — yang tampil hanya dosis yang
+  sudah dicatat. Dosis yang **seharusnya** ada tetapi belum dicatat dihitung
+  di `GET /adherence`, karena itu butuh mesin aturan jadwal.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.

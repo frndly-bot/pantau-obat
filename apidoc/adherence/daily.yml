@@ -1,0 +1,98 @@
+info:
+  name: Kepatuhan Harian
+  type: http
+  seq: 2
+  tags:
+    - adherence
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/adherence/daily?from=2026-10-05&to=2026-10-11"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Kepatuhan Harian
+
+  Rincian per hari, untuk grafik dan penelusuran.
+
+  ## Hari tanpa catatan TETAP muncul
+
+  Hari yang punya dosis terjadwal tapi belum punya catatan **tidak
+  dihilangkan**. Justru hari itulah yang paling perlu terlihat — hari yang
+  benar-benar terlewat.
+
+  Kalau barisnya hanya lahir dari catatan yang ada, hari terlewat akan hilang
+  dari laporan, dan grafiknya akan terlihat rata sempurna.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "date": "2026-10-11",
+        "scheduled_doses": 2,
+        "taken_doses": 2,
+        "skipped_doses": 0,
+        "missed_doses": 0,
+        "pending_doses": 0,
+        "adherence_ratio": 1.0
+      },
+      {
+        "date": "2026-10-10",
+        "scheduled_doses": 2,
+        "taken_doses": 1,
+        "skipped_doses": 1,
+        "missed_doses": 0,
+        "pending_doses": 0,
+        "adherence_ratio": 0.5
+      },
+      {
+        "date": "2026-10-09",
+        "scheduled_doses": 2,
+        "taken_doses": 0,
+        "skipped_doses": 0,
+        "missed_doses": 2,
+        "pending_doses": 0,
+        "adherence_ratio": 0.0
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 3}
+  }
+  ```
+
+  Baris `2026-10-09` menunjukkan nilai `missed_doses: 2` — dosis terlewat
+  dibaca dari `medication_dose_events`, bukan dari `medication_logs`. Dosis
+  terlewat **tidak punya baris log**; kalau dicari di sana, hasilnya selalu nol
+  dan kepatuhan akan selalu terlihat lebih baik daripada kenyataan.
+
+  ## Dosis terlewat ditandai pass harian
+
+  Yang menulis `missed` adalah worker `missed_pass`, berjalan sekali sehari
+  menjelang tengah malam. Selama worker itu belum jalan, `missed_doses` akan
+  tetap nol.
+
+  ## Rentang maksimum
+
+  366 hari. Permintaan yang lebih lebar dari itu ditolak:
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "rentang laporan maksimal 366 hari"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

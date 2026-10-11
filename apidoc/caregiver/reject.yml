@@ -1,0 +1,97 @@
+info:
+  name: Tolak Undangan
+  type: http
+  seq: 4
+  tags:
+    - caregiver
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/care-links/reject"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{caregiver_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "token": "{{reject_invite_token}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.status
+      operator: eq
+      value: "rejected"
+  scripts:
+    - type: before-request
+      code: |-
+        // Undangan bersifat SEKALI PAKAI: accept di seq 3 sudah
+        // memakainya, sehingga token itu tidak bisa dipakai lagi dan
+        // reject akan membalas 404. Reject karena itu membuat
+        // undangannya sendiri, supaya uji ini benar-benar menguji
+        // penolakan — bukan kegagalan karena token yang sudah mati.
+        const axios = require("axios");
+        const base = bru.interpolate("{{base_url}}");
+        const email = bru.getVar("caregiver_email");
+        const res = await axios.post(
+          base + "/api/v1/care-links",
+          { invite_email: email, relation: "child", role: "viewer" },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + bru.getVar("access_token")
+            },
+            validateStatus: () => true
+          }
+        );
+        if (res.status !== 201) {
+          throw new Error("gagal membuat undangan untuk reject: " +
+            res.status + " " + JSON.stringify(res.data));
+        }
+        const url = res.data.data.invite_url;
+        bru.setVar("reject_invite_token", url.split("token=")[1]);
+
+docs: |-
+  # Tolak Undangan
+
+  Menolak undangan caregiver. Tidak ada akses yang diberikan.
+
+  ## Pemeriksaannya sama dengan penerimaan
+
+  Token harus ada, belum kedaluwarsa, dan memang ditujukan ke email
+  pemanggil. Yang berbeda hanya status akhirnya.
+
+  ## Setelah ditolak
+
+  Undangan berstatus `rejected` tidak lagi menghalangi undangan baru untuk
+  email yang sama. Pasien bisa mengirim ulang bila keadaannya berubah.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019cc1...",
+      "status": "rejected",
+      "decided_at": "2026-10-10T12:05:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Dijawab sebagai tidak ditemukan, bukan ditolak, supaya tidak membocorkan
+  bahwa undangan itu memang pernah ada.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

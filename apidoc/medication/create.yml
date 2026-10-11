@@ -1,0 +1,184 @@
+info:
+  name: Buat Obat
+  type: http
+  seq: 1
+  tags:
+    - medication
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Amlodipine 10",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "dosage_form_code": "LOCAL-TABS",
+        "meal_relation": "after_meal",
+        "start_date": "2026-10-11",
+        "notes": "Minum setelah sarapan",
+        "color_tag": "#4F46E5",
+        "frequency": {
+          "pattern": "daily",
+          "times_per_day": 2,
+          "start_time": "07:00",
+          "schedule_timezone": "Asia/Jakarta"
+        },
+        "times": [
+          {"time_local": "07:00", "label": "morning"},
+          {"time_local": "19:00", "label": "evening"}
+        ],
+        "stock": {
+          "unit_code": "tablet",
+          "initial_qty": 30,
+          "qty_per_dose": 1,
+          "refill_threshold_qty": 5,
+          "refill_reminder": true
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.frequency.pattern
+      operator: eq
+      value: "daily"
+    - expression: res.body.data.stock.current_qty
+      operator: isNumber
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("medication_id", res.body.data.id);
+        // owner_id = id PASIEN, dipakai caregiver/* sebagai {ownerId} di path.
+        bru.setVar("owner_id", res.body.data.owner_id);
+        if (res.body.data.times && res.body.data.times.length) {
+          bru.setVar("schedule_id", res.body.data.times[0].id);
+        }
+
+docs: |-
+  # Buat Obat
+
+  Membuat obat beserta **aturan frekuensi, jam minum, dan stok** dalam satu
+  permintaan.
+
+  ## Jadwal disimpan sebagai ATURAN, bukan baris per hari
+
+  Ini keputusan inti yang menjelaskan bentuk permintaannya. Terapi
+  "selamanya" 2x sehari memakai **3 baris**: satu obat, satu aturan frekuensi,
+  dan dua jam. Bukan 730 baris setahun.
+
+  Konsekuensinya: menambah hari tidak menambah baris apa pun. Baris baru lahir
+  hanya saat pasien benar-benar mencatat dosis.
+
+  ## Lima pola frekuensi
+
+  Parameter yang wajib bergantung pada `frequency.pattern`:
+
+  | Pattern | Wajib ada |
+  |---|---|
+  | `daily` | `times_per_day` 1–24 |
+  | `interval` | `interval_hours` 1–168 |
+  | `weekly` | `days_of_week` bitmask, minimal satu hari |
+  | `monthly_cycle` | `cycle_intake_days`, `cycle_pause_days`, `cycle_anchor` |
+  | `prn` | tidak ada parameternya |
+
+  Bitmask hari: Senin=1, Selasa=2, Rabu=4, Kamis=8, Jumat=16, Sabtu=32,
+  Minggu=64. `127` berarti setiap hari.
+
+  `cycle_anchor` menentukan titik mulai siklus:
+
+  | Nilai | Arti |
+  |---|---|
+  | `from_start` | Dihitung menerus dari `start_date` |
+  | `dom` | Tanggal tertentu tiap bulan; bulan pendek memakai tanggal terakhir |
+  | `end_of_month` | Selalu tanggal terakhir bulan berjalan, mengikuti kabisat |
+
+  ## Aturan yang ditegakkan
+
+  - **`times_per_day` harus cocok dengan jumlah jam harian.** `daily` dengan
+    `times_per_day: 2` tapi hanya satu jam akan ditolak — kalau dibiarkan,
+    pengingat yang diharapkan tidak pernah muncul.
+  - **PRN tidak boleh punya jam minum.** Obat "bila perlu" tidak dijadwalkan;
+    memberi jam akan menyesatkan.
+  - **Nama + dosis + satuan unik per user.** Duplikat dibalas
+    `409 DUPLICATE_MEDICATION`.
+
+  ## Stok awal
+
+  `initial_qty` membuat baris stok **beserta transaksi `initial`**-nya. Saldo
+  tidak diisi langsung: trigger `apply_stock_txn` yang menghitungnya dari
+  transaksi, sehingga saldo dan riwayatnya tidak bisa berbeda.
+
+  Blok `stock` boleh dihilangkan; obat tanpa stok tetap sah.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "id": "019ccc...",
+      "owner_id": "019...",
+      "name": "Amlodipine 10",
+      "dose_value": 1,
+      "dose_unit_code": "tablet",
+      "route_code": "O",
+      "meal_relation": "after_meal",
+      "start_date": "2026-10-11",
+      "color_tag": "#4F46E5",
+      "is_active": true,
+      "frequency": {"pattern": "daily", "times_per_day": 2, "schedule_timezone": "Asia/Jakarta"},
+      "times": [
+        {"id": "019d1...", "time_local": "07:00", "label": "morning", "weekdays": 127, "is_active": true},
+        {"id": "019d2...", "time_local": "19:00", "label": "evening", "weekdays": 127, "is_active": true}
+      ],
+      "stock": {"unit_code": "tablet", "current_qty": 30, "qty_per_dose": 1, "needs_refill": false},
+      "created_at": "2026-10-10T10:29:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "pola daily dengan times_per_day=2 butuh 2 jam harian, tapi ada 1"
+    }
+  }
+  ```
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "obat PRN tidak memakai jam minum terjadwal"
+    }
+  }
+  ```
+
+  ## Contoh response — 409
+
+  ```json
+  {
+    "error": {
+      "code": "DUPLICATE_MEDICATION",
+      "message": "obat dengan nama dan dosis itu sudah ada",
+      "details": [{"field": "name", "issue": "duplicate"}]
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

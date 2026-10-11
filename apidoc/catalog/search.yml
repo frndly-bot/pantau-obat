@@ -1,0 +1,105 @@
+info:
+  name: Cari Katalog Obat
+  type: http
+  seq: 1
+  tags:
+    - catalog
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/catalog?q=amlo&limit=20"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Cari Katalog Obat
+
+  Mencari **preset publik** dan **katalog pribadi milik pemanggil** dalam satu
+  pencarian.
+
+  ## Katalog pribadi user lain TIDAK PERNAH ikut
+
+  Ini jaminan privasi yang ditegakkan di query, bukan di tampilan. Nama obat
+  yang dipakai seseorang bisa membocorkan kondisi kesehatannya, jadi katalog
+  pribadi user lain tidak pernah masuk hasil — bukan disaring setelah dibaca,
+  melainkan tidak pernah diambil.
+
+  ## Pencarian mencocokkan awalan
+
+  Ketikan sebagian **menemukan** hasilnya:
+
+  | Kueri | Menemukan |
+  |---|---|
+  | `amlo` | Amlodipine |
+  | `para` | Paracetamol |
+  | `paracetamol tablet` | Paracetamol 500 mg Tablet |
+  | `tablet` | Semua yang memuat kata "tablet" |
+
+  Dua cara pencocokan dipakai bersama:
+
+  - **Prefix** (`ILIKE 'kata%'`) — untuk ketikan yang belum selesai. Ini yang
+    paling penting, karena begitulah orang memakai pencarian obat.
+  - **Full-text** — untuk pencarian berlapis yang lebih kaya. Kolomnya
+    mencakup nama tampilan, nama dagang, nama generik, `rxterm`, nama ATC
+    level 5, dan bentuk sediaan.
+
+  Full-text saja **tidak cukup**: ia hanya menemukan kata utuh, sehingga
+  "amlo" tidak akan menemukan "Amlodipine".
+
+  ## Preset draft tidak muncul
+
+  Hanya preset berstatus `published` yang terlihat user. Yang masih `draft`
+  atau `archived` belum siap dipakai, dan menampilkannya akan membuat user
+  memilih obat yang datanya belum diverifikasi.
+
+  ## Query
+
+  | Parameter | Arti |
+  |---|---|
+  | `q` | Kata kunci |
+  | `form` | Filter bentuk sediaan, mis. `LOCAL-TAB` |
+  | `route` | Filter rute pemberian, mis. `O` |
+  | `limit` | Bawaan 20, maksimum 100 |
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019aaa...",
+        "display_name": "Amlodipine 10 mg Tablet",
+        "nama_dagang": "Amlodipine",
+        "generik_nama": "Amlodipine",
+        "is_preset": true,
+        "curation_status": "published",
+        "source": "kfa",
+        "dosage_form_name": "Tablet",
+        "route_name": "Oral",
+        "dose_value_text": "10 mg",
+        "ucum_code": "mg",
+        "uom_name": "Tablet",
+        "atc_l5_code": "C08CA01"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 20}
+  }
+  ```
+
+  ## Kata kunci TIDAK disimpan di audit
+
+  Jejak pencarian **tidak** memuat apa yang dicari. Yang dicatat hanya bahwa
+  pencarian terjadi dan berapa hasilnya. Menyimpan kata kuncinya berarti
+  menyimpan "obat apa yang sedang dicari seseorang", dan itu data kesehatan.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

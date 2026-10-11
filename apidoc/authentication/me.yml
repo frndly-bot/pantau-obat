@@ -1,0 +1,80 @@
+info:
+  name: Profil Saya
+  type: http
+  seq: 5
+  tags:
+    - authentication
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/auth/me"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.id
+      operator: isString
+    - expression: res.body.data.role
+      operator: isString
+
+docs: |-
+  # Profil Saya
+
+  Mengembalikan profil pemanggil beserta peran dan cakupan adminnya.
+
+  ## Peran dibaca ulang setiap request
+
+  Endpoint ini dan seluruh endpoint terautentikasi lainnya membaca peran dan
+  status akun **dari database setiap request**, bukan dari klaim di token.
+  Konsekuensinya penting:
+
+  - Admin yang cakupannya dipersempit **langsung** kehilangan kemampuan itu.
+  - Akun yang dinonaktifkan **langsung** kehilangan akses, tanpa menunggu
+    token kedaluwarsa.
+
+  Itu juga sebabnya token yang sudah ada harus mati saat peran berubah:
+  klaim di token lama masih memuat peran lama.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019...",
+      "email": "budi@example.com",
+      "full_name": "Budi Santoso",
+      "phone": "+62812345678",
+      "timezone": "Asia/Jakarta",
+      "is_active": true,
+      "role": "user",
+      "admin_scope": null,
+      "last_login_at": "2026-10-10T10:29:00Z",
+      "created_at": "2026-10-10T10:00:00Z",
+      "updated_at": "2026-10-10T10:29:00Z"
+    }
+  }
+  ```
+
+  `admin_scope` bernilai `null` untuk user biasa, dan juga untuk admin dengan
+  akses penuh. Untuk admin terbatas, isinya daftar bidangnya:
+
+  ```json
+  {"data": {"role": "admin", "admin_scope": ["catalog", "reports"]}}
+  ```
+
+  ## Contoh response — 401
+
+  ```json
+  {"error": {"code": "UNAUTHENTICATED", "message": "sesi tidak valid, silakan masuk lagi"}}
+  ```
+
+  Balasan ini juga muncul untuk token yang **sudah dicabut** walau tanda
+  tangannya masih sah.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

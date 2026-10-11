@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Impor Katalog — Konsol Admin</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .drop {
+    border: 2px dashed var(--border); border-radius: var(--radius-lg); padding: 26px 18px;
+    text-align: center; background: var(--muted); transition: all var(--dur) var(var(--ease)); cursor: pointer;
+  }
+  .drop:hover { border-color: var(--primary); background: var(--muted); }
+  .drop .ic { width: 30px; height: 30px; margin: 0 auto 10px; color: var(--primary); }
+  .map-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .map-row:last-child { border-bottom: 0; }
+  .map-row .src { font: 12.5px var(--font-mono); color: var(--muted-foreground); }
+  .map-row .arw { color: var(--muted-foreground); }
+  .map-row .dst { font-size: 13px; font-weight: 650; }
+  .prog { height: 8px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .prog > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), var(--primary)); transition: width 120ms linear; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-admin">
+  <aside class="a-side" id="po-side"></aside>
+  <div class="a-scrim"></div>
+
+  <div class="a-main">
+    <header id="po-top"></header>
+    <div class="a-body" id="main"></div>
+  </div>
+</div>
+
+<!-- Modal: konfirmasi jalan -->
+<div class="scrim" data-for="m-run"></div>
+<div class="modal" id="m-run" role="dialog" aria-modal="true" aria-labelledby="r-t">
+  <div class="m-head"><h3 id="r-t">Jalankan importer</h3>
+    <button class="icon-btn" data-close="m-run" aria-label="Tutup" id="r-x"></button></div>
+  <div class="m-body">
+    <p class="sm muted" id="r-about"></p>
+    <dl class="dl">
+      <dt>Sumber</dt><dd id="r-src">—</dd>
+      <dt>Baris dibaca</dt><dd id="r-rows">—</dd>
+      <dt>Entri baru</dt><dd id="r-new">—</dd>
+      <dt>Dilewati (duplikat)</dt><dd id="r-skip">—</dd>
+      <dt>Mode</dt><dd id="r-mode">—</dd>
+    </dl>
+    <div class="banner info"><span class="ic" id="r-ic"></span><div><b>Idempoten</b>
+      <p>Importer memakai partial unique index <span class="mono">uq_catalog_kfa</span> dan <span class="mono">uq_catalog_nie</span>. Menjalankan dua kali tidak menggandakan data.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-run">Batal</button>
+    <button class="btn btn-primary" id="r-go">Mulai impor</button></div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireAdmin()) return;
+
+  var source = "kfa";
+  var dryRun = true;
+  var rows = [];
+  var result = null;
+  var running = false;
+
+  /* contoh baris sumber (dummy) — sebagian sengaja duplikat */
+  function sampleRows(src) {
+    if (src === "kfa") {
+      return [
+        { kfa_code: "93000123", nama: "Amlodipine 10 mg Tablet", bentuk: "Tablet", kekuatan: "10 mg", atc: "C08CA01", status: "duplikat" },
+        { kfa_code: "93000222", nama: "Amoxicillin 500 mg Kapsul", bentuk: "Kapsul", kekuatan: "500 mg", atc: "J01CA04", status: "duplikat" },
+        { kfa_code: "93000444", nama: "Simvastatin 20 mg Tablet", bentuk: "Tablet", kekuatan: "20 mg", atc: "C10AA01", status: "baru" },
+        { kfa_code: "93000555", nama: "Captopril 25 mg Tablet", bentuk: "Tablet", kekuatan: "25 mg", atc: "C09AA01", status: "baru" },
+        { kfa_code: "93000666", nama: "Omeprazole 20 mg Kapsul", bentuk: "Kapsul", kekuatan: "20 mg", atc: "A02BC01", status: "baru" },
+        { kfa_code: "93000777", nama: "Salbutamol 2 mg Tablet", bentuk: "Tablet", kekuatan: "2 mg", atc: "R03AC02", status: "konflik" },
+        { kfa_code: "93000888", nama: "Dexamethasone 0,5 mg Tablet", bentuk: "Tablet", kekuatan: "0,5 mg", atc: "H02AB02", status: "baru" }
+      ];
+    }
+    if (src === "bpom") {
+      return [
+        { bpom_nie: "GKL1112223330C1", nama: "Paracetamol 500 mg Tablet", bentuk: "Tablet", kekuatan: "500 mg", atc: "N02BE01", status: "duplikat" },
+        { bpom_nie: "GKL2223334440A1", nama: "Ibuprofen 400 mg Tablet", bentuk: "Tablet", kekuatan: "400 mg", atc: "M01AE01", status: "baru" },
+        { bpom_nie: "GKL3334445550B1", nama: "Cetirizine 10 mg Tablet", bentuk: "Tablet", kekuatan: "10 mg", atc: "R06AE07", status: "baru" },
+        { bpom_nie: "GKL4445556660E1", nama: "Amoxicillin 500 mg Kapsul", bentuk: "Kapsul", kekuatan: "500 mg", atc: "J01CA04", status: "duplikat" }
+      ];
+    }
+    return [
+      { baris: "1", nama: "Obat Racikan A", bentuk: "Kapsul", kekuatan: "—", atc: "—", status: "baru" },
+      { baris: "2", nama: "Obat Racikan B", bentuk: "Sirup", kekuatan: "120mg/5mL", atc: "—", status: "konflik" }
+    ];
+  }
+
+  function statusBadge(s) {
+    if (s === "baru") return A.badge("baru", "badge-ok");
+    if (s === "duplikat") return A.badge("dilewati", "badge-na");
+    return A.badge("perlu ditinjau", "badge-late");
+  }
+
+  function render() {
+    rows = sampleRows(source);
+    var baru = rows.filter(function (r) { return r.status === "baru"; }).length;
+    var dup = rows.filter(function (r) { return r.status === "duplikat"; }).length;
+    var konf = rows.filter(function (r) { return r.status === "konflik"; }).length;
+
+    var html = "";
+
+    html += '<section class="stats">' +
+      A.stat({ ic: "database", k: "Preset sekarang", v: PO.stats.catalog_presets, s: "sumber: KFA, BPOM, manual" }) +
+      A.stat({ ic: "plus", k: "Baris baru terdeteksi", v: baru, s: "dari berkas contoh " + source.toUpperCase(), tone: "ok" }) +
+      A.stat({ ic: "ban", k: "Dilewati (duplikat)", v: dup, s: "sudah ada di katalog", tone: "accent" }) +
+      A.stat({ ic: "alert", k: "Perlu ditinjau", v: konf, s: "field wajib belum lengkap", tone: konf ? "warn" : "ok" }) +
+    "</section>";
+
+    html += '<div class="split-1-2">';
+
+    /* kolom kiri: form */
+    html += '<div class="stack">';
+
+    html += '<section class="card"><div class="card-head"><div><h2>1 · Pilih sumber data</h2>' +
+      '<div class="sub">Importer dijalankan manual atau lewat cron, bukan dari rute pengguna</div></div></div>' +
+      '<div class="card-pad">' +
+        '<div class="seg" id="seg-src">' +
+          '<button data-val="kfa"' + (source === "kfa" ? ' class="on"' : "") + ">KFA Kemenkes</button>" +
+          '<button data-val="bpom"' + (source === "bpom" ? ' class="on"' : "") + ">BPOM</button>" +
+          '<button data-val="csv"' + (source === "csv" ? ' class="on"' : "") + ">CSV manual</button>" +
+        "</div>" +
+        '<div class="drop mt-16" id="drop">' + A.icon("upload", "ic") +
+          "<div><b>Letakkan berkas di sini</b></div>" +
+          '<div class="sm muted mt-4">atau klik untuk memilih — di prototipe ini berkas contoh sudah dimuat</div>' +
+        "</div>" +
+        '<div class="row-wrap mt-12 gap-8">' +
+          '<label class="sw"><input type="checkbox" id="dry" checked><span class="track"></span>' +
+            '<span class="sw-lbl">Dry run<small>Hanya memeriksa, tidak menulis apa pun ke database</small></span></label>' +
+        "</div>" +
+        (source === "kfa"
+          ? '<div class="banner warn mt-12"><span class="ic">' + A.icon("alert") + "</span><div><b>Kredensial KFA belum tersedia</b>" +
+            "<p>Endpoin <span class='mono'>kfa.kemkes.go.id</span> butuh kredensial per lingkungan. Karena itu importer sengaja ditunda sampai kredensial ada — skema cukup untuk menampung datanya.</p></div></div>"
+          : "") +
+      "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><div><h2>2 · Pemetaan kolom</h2>' +
+      '<div class="sub">Field sumber yang belum dipetakan disimpan di <span class="mono">extra_meta</span>, tidak dibuang</div></div></div>' +
+      '<div class="card-pad">' +
+        '<div class="map-row"><span class="src">' + (source === "bpom" ? "no_registrasi" : "kode_kfa") + '</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">" + (source === "bpom" ? "bpom_nie" : "kfa_code") + " <span class='xs muted-3'>(unik, idempotensi)</span></span></div>" +
+        '<div class="map-row"><span class="src">nama_produk</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">display_name</span></div>" +
+        '<div class="map-row"><span class="src">nama_dagang</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">nama_dagang</span></div>" +
+        '<div class="map-row"><span class="src">zat_aktif[]</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">active_ingredients (JSONB)</span></div>" +
+        '<div class="map-row"><span class="src">bentuk_sediaan</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">dosage_form_code + dosage_form_name</span></div>" +
+        '<div class="map-row"><span class="src">kekuatan</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">dose_value_text + ucum_code</span></div>" +
+        '<div class="map-row"><span class="src">atc_5</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">atc_l5_code + atc_l5_name</span></div>" +
+        '<div class="map-row"><span class="src">…field lain</span><span class="arw">' + A.icon("arrow-right") + "</span>" +
+          "<span class=\"dst\">extra_meta</span></div>" +
+      "</div></section>";
+
+    html += "</div>";
+
+    /* kolom kanan: pratinjau + hasil */
+    html += '<div class="stack">';
+
+    html += '<section class="card"><div class="card-head"><div><h2>3 · Pratinjau</h2>' +
+      '<div class="sub">' + rows.length + " baris dari berkas contoh</div></div>" + statusBadge(source === "csv" ? "konflik" : "baru") + "</div>" +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>' + (source === "bpom" ? "NIE" : source === "kfa" ? "KFA" : "Baris") +
+        "</th><th>Nama</th><th>Bentuk</th><th>Kekuatan</th><th>Status</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        return "<tr><td class='mono sm'>" + A.esc(r.kfa_code || r.bpom_nie || r.baris) + "</td>" +
+          "<td class='sm'>" + A.esc(r.nama) + "</td>" +
+          "<td class='sm muted'>" + A.esc(r.bentuk) + "</td>" +
+          "<td class='sm'>" + A.esc(r.kekuatan) + "</td>" +
+          "<td>" + statusBadge(r.status) + "</td></tr>";
+      }).join("") + "</tbody></table></div></section>";
+
+    html += '<section class="card"><div class="card-head"><h2>Jalankan</h2></div><div class="card-pad">' +
+      '<dl class="dl">' +
+        "<dt>Sumber</dt><dd id='run-src'>" + A.esc(source.toUpperCase()) + "</dd>" +
+        "<dt>Baris dibaca</dt><dd>" + rows.length + "</dd>" +
+        "<dt>Entri baru</dt><dd>" + rows.filter(function (r) { return r.status === "baru"; }).length + "</dd>" +
+        "<dt>Dilewati</dt><dd>" + rows.filter(function (r) { return r.status === "duplikat"; }).length + "</dd>" +
+        "<dt>Mode</dt><dd>dry run</dd>" +
+      "</dl>" +
+      '<div id="progress-wrap" class="hide mt-16"><div class="prog"><i id="progress"></i></div>' +
+        '<div class="xs muted-3 mt-8" id="progress-txt">menyiapkan…</div></div>' +
+      (result ? '<div class="banner ok mt-16"><span class="ic">' + A.icon("check-check") + "</span><div><b>Impor selesai</b>" +
+        "<p>" + result.imported + " entri baru dibuat sebagai <span class='mono'>draft</span>, " + result.skipped + " dilewati karena duplikat. " +
+        (result.dry ? "Mode dry run: tidak ada yang benar-benar ditulis." : "") + "</p></div></div>" : "") +
+      '<button class="btn btn-primary btn-block mt-16" id="b-run"' + (running ? " disabled" : "") + ">" +
+        A.icon("upload") + (running ? "Menjalankan…" : "Jalankan importer") + "</button>" +
+      '<p class="xs muted-3 mt-8">Hasil dicatat di audit sebagai <span class="mono">catalog_import</span> dengan jumlah dibaca, dibuat, dan dilewati.</p>' +
+    "</div></section>";
+
+    html += '<section class="card"><div class="card-head"><h2>Riwayat impor</h2></div>' +
+      '<div class="card-pad stack-8">' +
+      PO.audit.filter(function (a) { return a.action === "catalog_import"; }).map(function (a) {
+        return '<div class="list-card"><span class="avatar sm">' + A.icon("upload") + "</span>" +
+          '<div class="grow"><div class="sm"><b>' + A.esc(PO.t("source", a.meta.source)) + "</b> · " +
+            (a.meta.imported || 0) + " masuk, " + (a.meta.skipped || 0) + " dilewati</div>" +
+            '<div class="xs muted-3">' + A.esc(PO.fmtDateTime(a.created_at)) + " · " + A.esc(a.actor_email || "sistem") + "</div></div>" +
+          A.badge("audit", "badge-accent") + "</div>";
+      }).join("") +
+      "</div></section>";
+
+    html += '<div class="banner info"><span class="ic">' + A.icon("shield") + "</span><div><b>Importer tidak menerbitkan apa pun</b>" +
+      "<p>Semua entri masuk sebagai <span class='mono'>draft</span>. Publikasi tetap keputusan manusia lewat halaman katalog — supaya data pengguna tidak pernah berubah tanpa ditinjau.</p></div></div>";
+
+    html += "</div></div>";
+
+    document.getElementById("main").innerHTML = html;
+    document.getElementById("r-x").innerHTML = A.icon("x");
+    document.getElementById("r-ic").innerHTML = A.icon("info");
+
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll("#seg-src button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (running) return;
+        source = b.getAttribute("data-val");
+        result = null;
+        render();
+      });
+    });
+
+    var dry = document.getElementById("dry");
+    dry.addEventListener("change", function () { dryRun = dry.checked; });
+
+    document.getElementById("drop").addEventListener("click", function () {
+      A.toast("info", "Unggah berkas", "Prototipe statis memakai berkas contoh; unggahan nyata belum diintegrasi.");
+    });
+
+    document.getElementById("b-run").addEventListener("click", function () {
+      if (running) return;
+      var baru = rows.filter(function (r) { return r.status === "baru"; }).length;
+      var dup = rows.filter(function (r) { return r.status === "duplikat"; }).length;
+      document.getElementById("r-about").innerHTML = "Impor dari <b>" + A.esc(source.toUpperCase()) + "</b>: " +
+        rows.length + " baris dibaca, " + baru + " entri baru, " + dup + " dilewati.";
+      document.getElementById("r-src").textContent = source.toUpperCase();
+      document.getElementById("r-rows").textContent = rows.length;
+      document.getElementById("r-new").textContent = baru;
+      document.getElementById("r-skip").textContent = dup;
+      document.getElementById("r-mode").textContent = dryRun ? "dry run (tidak menulis)" : "tulis ke database";
+      A.overlay("m-run", true);
+    });
+  }
+
+  document.getElementById("r-go").addEventListener("click", function () {
+    A.overlay("m-run", false);
+    running = true;
+    var wrap = document.getElementById("progress-wrap");
+    var bar = document.getElementById("progress");
+    var txt = document.getElementById("progress-txt");
+    wrap.classList.remove("hide");
+    bar.style.width = "0%";
+
+    var pctDone = 0;
+    var steps = [
+      "membaca berkas…",
+      "memetakan kolom…",
+      "memeriksa duplikat lewat uq_catalog_kfa…",
+      "menulis entri baru sebagai draft…",
+      "menyimpan payload mentah ke extra_meta…",
+      "mencatat audit catalog_import…"
+    ];
+    var i = 0;
+
+    var timer = setInterval(function () {
+      pctDone += 4 + Math.random() * 6;
+      if (pctDone > 100) pctDone = 100;
+      bar.style.width = pctDone + "%";
+      txt.textContent = steps[Math.min(i, steps.length - 1)];
+      if (pctDone >= 100) {
+        clearInterval(timer);
+        finish();
+      }
+      i++;
+    }, 220);
+
+    function finish() {
+      var baru = rows.filter(function (r) { return r.status === "baru"; });
+      var dup = rows.filter(function (r) { return r.status === "duplikat"; }).length;
+
+      if (!dryRun) {
+        baru.forEach(function (r) {
+          PO.catalog.push({
+            id: "cat-" + Math.random().toString(36).slice(2, 8),
+            display_name: r.nama, nama_dagang: r.nama.split(" ")[0], generik_nama: null,
+            is_preset: true, curation_status: "draft", source: source === "csv" ? "manual" : source,
+            dosage_form_name: r.bentuk, route_code: "O", dose_value_text: r.kekuatan,
+            ucum_code: "mg", uom_name: r.bentuk, atc_l5_code: r.atc === "—" ? null : r.atc,
+            kfa_code: r.kfa_code || null, bpom_nie: r.bpom_nie || null,
+            packaging_options: [], active_ingredients: [], indication: null, warning: null,
+            extra_meta: { imported_at: new Date().toISOString(), src_rows: r }, owner_id: null,
+            curated_by: null, curated_at: null
+          });
+        });
+      }
+
+      PO.audit.unshift({
+        id: 55900 + PO.audit.length, actor_email: "admin@example.com", actor_role: "admin",
+        action: "catalog_import", resource_type: "catalog", resource_id: null,
+        created_at: new Date().toISOString(), ip: "10.20.0.5",
+        meta: { source: source, imported: dryRun ? 0 : baru.length, skipped: dup, dry_run: dryRun },
+        before_state: null, after_state: null
+      });
+      PO.save();
+
+      result = { imported: baru.length, skipped: dup, dry: dryRun };
+      running = false;
+      txt.textContent = "selesai";
+      setTimeout(function () {
+        if (dryRun) { wrap.classList.add("hide"); } else { wrap.classList.add("hide"); }
+        A.toast("ok", "Impor selesai", (dryRun ? "Dry run: " : "") + baru.length + " entri baru, " + dup + " dilewati.");
+        render();
+      }, 600);
+    }
+  });
+
+  A.boot({
+    shell: "admin",
+    active: "catalog-import",
+    title: "Impor Katalog",
+    crumb: "Sumber KFA/BPOM · idempoten · hasil masuk sebagai draf",
+    actions: '<a class="btn btn-outline btn-sm" href="catalog.html">' + A.icon("database") + "Katalog</a>",
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

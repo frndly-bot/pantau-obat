@@ -1,0 +1,120 @@
+info:
+  name: Hapus Obat
+  type: http
+  seq: 6
+  tags:
+    - medication
+
+http:
+  method: DELETE
+  url: "{{base_url}}/api/v1/medications/{{throwaway_medication_id}}"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.logs_preserved
+      operator: eq
+      value: true
+  scripts:
+    - type: before-request
+      code: |-
+        // Obat ini KHUSUS dibuat untuk dihapus, dan itu bukan kemalasan.
+        //
+        // Kalau yang dihapus adalah `medication_id` (obat utama), seluruh
+        // folder SESUDAHNYA kehilangan subjeknya: log/, stock/, caregiver/,
+        // dan adherence/ semuanya memakai id itu di path, dan semuanya akan
+        // membalas 404 berantai. Uji hapus-obat karena itu memakai obat
+        // terpisah yang tidak dirujuk siapa pun.
+        //
+        // Dibuat lewat `axios` (tersedia di sandbox Bruno) dengan
+        // validateStatus, supaya balasan non-2xx bisa DIBACA dan dilaporkan
+        // dengan pesan yang jelas — bukan dilempar sebagai error samar.
+        const axios = require("axios");
+        const uniq = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const base = bru.interpolate("{{base_url}}");
+
+        const res = await axios.post(
+          base + "/api/v1/medications",
+          {
+            name: "Obat Buang " + uniq,
+            dose_value: 1,
+            dose_unit_code: "tablet",
+            route_code: "O",
+            dosage_form_code: "LOCAL-TABS",
+            meal_relation: "not_related",
+            start_date: "2026-10-11",
+            frequency: {
+              pattern: "daily",
+              times_per_day: 1,
+              start_time: "08:00",
+              schedule_timezone: "Asia/Jakarta"
+            },
+            times: [{ time_local: "08:00", label: "morning" }]
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + bru.getVar("access_token")
+            },
+            validateStatus: () => true
+          }
+        );
+
+        if (res.status !== 201) {
+          throw new Error("gagal membuat obat buang: " + res.status + " " +
+            JSON.stringify(res.data));
+        }
+        bru.setVar("throwaway_medication_id", res.data.data.id);
+
+docs: |-
+  # Hapus Obat
+
+  Soft-delete: obat dan jam-jamnya ditandai terhapus, sehingga pengingatnya
+  berhenti.
+
+  ## Obat yang dihapus di sini adalah obat TERPISAH
+
+  Bukan `medication_id` utama. Alasannya praktis: obat utama masih dipakai
+  oleh folder `log/`, `stock/`, `caregiver/`, dan `adherence/` yang berjalan
+  setelah folder ini. Menghapusnya lebih dulu membuat puluhan request
+  sesudahnya membalas 404 — bukan karena backend salah, melainkan karena
+  subjeknya memang sudah tidak ada.
+
+  Jadi request ini membuat obat sekali pakai lewat `before-request`, lalu
+  menghapusnya. Yang diuji tetap sama: soft-delete, riwayat dipertahankan,
+  dan pengingat berhenti.
+
+  ## Riwayat pemakaian DIPERTAHANKAN
+
+  Log kepatuhan tidak dihapus. Yang hilang hanya jadwalnya. Riwayat "obat ini
+  pernah diminum sampai tanggal sekian" tetap bisa dibawa ke dokter.
+
+  ## Obat yang dihapus boleh didaftarkan ulang
+
+  Index keunikannya bersifat partial — hanya berlaku untuk baris hidup. Jadi
+  nama yang sama boleh dipakai lagi setelah dihapus.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "deleted": true,
+      "logs_preserved": true,
+      "reminders_stopped": true
+    }
+  }
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

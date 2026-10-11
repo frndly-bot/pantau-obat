@@ -1,0 +1,92 @@
+info:
+  name: Publikasikan Preset
+  type: http
+  seq: 10
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/catalog/{{preset_id}}/publish"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "reason": "verifikasi NIE BPOM"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.curation_status
+      operator: eq
+      value: "published"
+
+docs: |-
+  # Publikasikan Preset
+
+  Mengubah status preset menjadi `published`, sehingga **muncul ke seluruh
+  user**. Butuh scope **`catalog`**.
+
+  ## Alasan WAJIB
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "alasan perubahan status wajib diisi"
+    }
+  }
+  ```
+
+  Perubahan status katalog memengaruhi apa yang dilihat semua user, jadi harus
+  bisa dipertanggungjawabkan. Alasannya tersimpan di audit.
+
+  ## Transisi yang diizinkan
+
+  | Dari | Boleh ke |
+  |---|---|
+  | `draft` | `published`, `archived` |
+  | `published` | `draft`, `archived` |
+  | `archived` | `draft` saja |
+
+  **`archived` tidak bisa langsung ke `published`.** Preset harus dikembalikan
+  ke `draft` lebih dulu, supaya ada kesempatan meninjau ulang sebelum muncul
+  lagi ke user.
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa mengubah status dari archived ke published"
+    }
+  }
+  ```
+
+  ## Katalog pribadi user tidak bisa diubah di sini
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "entri ini bukan preset publik"
+    }
+  }
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"id": "019aaa...", "curation_status": "published"}}
+  ```
+
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

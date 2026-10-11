@@ -1,0 +1,72 @@
+info:
+  name: Lihat Stok
+  type: http
+  seq: 1
+  tags:
+    - stock
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/medications/{{medication_id}}/stock"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.current_qty
+      operator: isNumber
+
+docs: |-
+  # Lihat Stok
+
+  Saldo stok sebuah obat, beserta perkiraan berapa hari lagi obatnya habis.
+
+  ## `estimated_days_left` dihitung dari pemakaian NYATA
+
+  Bukan dari jumlah dosis terjadwal. Bedanya penting: pasien yang sering
+  melewatkan dosis akan kehabisan obat **lebih lambat** daripada jadwalnya,
+  dan perkiraan berbasis jadwal akan terus salah untuknya.
+
+  Laju dihitung dari total yang dikonsumsi dalam 30 hari terakhir dibagi 30 —
+  bukan dibagi jumlah hari yang ada transaksinya. Kalau dibagi jumlah hari
+  bertransaksi, satu kali minum seminggu akan menghasilkan laju "1 per hari",
+  dan perkiraan habisnya terlalu cepat.
+
+  Nilai `null` berarti belum cukup data untuk memperkirakan. Itu lebih jujur
+  daripada mengarang angka.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "medication_id": "019ccc...",
+      "unit_code": "tablet",
+      "initial_qty": 30,
+      "current_qty": 28,
+      "qty_per_dose": 1,
+      "refill_threshold_qty": 5,
+      "refill_reminder": true,
+      "doses_remaining": 28,
+      "needs_refill": false,
+      "estimated_days_left": 14.0,
+      "last_restocked_at": null,
+      "last_consumed_at": "2026-10-11T00:02:00Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Balasan ini muncul untuk obat yang belum punya pengaturan stok. Stok bersifat
+  opsional: user boleh melacak obat tanpa menghitung sisa tabletnya.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 8.

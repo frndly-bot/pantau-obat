@@ -1,0 +1,68 @@
+info:
+  name: Siap (readiness)
+  type: http
+  seq: 2
+  tags:
+    - health
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/readyz"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.database
+      operator: eq
+      value: "ok"
+
+docs: |-
+  # Siap (readiness)
+
+  Memeriksa apakah API siap melayani request, yaitu apakah **database bisa
+  di-ping**.
+
+  Berbeda dari `/healthz` yang selalu 200: endpoint ini membalas **503**
+  kalau database tidak terjangkau. Inilah pembeda yang membuat orchestrator
+  tahu kapan boleh mengarahkan trafik.
+
+  ## Perilaku
+
+  | Kondisi | Status | Body |
+  |---|---|---|
+  | Database terjangkau | `200` | `{"data":{"status":"ready","database":"ok",...}}` |
+  | Database tidak terjangkau | `503` | `{"error":{"code":"NOT_READY",...}}` |
+
+  Timeout ping dibatasi **3 detik**, supaya readiness tidak menggantung saat
+  jaringan bermasalah.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "status": "ready",
+      "database": "ok",
+      "time": "2026-10-10T13:29:01Z"
+    }
+  }
+  ```
+
+  ## Contoh response — 503
+
+  ```json
+  {
+    "error": {
+      "code": "NOT_READY",
+      "message": "database belum siap"
+    }
+  }
+  ```
+
+  ## Catatan
+
+  Endpoint ini dipakai `docker-compose` healthcheck dan Caddy sebelum
+  mengarahkan trafik ke container `api`.

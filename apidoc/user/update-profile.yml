@@ -1,0 +1,81 @@
+info:
+  name: Ubah Profil
+  type: http
+  seq: 2
+  tags:
+    - user
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/users/me"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "full_name": "Budi Santoso Wijaya",
+        "timezone": "Asia/Makassar",
+        "phone": "+62812999888"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+docs: |-
+  # Ubah Profil
+
+  Mengubah nama, telepon, dan zona waktu. Hanya field yang dikirim yang
+  berubah.
+
+  ## Kenapa PATCH, bukan PUT
+
+  Field yang **tidak dikirim dipertahankan**. Mengirim hanya `full_name` tidak
+  akan mengosongkan telepon dan timezone. Itu yang membuat endpoint ini aman
+  dipakai form yang hanya mengubah satu bagian.
+
+  Body kosong ditolak:
+
+  ```json
+  {"error": {"code": "VALIDATION_FAILED", "message": "tidak ada field yang diubah"}}
+  ```
+
+  ## Mengubah zona waktu TIDAK mengubah log lama
+
+  Ini aturan yang penting dan disengaja:
+
+  - Dosis yang **sudah tercatat** tetap memakai tanggal lokal yang berlaku
+    saat itu.
+  - Pengingat **ke depan** dihitung dengan zona baru.
+  - Blok jadwal yang sudah berjalan menyimpan zonanya sendiri
+    (`schedule_timezone`), sehingga perubahan preferensi tidak menggeser
+    jadwal yang sedang berjalan.
+
+  Tanpa aturan ini, mengganti zona waktu akan mengubah tanggal dosis yang
+  sudah lewat, dan riwayat kepatuhan jadi tidak bisa dipercaya.
+
+  ## Field yang ditolak
+
+  `role` dan `admin_scope` ditolak eksplisit — peran dan cakupan hanya
+  ditetapkan lewat operasi database.
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "zona waktu tidak dikenal",
+      "details": [{"field": "timezone", "issue": "invalid"}]
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 3.

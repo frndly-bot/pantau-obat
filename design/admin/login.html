@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Masuk Konsol Admin — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  .auth-fixed { position: fixed; top: 14px; right: 14px; z-index: 50; display: flex; gap: 8px; }
+  .art-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; position: relative; z-index: 1; }
+  .art-item .ic { width: 18px; height: 18px; color: var(--primary); flex: none; margin-top: 2px; }
+  .art-item b { font-size: 13.5px; }
+  .art-item p { font-size: 12.5px; color: var(--muted-foreground); margin-top: 2px; line-height: 1.55; }
+  .art-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; position: relative; z-index: 1; }
+  .art-stats .n { font: 700 20px/1 var(--font-mono); }
+  .art-stats .l { font-size: 11px; color: var(--muted-foreground); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="auth-fixed" id="fixed"></div>
+
+<div class="auth-split">
+  <aside class="side-art">
+    <div style="position:relative;z-index:1">
+      <div class="row gap-10">
+        <span class="logo-mark" id="brand"></span>
+        <div><div style="font-weight:760;font-size:15px">Pantau Obat</div>
+          <div class="xs muted-3">Konsol admin</div></div>
+      </div>
+    </div>
+
+    <div style="position:relative;z-index:1;max-width:420px">
+      <h1 style="font-size:24px;letter-spacing:-0.025em">Kelola akun dan kurasi katalog,<br>tanpa menyentuh isi obat pasien.</h1>
+      <p class="sm muted mt-12">Konsol ini sengaja dibuat desktop-first: tabel padat, filter banyak kolom, dan jejak audit untuk setiap tulisan.</p>
+      <div class="divider mt-24"></div>
+      <div class="mt-24" id="art-list"></div>
+    </div>
+
+    <div class="art-stats">
+      <div><div class="n" id="st1">—</div><div class="l">akun aktif</div></div>
+      <div><div class="n" id="st2">—</div><div class="l">preset terbit</div></div>
+      <div><div class="n" id="st3">—</div><div class="l">kirim 24 jam</div></div>
+    </div>
+  </aside>
+
+  <div class="form-side">
+    <div class="auth-card">
+      <div class="hd">
+        <span class="logo-mark" id="brand2"></span>
+        <h1>Masuk sebagai admin</h1>
+        <p>Peran admin tidak pernah diberikan lewat API — hanya lewat seed atau operasi database.</p>
+      </div>
+
+      <form class="card card-pad stack" id="form" novalidate>
+        <div class="field">
+          <label for="email">Email admin</label>
+          <div class="input-icon"><span id="ic-mail"></span>
+            <input class="input" id="email" type="email" autocomplete="username" value="admin@example.com" required></div>
+        </div>
+        <div class="field">
+          <label for="password">Sandi</label>
+          <div class="input-icon"><span id="ic-lock"></span>
+            <input class="input" id="password" type="password" autocomplete="current-password" value="rahasia123" required></div>
+        </div>
+        <div class="field">
+          <label for="scope">Simulasi <span class="mono">admin_scope</span></label>
+          <select class="input" id="scope">
+            <option value="">Akses penuh (NULL)</option>
+            <option value="users">users</option>
+            <option value="catalog">catalog</option>
+            <option value="notifications">notifications</option>
+            <option value="reports">reports</option>
+            <option value="catalog,reports">catalog + reports</option>
+          </select>
+          <span class="hint">Scope membatasi menu. Penegakan sebenarnya tetap di backend (<span class="mono">ADMIN_SCOPE_DENIED</span>).</span>
+        </div>
+
+        <button class="btn btn-primary btn-block btn-lg" type="submit" id="submit">Masuk ke konsol</button>
+
+        <div class="demo-note"><span id="dn-ic"></span>
+          <div><b>Akun demo:</b> <span class="mono">admin@example.com</span> (penuh), <span class="mono">kurator@example.com</span> (catalog),
+            <span class="mono">support@example.com</span> (notifications + reports). Email tanpa kata admin/kurator/support akan ditolak.</div></div>
+      </form>
+
+      <div class="center mt-16 sm muted">
+        <a class="link" href="../user/login.html">Masuk sebagai pengguna biasa</a>
+      </div>
+      <div class="center mt-16 xs muted-3"><a class="link" href="../index.html">← Kembali ke hub prototipe</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts admin"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+
+  A.boot({
+    after: function () {
+      document.getElementById("brand").innerHTML = A.icon("shield");
+      document.getElementById("brand2").innerHTML = A.icon("shield");
+      document.getElementById("ic-mail").innerHTML = A.icon("mail");
+      document.getElementById("ic-lock").innerHTML = A.icon("lock");
+      document.getElementById("dn-ic").innerHTML = A.icon("info");
+      
+      document.getElementById("st1").textContent = A.money(PO.stats.users_active);
+      document.getElementById("st2").textContent = A.money(PO.stats.catalog_presets);
+      document.getElementById("st3").textContent = A.money(PO.stats.deliveries_sent_24h);
+
+      document.getElementById("art-list").innerHTML = [
+        ["users", "Kelola akun", "Nonaktifkan, aktifkan, beri atau cabut peran admin. Setiap tulisan masuk audit log dengan actor_role=admin."],
+        ["database", "Kurasi preset katalog", "Siklus draft → published → archived. Preset tidak pernah dihapus permanen."],
+        ["send", "Operasi notifikasi", "Lihat antrean job, ulangi yang gagal, dan batalkan yang sudah tidak relevan."],
+        ["bar", "Agregat tanpa identitas", "Statistik hanya berisi angka. Nama obat pasien tidak pernah lewat rute admin."]
+      ].map(function (r) {
+        return '<div class="art-item">' + A.icon(r[0]) + "<div><b>" + A.esc(r[1]) + "</b><p>" + A.esc(r[2]) + "</p></div></div>";
+      }).join("");
+
+      if (PO.session && PO.session.role === "admin") {
+        location.replace(A.qs("next") || "dashboard.html");
+        return;
+      }
+
+      var form = document.getElementById("form");
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var mail = (document.getElementById("email").value || "").trim();
+        var pass = document.getElementById("password").value || "";
+        var scopeSel = document.getElementById("scope").value;
+
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+          A.toast("err", "Format email belum benar", "Gunakan email yang valid.");
+          return;
+        }
+        if (pass.length < 8) {
+          A.toast("err", "Sandi terlalu pendek", "Minimal 8 karakter (aturan A1).");
+          return;
+        }
+
+        var btn = document.getElementById("submit");
+        btn.disabled = true;
+        btn.textContent = "Memverifikasi…";
+
+        setTimeout(function () {
+          var s = PO.login(mail, pass);
+
+          if (s.role !== "admin") {
+            btn.disabled = false;
+            btn.textContent = "Masuk ke konsol";
+            PO.logout();
+            A.toast("err", "Bukan akun admin",
+              "Peran admin hanya ditetapkan lewat seed/DB. Coba admin@, kurator@, atau support@.");
+            return;
+          }
+
+          s.admin_scope = scopeSel ? scopeSel.split(",") : null;
+          PO.save();
+          A.toast("ok", "Masuk sebagai " + s.user.full_name,
+            s.admin_scope ? "Scope terbatas: " + s.admin_scope.join(", ") : "Akses penuh (admin_scope NULL)");
+          setTimeout(function () { location.href = A.qs("next") || "dashboard.html"; }, 480);
+        }, 420);
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

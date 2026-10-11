@@ -1,0 +1,85 @@
+info:
+  name: Perbarui Access Token
+  type: http
+  seq: 3
+  tags:
+    - authentication
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/refresh"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.access_token
+      operator: isString
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("access_token", res.body.data.access_token);
+
+docs: |-
+  # Perbarui Access Token
+
+  Menukar refresh token menjadi sesi baru, **dengan rotasi**.
+
+  ## Token dibaca dari cookie, bukan body
+
+  Refresh token dikirim otomatis lewat cookie `po_refresh` yang HttpOnly.
+  Endpoint ini **tidak menerima** token di body, dan itu disengaja: cookie
+  HttpOnly tidak bisa dibaca JavaScript, sehingga XSS tidak bisa mencuri
+  refresh token. Kalau token dikirim lewat body, ia harus disimpan di tempat
+  yang bisa dibaca JavaScript, dan perlindungan itu hilang.
+
+  ## Rotasi
+
+  Setiap pemakaian refresh token menerbitkan token baru dan mencabut yang
+  lama. Rantai rotasinya ditautkan lewat `rotated_from`.
+
+  ## Penggunaan ulang = seluruh akses dicabut
+
+  Kalau refresh token yang **sudah dipakai** muncul lagi, itu tanda kebocoran.
+  Yang terjadi bukan hanya penolakan:
+
+  ```json
+  {"error": {"code": "TOKEN_REVOKED", "message": "sesi sudah dicabut, silakan masuk lagi"}}
+  ```
+
+  Seluruh akses user dicabut, termasuk **access token yang masih beredar**.
+  Token milik user yang sah dan token penyerang sama-sama mati, dan user
+  terpaksa login ulang. Itu memang disengaja: lebih baik merepotkan sekali
+  daripada membiarkan akses bocor.
+
+  ## Kenapa ini penting untuk access token 24 jam
+
+  Access token berumur 24 jam dan **tidak bisa ditarik sebelum kedaluwarsa**.
+  Yang membuat pencabutan berlaku seketika adalah garis potong di
+  `user_token_revocations`: token yang diterbitkan sebelum garis itu ditolak,
+  walau tanda tangannya masih sah.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbGciOiJIUzI1NiIs...",
+      "token_type": "Bearer",
+      "expires_in": 86400,
+      "user": {"id": "019...", "role": "user", "admin_scope": null}
+    }
+  }
+  ```
+
+  ## Contoh response — 401
+
+  ```json
+  {"error": {"code": "UNAUTHENTICATED", "message": "sesi tidak valid, silakan masuk lagi"}}
+  ```
+
+  Cookie refresh ikut dibersihkan pada balasan ini, supaya klien tidak
+  mencoba lagi dengan token yang sudah mati.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

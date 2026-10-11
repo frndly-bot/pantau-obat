@@ -1,0 +1,91 @@
+info:
+  name: Webhook Update Telegram
+  type: http
+  seq: 2
+  tags:
+    - webhook
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/webhooks/telegram-update"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: X-Telegram-Bot-Api-Secret-Token
+      value: "{{telegram_webhook_secret}}"
+  body:
+    type: json
+    data: |-
+      {
+        "update_id": 123456789,
+        "message": {
+          "message_id": 42,
+          "from": {"id": 987654321, "first_name": "Budi"},
+          "chat": {"id": 987654321, "type": "private"},
+          "text": "/start"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.received
+      operator: eq
+      value: true
+
+docs: |-
+  # Webhook Update Telegram
+
+  Menerima update dari bot Telegram. Kanal telegram dijadwalkan untuk **v0.2**.
+
+  ## Autentikasi: secret token
+
+  Telegram tidak menandatangani body, jadi yang dipakai adalah **secret token**
+  yang dikirim di header:
+
+  ```
+  X-Telegram-Bot-Api-Secret-Token: <secret>
+  ```
+
+  Secret itu ditetapkan saat mendaftarkan URL webhook ke Telegram, dan
+  nilainya sama dengan yang disimpan di konfigurasi server
+  (`TELEGRAM_WEBHOOK_SECRET`). Kalau server tidak mengisinya, endpoint
+  membalas 401 — perilaku yang benar, bukan bug koleksi.
+
+  ## Kenapa tidak memakai bearer
+
+  Sama seperti webhook email: yang datang bukan user, melainkan Telegram, dan
+  ia tidak punya sesi. Kalau endpoint ini didaftarkan di kelompok yang butuh
+  bearer, ia akan ditolak sebelum sempat memverifikasi secret-nya.
+
+  ## Alur `/start`
+
+  Pesan `/start` dari user adalah cara menghubungkan akun Telegram ke akun
+  aplikasi. Server membalas dengan kode tautan yang harus dimasukkan user di
+  aplikasi (alur lengkapnya di v0.2; v0.1 hanya mencatat percobaannya).
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"received": true}}
+  ```
+
+  `200` selalu dikembalikan setelah update diterima, walau pemrosesannya gagal.
+  Kalau membalas error, Telegram akan mengirim ulang update yang sama berulang
+  kali — dan itu bisa menumpuk.
+
+  ## Contoh response — 401
+
+  ```json
+  {
+    "error": {
+      "code": "UNAUTHENTICATED",
+      "message": "secret token tidak valid"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 12.

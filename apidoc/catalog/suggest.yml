@@ -1,0 +1,59 @@
+info:
+  name: Saran Nama Obat
+  type: http
+  seq: 2
+  tags:
+    - catalog
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/catalog/suggest?q=para&limit=10"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Saran Nama Obat
+
+  Autocomplete untuk form obat.
+
+  ## Balasan RINGKAS, hanya lima field
+
+  | Field | Isi |
+  |---|---|
+  | `id` | Untuk dipilih |
+  | `display_name` | Nama yang ditampilkan |
+  | `dosage_form_name` | Bentuk sediaan |
+  | `route_name` | Rute pemberian |
+  | `is_preset` | Preset publik atau katalog pribadi |
+
+  Sengaja tidak mengirim entri lengkap. Endpoint ini dipanggil **pada setiap
+  ketikan**, dan mengirim 40 kolom per saran akan membebani jaringan tanpa
+  manfaat. Detail lengkap diambil setelah user memilih.
+
+  ## Urutan hasil
+
+  Preset publik muncul lebih dulu, lalu yang namanya lebih pendek. Dengan
+  begitu saran yang paling mungkin dimaksud berada di atas.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {"id": "019aaa...", "display_name": "Paracetamol 500 mg Tablet", "dosage_form_name": "Tablet", "route_name": "Oral", "is_preset": true},
+      {"id": "019bbb...", "display_name": "Paracetamol Sirup 120mg/5mL", "dosage_form_name": "Sirup", "route_name": "Oral", "is_preset": true}
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 10}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

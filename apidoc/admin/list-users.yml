@@ -1,0 +1,94 @@
+info:
+  name: Daftar Akun
+  type: http
+  seq: 1
+  tags:
+    - admin
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/admin/users?q=&status=&limit=50"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Daftar Akun
+
+  Daftar akun untuk halaman admin. Butuh scope **`users`**.
+
+  ## Yang TIDAK dikirim
+
+  | Data | Kenapa |
+  |---|---|
+  | `password_hash` | Hash hanya dibaca jalur login |
+  | Daftar obat pasien | Admin hanya perlu tahu **jumlahnya** |
+
+  `medication_count` dikirim sebagai **angka**, bukan daftar. Operator perlu
+  tahu sebuah akun aktif dipakai, tanpa perlu tahu obat apa yang diminum
+  seseorang.
+
+  ## Query
+
+  | Parameter | Arti |
+  |---|---|
+  | `q` | Cari di email dan nama |
+  | `role` | `user` atau `admin` |
+  | `status` | `active`, `inactive`, atau kosong untuk semua |
+  | `limit` | Bawaan 50, maksimum 100 |
+  | `offset` | Mulai dari baris ke berapa |
+
+  ## Ada `page.total`
+
+  Berbeda dari endpoint user yang memakai cursor tanpa total, endpoint admin
+  **memuat `total`** — operator menavigasi halaman dan perlu tahu seberapa
+  banyak yang ada.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019...",
+        "email": "budi@example.com",
+        "full_name": "Budi Santoso",
+        "phone": "+62812345678",
+        "timezone": "Asia/Jakarta",
+        "is_active": true,
+        "role": "user",
+        "admin_scope": null,
+        "medication_count": 3,
+        "last_login_at": "2026-10-11T10:00:00Z",
+        "created_at": "2026-10-10T10:00:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 50, "total": 1}
+  }
+  ```
+
+  ## Contoh response — 403
+
+  ```json
+  {
+    "error": {
+      "code": "ADMIN_SCOPE_DENIED",
+      "message": "peran admin Anda tidak mencakup bidang ini",
+      "details": {"required_scope": "users", "your_scope": ["catalog"]}
+    }
+  }
+  ```
+
+  `details` menyebut scope yang dibutuhkan dan yang dimiliki, supaya operator
+  langsung tahu apa yang kurang.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

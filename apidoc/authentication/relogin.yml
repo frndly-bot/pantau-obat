@@ -1,0 +1,72 @@
+info:
+  name: Masuk Ulang Setelah Ganti Password
+  type: http
+  seq: 7
+  tags:
+    - authentication
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/login"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{user_email}}",
+        "password": "{{current_password}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.access_token
+      operator: isString
+    - expression: res.body.data.expires_in
+      operator: isNumber
+  scripts:
+    - type: after-response
+      code: |-
+        // Sesi yang hidup KEMBALI setelah ganti password. Tanpa login ulang
+        // ini, seluruh request setelah change-password menanggung 401.
+        bru.setVar("access_token", res.body.data.access_token);
+
+docs: |-
+  # Masuk Ulang Setelah Ganti Password
+
+  Request ini bagian dari rantai e2e, bukan fitur terpisah: `change-password`
+  mencabut seluruh akses (memang sengaja), jadi satu-satunya cara melanjutkan
+  koleksi adalah masuk lagi dengan **password baru**.
+
+  ## Kenapa bukan `authentication/login` yang diulang
+
+  File `login.yml` memakai password awal dari register. Setelah ganti password,
+  password itu sudah tidak sah. Request ini memakai `current_password` yang
+  disimpan oleh `change-password.yml` — jadi nilainya selalu password yang
+  paling baru, berapa kali pun koleksi dijalankan di database yang sama.
+
+  ## Idempoten
+
+  Run kedua di database yang sama tetap lulus: register membuat akun baru
+  (email unik per run), dan rantai login → ganti password → login ulang
+  berjalan penuh di akun itu.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbG...NiIs...",
+      "token_type": "Bearer",
+      "expires_in": 86400,
+      "user": {"id": "019...", "role": "user"}
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2.

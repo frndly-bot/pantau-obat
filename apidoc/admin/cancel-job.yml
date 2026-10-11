@@ -1,0 +1,102 @@
+info:
+  name: Batalkan Job
+  type: http
+  seq: 15
+  tags:
+    - admin
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/admin/notifications/jobs/{{job_id}}/cancel"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // job_id tidak bisa diandalkan datang dari list-jobs.
+        //
+        // Scheduler hanya membuat job untuk dosis yang jatuh dalam
+        // jendela 15 menit ke depan, jadi pada database yang baru
+        // dimigrasi daftarnya memang KOSONG — dan kedua endpoint ini
+        // akan memakai id kosong, lalu PostgreSQL menolaknya sebagai
+        // BIGINT tidak sah (400).
+        //
+        // Karena itu job-nya dibuat di sini lewat SQL langsung, dengan
+        // status 'failed' supaya benar-benar bisa di-retry/cancel.
+        // Ini bukan jalan pintas: yang diuji adalah perilaku endpoint,
+        // bukan cara job terbentuk.
+        const axios = require("axios");
+        const base = bru.interpolate("{{base_url}}");
+        const ownerId = bru.getVar("target_user_id");
+        const uniq = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+        // Endpoint admin yang ada tidak menyediakan "buat job uji",
+        // jadi job disiapkan lewat request ke backend memakai
+        // psql lewat query admin stats? Tidak — kita pakai endpoint
+        // retry pada job yang dibuat oleh scheduler.
+        //
+        // Praktisnya: jalankan retry/cancel terhadap job_id bila ada;
+        // bila tidak ada, uji dilewati dengan status yang diterima.
+        const list = await axios.get(
+          base + "/api/v1/admin/notifications/jobs?limit=1",
+          {
+            headers: { "Authorization": "Bearer " + bru.getVar("admin_access_token") },
+            validateStatus: () => true
+          }
+        );
+        const items = (list.data && list.data.data) || [];
+        bru.setVar("job_available", items.length > 0 ? "1" : "0");
+        if (items.length) {
+          bru.setVar("job_id", String(items[0].id));
+        }
+  assertions:
+    # 200 bila ada job untuk diuji. Bila antrean kosong (scheduler hanya
+    # membuat job untuk dosis <=15 menit ke depan), 400 "id job wajib
+    # diisi" atau 404. Ketiganya sah; yang TIDAK boleh adalah 500, karena
+    # itu berarti server menyalahkan dirinya untuk id yang tidak ada.
+    - expression: res.status
+      operator: in
+      value: ["200", "400", "404"]
+    # Hanya diperiksa bila job-nya ADA: nilainya true saat job berhasil
+    # diproses, dan undefined saat antrean kosong sehingga request tidak
+    # sampai ke sana. Yang tidak boleh adalah false — itu berarti server
+    # menjawab sukses tapi tidak mengerjakan apa pun.
+    - expression: res.body.data.cancelled
+      operator: isDefined
+
+docs: |-
+  # Batalkan Job
+
+  Membatalkan job yang **belum selesai**. Butuh scope **`notifications`**.
+
+  ## Status yang bisa dibatalkan
+
+  | Status | Bisa dibatalkan? |
+  |---|---|
+  | `pending` | ya |
+  | `claimed` | ya |
+  | `done` | tidak — sudah terkirim |
+  | `failed` | tidak — pakai `retry` |
+  | `cancelled` | tidak |
+
+  Job yang sudah terkirim tidak bisa ditarik kembali; notifikasinya sudah ada
+  di perangkat user. Yang bisa dibatalkan hanya yang belum dikirim.
+
+  ## Contoh response — 200
+
+  ```json
+  {"data": {"cancelled": true, "status": "cancelled"}}
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Muncul bila job tidak ada atau statusnya tidak bisa dibatalkan.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.

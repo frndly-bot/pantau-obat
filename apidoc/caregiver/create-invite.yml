@@ -1,0 +1,122 @@
+info:
+  name: Undang Caregiver
+  type: http
+  seq: 1
+  tags:
+    - caregiver
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/care-links"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "invite_email": "{{caregiver_email}}",
+        "relation": "child",
+        "role": "viewer"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.invite_url
+      operator: isString
+  scripts:
+    - type: after-response
+      code: |-
+        bru.setVar("care_link_id", res.body.data.id);
+        var u = res.body.data.invite_url;
+        bru.setVar("invite_token", u.split("token=")[1]);
+
+docs: |-
+  # Undang Caregiver
+
+  Mengirim undangan kepada keluarga atau perawat untuk memantau kepatuhan.
+
+  ## Tautan undangan hanya muncul SEKALI
+
+  Yang disimpan di database hanya **SHA-256** dari tokennya. Setelah balasan
+  ini, tidak ada cara mengambil tautannya lagi. Kalau hilang, undangan lama
+  harus dicabut dan dibuat ulang.
+
+  ## Tautan memakai `APP_PUBLIC_URL`, bukan header Host
+
+  Header `Host` dikirim klien dan **bisa dipalsukan**. Kalau tautan undangan
+  disusun darinya, penyerang bisa mengarahkannya ke domainnya sendiri — dan
+  caregiver yang mengkliknya akan menyerahkan akses ke data kesehatan pasien.
+
+  ## Field
+
+  | Field | Nilai | Keterangan |
+  |---|---|---|
+  | `invite_email` | email | Boleh email yang belum terdaftar |
+  | `relation` | `family` \| `child` \| `parent` \| `spouse` \| `friend` \| `nurse` \| `other` | Bawaan `other` |
+  | `role` | `viewer` \| `helper` | Bawaan `viewer` |
+
+  `role` di sini berarti **tingkat izin caregiver**, bukan peran akun. Karena
+  itu ia diterima di endpoint ini, sementara `role` pada endpoint
+  pendaftaran akun ditolak.
+
+  ## Tingkat izin
+
+  | Role | Boleh |
+  |---|---|
+  | `viewer` | Hanya membaca |
+  | `helper` | Membaca, **dan mencatat dosis** atas nama pasien |
+
+  Keduanya **tidak boleh** mengelola obat dan jadwal.
+
+  ## Masa berlaku
+
+  7 hari. Undangan yang kedaluwarsa tidak menghalangi undangan baru untuk
+  email yang sama — statusnya diubah menjadi `expired` otomatis.
+
+  ## Contoh response — 201
+
+  ```json
+  {
+    "data": {
+      "id": "019cc1...",
+      "status": "pending",
+      "role": "viewer",
+      "relation": "child",
+      "invite_url": "http://localhost:8080/terima-undangan?token=AbC123...",
+      "expires_at": "2026-10-18T10:29:00Z",
+      "note": "tautan undangan hanya ditampilkan sekali dan tidak bisa diambil ulang"
+    }
+  }
+  ```
+
+  ## Contoh response — 409
+
+  ```json
+  {
+    "error": {
+      "code": "INVITE_PENDING",
+      "message": "undangan untuk email itu masih menunggu"
+    }
+  }
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_FAILED",
+      "message": "tidak bisa mengundang diri sendiri"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

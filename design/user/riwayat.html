@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Riwayat — Pantau Obat</title>
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="../assets/tokens.css">
+<link rel="stylesheet" href="../assets/app.css">
+<style>
+  /* Kalender: navigasi bulan + hari yang bisa diklik */
+  .cal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .cal-head > div:first-child { min-width: 0; flex: 1 1 12rem; }
+  .cal-nav { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+  .cal-head > div:first-child > b { display: block; }
+  .cal-nav .icon-btn { width: 2rem; height: 2rem; color: var(--foreground); border-color: var(--border); background: var(--background); }
+  .cal-nav .icon-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+  .cal-nav .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+  /* Tombol reset ke bulan ini: beri sedikit penekanan warna primary. */
+  .cal-nav #cal-today { color: var(--primary); border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); }
+  .cal-nav #cal-today:hover { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 12%, transparent); }
+  .cal .d:not(.head):not(.mute):not(.future) { cursor: pointer; }
+  .cal .d.sel { box-shadow: inset 0 0 0 2px var(--primary); }
+  .cal .d.future { opacity: .3; }
+  .cal .d.n { color: var(--muted-foreground); }
+
+  /* Bagan rapat (30/90 titik): batang lebih tipis, label lebih kecil. */
+  .chart-dense .bars { gap: 2px; }
+  .chart-dense .bars .b i { border-radius: 2px 2px 0 0; }
+  .chart-dense .bars .b span { font-size: 9px; }
+
+  /* chip filter aktif */
+  .flt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .flt-chip { display: inline-flex; align-items: center; gap: 5px; height: 1.75rem; padding: 0 .375rem 0 .625rem;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--muted); font-size: .75rem; color: var(--foreground); }
+  .flt-chip b { font-weight: 600; }
+  .flt-chip button { display: grid; place-items: center; color: var(--muted-foreground); }
+  .flt-chip button:hover { color: var(--destructive); }
+  .flt-chip button svg { width: .875rem; height: .875rem; }
+
+  /* daftar catatan dikelompokkan per tanggal */
+  .day-group { display: flex; flex-direction: column; gap: 6px; }
+  .day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 2px 2px 0; }
+  .day-head b { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="app-user">
+  <header id="po-top"></header>
+  <main class="u-body" id="main"></main>
+</div>
+
+<nav id="po-nav"></nav>
+
+<!-- Modal: ekspor -->
+<div class="scrim" data-for="m-export"></div>
+<div class="modal" id="m-export" role="dialog" aria-modal="true" aria-labelledby="e-t">
+  <div class="m-head"><h3 id="e-t">Ekspor untuk dokter</h3>
+    <button class="icon-btn" data-close="m-export" aria-label="Tutup" id="e-x"></button></div>
+  <div class="m-body">
+    <div class="field"><label for="e-range">Rentang</label>
+      <select class="input" id="e-range">
+        <option value="7">7 hari terakhir</option>
+        <option value="30" selected>30 hari terakhir</option>
+        <option value="90">90 hari terakhir</option>
+        <option value="all">Semua riwayat</option>
+      </select></div>
+    <div class="field"><label for="e-scope">Isi</label>
+      <select class="input" id="e-scope">
+        <option value="ringkas" selected>Ringkasan kepatuhan per hari</option>
+        <option value="detail">Rincian setiap dosis (per obat, per jam)</option>
+      </select></div>
+    <div class="banner info"><span class="ic" id="e-ic"></span><div><b>Ekspor hanya milik Anda</b>
+      <p>Caregiver tidak bisa mengekspor data Anda, dan admin tidak pernah melihat isi obat. Berkas dibuat di perangkat, tidak dikirim ke mana pun.</p></div></div>
+  </div>
+  <div class="m-foot"><button class="btn btn-ghost" data-close="m-export">Batal</button>
+    <button class="btn btn-primary" id="e-go">Unduh CSV</button></div>
+</div>
+
+<div class="toasts"></div>
+<script src="../assets/icons.js"></script>
+<script src="../assets/data.js"></script>
+<script src="../assets/i18n.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+  if (!A.requireUser()) return;
+
+  var STATUS_LABEL = { taken: "Diminum", late: "Terlambat", skipped: "Dilewati", missed: "Terlewat" };
+  var CAL_MIN = -24; // batas mundur kalender (bulan)
+
+  var range = 30;              // 7 | 30 | 90 | "all"
+  var statusFilter = "all";    // taken | late | skipped | missed | all
+  var medFilter = "all";
+  var sourceFilter = "all";    // self | caregiver | all
+  var dayFilter = null;        // "YYYY-MM-DD" bila satu hari dipilih dari kalender
+  var calMonth = 0;            // geser bulan kalender (0 = bulan ini)
+
+  function daysBack(n) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) out.push(PO.ymd(PO.shiftDays(-i)));
+    return out;
+  }
+
+  /* tanggal yang tercakup filter rentang (dipakai kalender, bagan, dan daftar) */
+  function rangeDates() {
+    if (range !== "all") return daysBack(range);
+    var set = {};
+    PO.logs.forEach(function (l) { if (!l.deleted_at) set[l.slot_date] = 1; });
+    PO.doseEvents.forEach(function (e) { set[e.event_date] = 1; });
+    set[PO.TODAY] = 1;
+    return Object.keys(set).sort();
+  }
+
+  function dateSet() {
+    var set = {};
+    rangeDates().forEach(function (d) { set[d] = true; });
+    return set;
+  }
+
+  /* himpunan tanggal aktif; di-refresh tiap render. Bila satu hari dipilih
+     dari kalender, hari itu yang berlaku — walau di luar rentang segmen,
+     supaya mengklik tanggal lama tidak menghasilkan daftar kosong. */
+  var curSet = {};
+  function inScope(ds) {
+    if (dayFilter) return ds === dayFilter;
+    return !!curSet[ds];
+  }
+
+  /* log sesuai semua filter aktif */
+  function logsIn() {
+    return PO.logs.filter(function (l) {
+      if (l.deleted_at) return false;
+      if (!inScope(l.slot_date)) return false;
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      if (medFilter !== "all" && l.medication_id !== medFilter) return false;
+      if (sourceFilter !== "all" && (l.source || "self") !== sourceFilter) return false;
+      return true;
+    }).sort(function (a, b) {
+      var ka = a.slot_date + "-" + String(a.scheduled_hour === null ? 99 : a.scheduled_hour).padStart(2, "0");
+      var kb = b.slot_date + "-" + String(b.scheduled_hour === null ? 99 : b.scheduled_hour).padStart(2, "0");
+      return ka < kb ? 1 : ka > kb ? -1 : 0;
+    });
+  }
+
+  /* jumlah catatan pada rentang (tanpa filter status/obat/sumber) */
+  function countInRange() {
+    return PO.logs.filter(function (l) { return !l.deleted_at && inScope(l.slot_date); }).length;
+  }
+
+  /* dosis terlewat (dari dose_events), ikut filter tanggal & obat */
+  function missedIn() {
+    return PO.doseEvents.filter(function (e) {
+      if (e.kind !== "missed") return false;
+      if (!inScope(e.event_date)) return false;
+      if (medFilter !== "all" && e.medication_id !== medFilter) return false;
+      return true;
+    });
+  }
+
+  /* kalender bulan dengan status harian; bisa digeser ke bulan sebelumnya */
+  function calendar() {
+    var base = new Date(PO.NOW);
+    base.setDate(1);
+    base.setMonth(base.getMonth() + calMonth);
+    var y = base.getFullYear(), mo = base.getMonth();
+    var first = new Date(y, mo, 1);
+    var days = new Date(y, mo + 1, 0).getDate();
+    var startPad = (first.getDay() + 6) % 7; // Senin dulu
+    var monthKey = y + "-" + String(mo + 1).padStart(2, "0");
+
+    var html = '<div class="cal-head">' +
+      '<div><b>' + PO.BULAN[mo] + " " + y + "</b>" +
+        '<div class="xs muted-3">klik tanggal untuk menyaring catatan hari itu</div></div>' +
+      '<div class="cal-nav">' +
+        (calMonth !== 0 ? '<button class="icon-btn" id="cal-today" aria-label="Kembali ke bulan ini" title="Kembali ke bulan ini">' + A.icon("undo") + "</button>" : "") +
+        '<button class="icon-btn" id="cal-prev" aria-label="Bulan sebelumnya"' + (calMonth <= CAL_MIN ? " disabled" : "") + ">" + A.icon("chev-left") + "</button>" +
+        '<button class="icon-btn" id="cal-next" aria-label="Bulan berikutnya"' + (calMonth >= 0 ? " disabled" : "") + ">" + A.icon("chev-right") + "</button>" +
+      "</div></div>" +
+      '<div class="cal">';
+    ["S", "S", "R", "K", "J", "S", "M"].forEach(function (d) { html += '<div class="d head">' + d + "</div>"; });
+    for (var p = 0; p < startPad; p++) html += '<div class="d mute"></div>';
+    for (var d2 = 1; d2 <= days; d2++) {
+      var ds = monthKey + "-" + String(d2).padStart(2, "0");
+      var dayLogs = PO.logs.filter(function (l) { return l.slot_date === ds && !l.deleted_at; });
+      var missed = PO.doseEvents.filter(function (e) { return e.event_date === ds && e.kind === "missed"; });
+      var future = ds > PO.TODAY;
+      var late = dayLogs.filter(function (l) { return l.status === "late"; }).length;
+      var cls = future ? "future" : missed.length ? "r" : late ? "y" : dayLogs.length ? "g" : "n";
+      if (ds === PO.TODAY) cls += " today";
+      if (ds === dayFilter) cls += " sel";
+      var tip = ds + (dayLogs.length ? " · " + dayLogs.length + " log" : "") + (missed.length ? " · " + missed.length + " terlewat" : "");
+      html += '<div class="d ' + cls + '"' + (future ? "" : ' data-day="' + ds + '"') + ' title="' + tip + '">' + d2 + "</div>";
+    }
+    html += "</div>" +
+      '<div class="cal-legend mt-12">' +
+        '<span><i style="background:var(--ok)"></i>lengkap</span>' +
+        '<span><i style="background:var(--warn)"></i>ada terlambat</span>' +
+        '<span><i style="background:var(--err)"></i>ada terlewat</span>' +
+        '<span><i style="background:var(--muted);border:1px solid var(--border)"></i>tanpa catatan</span>' +
+      "</div>";
+    return html;
+  }
+
+  /* chip ringkas filter yang sedang aktif */
+  function filterChips() {
+    var out = "";
+    if (dayFilter) out += chip("Tanggal", PO.fmtDate(dayFilter, { mid: true }), "day");
+    if (medFilter !== "all") { var m = PO.med(medFilter); out += chip("Obat", m ? m.name : medFilter, "med"); }
+    if (statusFilter !== "all") out += chip("Status", STATUS_LABEL[statusFilter] || statusFilter, "status");
+    if (sourceFilter !== "all") out += chip("Sumber", sourceFilter === "caregiver" ? "Caregiver" : "Saya", "src");
+    return out;
+  }
+  function chip(label, val, key) {
+    return '<span class="flt-chip">' + A.esc(label) + ': <b>' + A.esc(val) + "</b>" +
+      '<button data-clear="' + key + '" aria-label="Hapus filter ' + A.esc(label) + '">' + A.icon("x") + "</button></span>";
+  }
+
+  /* Satu bagan kepatuhan: tren harian sepanjang rentang terpilih.
+     Menggantikan dua bagan lama ("7 hari terakhir" + "pola per hari dalam
+     seminggu") yang menampilkan hal serupa. Bagan ini MENGIKUTI filter
+     rentang (dulu selalu 7 hari) dan label sumbu-x menyesuaikan jumlah titik
+     agar tetap terbaca pada 7/30/90 titik. */
+  function adherenceChart() {
+    var all = PO.adherenceDaily.slice();
+    var rows = range === "all" ? all : all.slice(-range);
+    if (!rows.length) {
+      return A.empty("Belum ada data kepatuhan", "Catat dosis beberapa hari untuk melihat tren.", "bar");
+    }
+    var n = rows.length;
+    /* Label adaptif: tiap hari bila sedikit; sisanya tiap-N hari (angka tanggal). */
+    var everyN = n <= 10 ? 1 : Math.ceil(n / 6);
+    var bars = rows.map(function (d, i) {
+      var wd = new Date(d.date + "T00:00:00").getDay();
+      var showLabel = i % everyN === 0 || i === n - 1;
+      var lbl = showLabel ? (n <= 10 ? PO.HARI[wd].slice(0, 3) : String(+d.date.slice(8, 10))) : "";
+      return { k: lbl, v: d.ratio };
+    });
+    var avg = rows.reduce(function (s, d) { return s + d.ratio; }, 0) / n;
+
+    /* Ringkasan pola per hari-dalam-seminggu — sebagai TEKS, bukan bagan kedua. */
+    var sums = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
+    rows.forEach(function (d) {
+      var wd = new Date(d.date + "T00:00:00").getDay();
+      sums[wd] += d.ratio; cnt[wd]++;
+    });
+    var wk = [1, 2, 3, 4, 5, 6, 0].filter(function (wd) { return cnt[wd]; })
+      .map(function (wd) { return { wd: wd, v: sums[wd] / cnt[wd] }; });
+    var best = wk.slice().sort(function (a, b) { return b.v - a.v; })[0];
+    var worst = wk.slice().sort(function (a, b) { return a.v - b.v; })[0];
+
+    var out = '<div class="row-b mb-12"><b>Kepatuhan harian</b>' +
+      '<span class="xs muted-3">' + n + " hari · rata-rata " + A.pct(avg) + "</span></div>" +
+      '<div class="' + (n > 14 ? "chart-dense" : "") + '">' +
+        A.bars(bars, { max: 1, fmt: function (v) { return A.pct(v); } }) +
+      "</div>";
+
+    if (best && worst && best.wd !== worst.wd) {
+      out += '<p class="xs muted-3 mt-8">' + A.icon("info") +
+        " Hari paling rapi <b>" + PO.HARI[best.wd] + "</b> (" + A.pct(best.v) +
+        "), paling sering bolong <b>" + PO.HARI[worst.wd] + "</b> (" + A.pct(worst.v) + ").</p>";
+    }
+    return out;
+  }
+
+  /* satu kartu log */
+  function logCard(l) {
+    var m = PO.med(l.medication_id) || { name: "Obat dihapus", color_tag: "#64748b", as_needed: false };
+    var when = l.scheduled_hour !== null
+      ? String(l.scheduled_hour).padStart(2, "0") + ":" + String(l.scheduled_minute).padStart(2, "0")
+      : "PRN";
+    return '<article class="list-card">' +
+      '<span class="avatar sm" style="background:linear-gradient(140deg,' + A.esc(m.color_tag) + '33,var(--muted));color:' + A.esc(m.color_tag) + '">' + A.icon(m.as_needed ? "droplet" : "pill") + "</span>" +
+      '<div class="grow"><div class="row-b"><span class="sm"><b>' + A.esc(m.name) + "</b></span>" + A.doseBadge(l.status) + "</div>" +
+        '<div class="xs muted-3">jadwal ' + when +
+          (l.taken_at ? " · dicatat " + A.esc(A.clockAt(l.taken_at)) : "") + "</div>" +
+        (l.note ? '<div class="xs muted-3">' + A.icon("file") + " " + A.esc(l.note) + "</div>" : "") +
+        (l.source === "caregiver" ? '<div class="xs muted-3">' + A.icon("users") + " dicatat oleh caregiver</div>" : "") +
+      "</div></article>";
+  }
+
+  /* daftar log dikelompokkan per tanggal */
+  function groupByDay(list) {
+    var groups = {}, order = [];
+    list.forEach(function (l) {
+      if (!groups[l.slot_date]) { groups[l.slot_date] = []; order.push(l.slot_date); }
+      groups[l.slot_date].push(l);
+    });
+    order.sort(function (a, b) { return a < b ? 1 : -1; });
+    return order.map(function (ds) {
+      var items = groups[ds];
+      var ok = items.filter(function (l) { return l.status === "taken" || l.status === "late"; }).length;
+      return '<div class="day-group">' +
+        '<div class="day-head"><b>' + A.esc(PO.fmtDate(ds, { long: true })) + "</b>" +
+          '<span class="xs muted-3">' + ok + "/" + items.length + " diminum</span></div>" +
+        items.map(logCard).join("") +
+      "</div>";
+    }).join("");
+  }
+
+  function render() {
+    curSet = dateSet(); /* refresh cakupan tanggal sebelum semua perhitungan */
+    var list = logsIn();
+    var missed = missedIn().length;
+
+    var taken = list.filter(function (l) { return l.status === "taken"; }).length;
+    var late = list.filter(function (l) { return l.status === "late"; }).length;
+    var skipped = list.filter(function (l) { return l.status === "skipped"; }).length;
+    var denom = taken + late + skipped + missed;
+    var ratio = denom ? (taken + late) / denom : 0;
+
+    var rangeLabel = dayFilter ? PO.fmtDate(dayFilter, { mid: true })
+      : range === "all" ? "Semua waktu" : "Kepatuhan " + range + " hari";
+
+    var html = "";
+
+    /* ringkasan */
+    html += '<section class="hero">' +
+      '<div class="row-b gap-14">' +
+        '<div class="grow">' +
+          '<div class="hd">' + A.esc(rangeLabel) + "</div>" +
+          '<div class="big mt-8">' + A.pct(ratio) + "</div>" +
+          '<div class="sm muted">' + (taken + late) + " dari " + denom + " dosis tercatat</div>" +
+        "</div>" + A.ring(ratio, A.pct(ratio), "tepat waktu", 100) +
+      "</div>" +
+      '<div class="row-wrap mt-16 gap-6">' +
+        '<span class="badge badge-ok">' + A.icon("check") + taken + " diminum</span>" +
+        (late ? '<span class="badge badge-late">' + A.icon("clock") + late + " terlambat</span>" : "") +
+        (skipped ? '<span class="badge badge-na">' + skipped + " dilewati</span>" : "") +
+        (missed ? '<span class="badge badge-miss">' + A.icon("alert") + missed + " terlewat</span>" : "") +
+      "</div>" +
+    "</section>";
+
+    /* filter */
+    var chips = filterChips();
+    html += '<section class="card card-pad stack">' +
+      '<div class="row-b"><div class="row gap-6"><b style="font-size:13.5px">Filter</b>' +
+        '<span class="xs muted-3">' + list.length + " dari " + countInRange() + " catatan</span></div>" +
+        (chips ? '<button class="btn btn-ghost btn-sm" id="f-reset">' + A.icon("refresh") + "Reset</button>" : "") +
+      "</div>" +
+      '<div class="seg" id="seg-range">' +
+        [[7, "7 hari"], [30, "30 hari"], [90, "90 hari"], ["all", "Semua"]].map(function (r) {
+          return '<button data-val="' + r[0] + '" class="' + (range === r[0] ? "on" : "") + '">' + r[1] + "</button>";
+        }).join("") + "</div>" +
+      '<div class="field"><label for="f-med">Obat</label><select class="input" id="f-med">' +
+        '<option value="all">Semua obat</option>' +
+        PO.medications.map(function (m) {
+          return '<option value="' + m.id + '"' + (medFilter === m.id ? " selected" : "") + ">" + A.esc(m.name) + "</option>";
+        }).join("") + "</select></div>" +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="f-status">Status</label><select class="input" id="f-status">' +
+          [["all", "Semua status"], ["taken", "Diminum"], ["late", "Terlambat"], ["skipped", "Dilewati"], ["missed", "Terlewat"]].map(function (s) {
+            return '<option value="' + s[0] + '"' + (statusFilter === s[0] ? " selected" : "") + ">" + s[1] + "</option>";
+          }).join("") + "</select></div>" +
+        '<div class="field"><label for="f-src">Sumber</label><select class="input" id="f-src">' +
+          [["all", "Semua sumber"], ["self", "Saya sendiri"], ["caregiver", "Caregiver"]].map(function (s) {
+            return '<option value="' + s[0] + '"' + (sourceFilter === s[0] ? " selected" : "") + ">" + s[1] + "</option>";
+          }).join("") + "</select></div>" +
+      "</div>" +
+      (chips ? '<div class="flt-chips">' + chips + "</div>" : "") +
+    "</section>";
+
+    /* bagan kepatuhan (satu bagan, mengikuti filter rentang) */
+    html += '<section class="card card-pad">' + adherenceChart() + "</section>";
+
+    /* kalender */
+    html += '<section class="card card-pad">' + calendar() + "</section>";
+
+    /* daftar log */
+    html += '<section class="stack-8">' +
+      '<div class="row-b"><b class="pg-title">Catatan dosis</b>' +
+        '<button class="btn btn-outline btn-sm" id="b-export">' + A.icon("download") + "Ekspor</button></div>" +
+      (list.length ? groupByDay(list) : A.empty("Tidak ada catatan di rentang ini", "Ubah filter rentang, obat, status, atau tanggal.", "activity")) +
+    "</section>";
+
+    html += '<div class="xs muted-3">' + A.icon("info") +
+      " Terlewat dihitung sekali sehari (pukul 00:05 waktu lokal) dan disimpan di <span class=\"mono\">medication_dose_events</span> — bukan sebagai status log.</div>";
+
+    document.getElementById("main").innerHTML = html;
+    document.getElementById("e-x").innerHTML = A.icon("x");
+    document.getElementById("e-ic").innerHTML = A.icon("info");
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll("#seg-range button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        range = b.getAttribute("data-val");
+        if (range !== "all") range = +range;
+        dayFilter = null;
+        render();
+      });
+    });
+    document.getElementById("f-med").addEventListener("change", function (e) { medFilter = e.target.value; render(); });
+    document.getElementById("f-status").addEventListener("change", function (e) { statusFilter = e.target.value; render(); });
+    document.getElementById("f-src").addEventListener("change", function (e) { sourceFilter = e.target.value; render(); });
+
+    var reset = document.getElementById("f-reset");
+    if (reset) reset.addEventListener("click", function () {
+      dayFilter = null; medFilter = "all"; statusFilter = "all"; sourceFilter = "all"; render();
+    });
+    document.querySelectorAll(".flt-chip [data-clear]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-clear");
+        if (k === "day") dayFilter = null;
+        if (k === "med") medFilter = "all";
+        if (k === "status") statusFilter = "all";
+        if (k === "src") sourceFilter = "all";
+        render();
+      });
+    });
+
+    var prev = document.getElementById("cal-prev");
+    if (prev) prev.addEventListener("click", function () { if (calMonth > CAL_MIN) { calMonth--; render(); } });
+    var next = document.getElementById("cal-next");
+    if (next) next.addEventListener("click", function () { if (calMonth < 0) { calMonth++; render(); } });
+    var todayBtn = document.getElementById("cal-today");
+    if (todayBtn) todayBtn.addEventListener("click", function () {
+      calMonth = 0;
+      /* Bila filter tanggal menunjuk hari di bulan lain, bersihkan agar
+         tampilan kalender dan daftar tetap sinkron setelah reset. */
+      if (dayFilter && dayFilter.slice(0, 7) !== PO.TODAY.slice(0, 7)) dayFilter = null;
+      render();
+    });
+    document.querySelectorAll(".cal .d[data-day]").forEach(function (d) {
+      d.addEventListener("click", function () {
+        var ds = d.getAttribute("data-day");
+        dayFilter = (dayFilter === ds) ? null : ds;
+        render();
+      });
+    });
+
+    document.getElementById("b-export").addEventListener("click", function () { A.overlay("m-export", true); });
+  }
+
+  /* CSV: dibuat di perangkat, tidak dikirim ke mana pun */
+  function csv(rows) {
+    return rows.map(function (r) {
+      return r.map(function (c) {
+        var s = c === null || c === undefined ? "" : String(c);
+        return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(";");
+    }).join("\n");
+  }
+
+  document.getElementById("e-go").addEventListener("click", function () {
+    var n = document.getElementById("e-range").value;
+    var scope = document.getElementById("e-scope").value;
+    var days = n === "all" ? PO.ymd(new Date(2000, 0, 1)) : daysBack(+n)[0];
+    var rows = [];
+
+    if (scope === "ringkas") {
+      rows.push(["tanggal", "dijadwalkan", "diminum", "rasio"]);
+      PO.adherenceDaily.filter(function (d) { return d.date >= days; }).forEach(function (d) {
+        rows.push([d.date, d.scheduled, d.taken, d.ratio]);
+      });
+    } else {
+      rows.push(["tanggal", "jam_jadwal", "nama_obat", "status", "waktu_catat", "sumber", "catatan"]);
+      PO.logs.filter(function (l) { return l.slot_date >= days && !l.deleted_at; }).forEach(function (l) {
+        var m = PO.med(l.medication_id) || { name: "—" };
+        rows.push([
+          l.slot_date,
+          l.scheduled_hour !== null ? String(l.scheduled_hour).padStart(2, "0") + ":" + String(l.scheduled_minute).padStart(2, "0") : "PRN",
+          m.name, l.status, l.taken_at || "", l.source, l.note || ""
+        ]);
+      });
+    }
+
+    var blob = new Blob(["\ufeff" + csv(rows)], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "pantau-obat-riwayat-" + PO.TODAY + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+
+    A.overlay("m-export", false);
+    A.toast("ok", "CSV dibuat", rows.length - 1 + " baris · siap dibawa ke dokter.");
+  });
+
+  A.boot({
+    shell: "user",
+    active: "riwayat",
+    title: "Riwayat & kepatuhan",
+    sub: "Kalender, bagan, dan ekspor untuk dokter",
+    after: function () { render(); }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+info:
+  name: Hapus Entri Katalog
+  type: http
+  seq: 6
+  tags:
+    - catalog
+
+http:
+  method: DELETE
+  url: "{{base_url}}/api/v1/catalog/{{catalog_id}}"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.medications_safe
+      operator: eq
+      value: true
+
+docs: |-
+  # Hapus Entri Katalog
+
+  Soft-delete katalog pribadi milik sendiri.
+
+  ## Obat yang dibuat dari entri ini TIDAK terpengaruh
+
+  Obat menyimpan `catalog_id` sebagai **rujukan**, dan rujukan yang hilang
+  tidak membuat obat pasien ikut rusak. Nama, dosis, dan jadwalnya tetap utuh
+  karena disalin saat obat dibuat.
+
+  Kalau penghapusan entri katalog ikut menghapus obat pasien, itu bencana:
+  user akan kehilangan riwayat kepatuhannya hanya karena merapikan katalog.
+
+  ## Preset publik tidak bisa dihapus
+
+  ```json
+  {
+    "error": {
+      "code": "CATALOG_IMMUTABLE",
+      "message": "preset katalog hanya bisa diubah admin"
+    }
+  }
+  ```
+
+  Admin mengarsipkannya lewat `/admin/catalog/{id}/archive`, bukan
+  menghapusnya. Entri yang sudah dipublikasikan dan pernah dipakai user tidak
+  boleh lenyap begitu saja.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "deleted": true,
+      "medications_safe": true,
+      "note": "obat yang dibuat dari entri ini tidak terpengaruh"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 4.

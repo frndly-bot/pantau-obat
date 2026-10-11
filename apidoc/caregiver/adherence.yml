@@ -1,0 +1,60 @@
+info:
+  name: Kepatuhan Pasien Harian
+  type: http
+  seq: 9
+  tags:
+    - caregiver
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/care/{{owner_id}}/adherence?from=2026-10-05&to=2026-10-11"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Kepatuhan Pasien Harian
+
+  Rincian kepatuhan pasien per hari, untuk grafik di dashboard caregiver.
+
+  ## Hari terlewat TETAP muncul
+
+  Hari yang punya dosis terjadwal tapi tidak ada catatan **tidak dihilangkan**.
+  Justru hari itulah yang paling perlu dilihat caregiver — hari pasiennya
+  benar-benar berhenti minum obat.
+
+  ## Dosis terlewat dibaca dari tempat yang benar
+
+  `missed_doses` diambil dari `medication_dose_events`, bukan dari
+  `medication_logs`. Dosis terlewat **tidak punya baris log** — sistem yang
+  mencatatnya di tabel penyimpangan. Mencarinya di log akan selalu
+  menghasilkan nol, dan kepatuhan pasien akan selalu terlihat lebih baik
+  daripada kenyataan.
+
+  ## Yang menandai dosis terlewat
+
+  Worker `missed_pass`, berjalan sekali sehari menjelang tengah malam. Selama
+  itu belum berjalan, `missed_doses` akan tetap nol.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {"date": "2026-10-11", "scheduled_doses": 2, "taken_doses": 2, "skipped_doses": 0, "missed_doses": 0, "pending_doses": 0, "adherence_ratio": 1.0},
+      {"date": "2026-10-10", "scheduled_doses": 2, "taken_doses": 1, "skipped_doses": 1, "missed_doses": 0, "pending_doses": 0, "adherence_ratio": 0.5},
+      {"date": "2026-10-09", "scheduled_doses": 2, "taken_doses": 0, "skipped_doses": 0, "missed_doses": 2, "pending_doses": 0, "adherence_ratio": 0.0}
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 3}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

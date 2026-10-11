@@ -1,0 +1,84 @@
+info:
+  name: Login Admin
+  type: http
+  seq: 9
+  tags:
+    - authentication
+    - admin
+    - smoke
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/auth/login"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{admin_email}}",
+        "password": "{{admin_password}}"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.user.role
+      operator: eq
+      value: "admin"
+  scripts:
+    - type: after-response
+      code: |-
+        // Token admin disimpan TERPISAH dari token pasien dan caregiver.
+        // Seluruh request /admin/* memakai variabel ini; request user biasa
+        // tetap memakai access_token supaya keduanya tidak tertukar.
+        bru.setVar("admin_access_token", res.body.data.access_token);
+        bru.setVar("admin_id", res.body.data.user.id);
+        // target_user_id SENGAJA bukan id admin sendiri: aksi admin
+        // menolak menargetkan diri sendiri (tidak bisa menonaktifkan
+        // akun sendiri) — itu perilaku yang benar. Targetnya akun
+        // caregiver, satu-satunya akun non-admin yang dijamin ada.
+
+docs: |-
+  # Login Admin
+
+  Masuk sebagai admin untuk seluruh alur `/admin/*` di koleksi ini.
+
+  ## Akun admin tidak bisa dibuat lewat API
+
+  Peran admin tidak pernah diterima dari klien — field `role` ditolak sebagai
+  field asing. Admin pertama dibuat lewat perintah bootstrap di luar API:
+
+  ```bash
+  cd backend
+  go run ./cmd/admin-bootstrap --email admin@example.com \
+      --password 'Rahasia123!' --name "Admin Aplikasi"
+  ```
+
+  Perintah itu hanya berjalan di luar produksi. Nilai `admin_email` dan
+  `admin_password` di environment harus cocok dengan akun yang dibuat
+  perintah itu.
+
+  ## `target_user_id`
+
+  Setelah login, id admin disimpan sebagai `target_user_id`: sebagian besar
+  aksi admin (disable, enable, grant-admin, revoke-admin) memerlukan target
+  lain, dan akun admin sendiri adalah satu-satunya user yang dijamin ada
+  tanpa langkah tambahan. Erase-user pada akun yang SEDANG dipakai akan
+  menggagalkan sisinya — lihat catatan di `admin/erase-user.yml`.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "access_token": "eyJhbG...",
+      "user": {"id": "019...", "role": "admin", "admin_scope": null}
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 2 dan 11.

@@ -1,0 +1,68 @@
+info:
+  name: Daftar Obat
+  type: http
+  seq: 2
+  tags:
+    - medication
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/medications?status=active&limit=20"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Daftar Obat
+
+  Seluruh obat milik user. **Tidak ada cara melihat obat user lain** — id
+  pemilik diambil dari token.
+
+  ## Query
+
+  | Parameter | Arti |
+  |---|---|
+  | `status` | `active` (bawaan) atau `all` |
+  | `q` | Cari pada nama obat, tidak peduli huruf besar/kecil |
+  | `limit` | Bawaan 20, maksimum 100 |
+
+  ## Daftar TIDAK membawa jam dan stok lengkap
+
+  Itu disengaja. Melengkapi setiap baris berarti satu query tambahan per obat,
+  dan satu halaman 20 obat akan menembak 20 query. Yang dibutuhkan untuk
+  memilih obat hanya nama, dosis, dan warnanya.
+
+  Detail lengkap ada di `GET /medications/{id}`.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019ccc...",
+        "name": "Amlodipine 10",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "meal_relation": "after_meal",
+        "start_date": "2026-10-11",
+        "end_date": null,
+        "is_active": true,
+        "color_tag": "#4F46E5",
+        "created_at": "2026-10-10T10:29:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 20}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 5.

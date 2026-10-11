@@ -1,0 +1,95 @@
+# =============================================================================
+# Rahasia — TIDAK PERNAH masuk git
+# =============================================================================
+# File .env memuat nilai asli (POSTGRES_PASSWORD, JWT_SECRET, password admin uji,
+# secret webhook). Kalau salah satu ter-commit SEKALI, nilainya ada di riwayat
+# selamanya — `git log -p` masih menampilkannya walau dihapus di commit
+# berikutnya. Karena itu semuanya diabaikan lebih dulu, sebelum commit apa pun.
+#
+# Yang boleh masuk git hanya *.example, dan isinya WAJIB placeholder — bukan
+# nilai asli. Lihat deploy/.env.example, backend/.env.example, apidoc/.env.example.
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+deploy/compose.env
+
+# =============================================================================
+# Kunci & kredensial (sertifikat, SSH, cloud, akun layanan)
+# =============================================================================
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*.ppk
+credentials.json
+*service-account*.json
+*service_account*.json
+.npmrc
+.netrc
+
+# =============================================================================
+# Go
+# =============================================================================
+backend/bin/
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+coverage.html
+coverage.out
+
+# =============================================================================
+# Node / frontend
+# =============================================================================
+node_modules/
+.pnpm-store/
+frontend/apps/*/build/
+frontend/apps/*/.svelte-kit/
+frontend/packages/*/dist/
+frontend/deploy/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =============================================================================
+# Database
+# =============================================================================
+# Dump hasil `make db-backup` bisa memuat data kesehatan nyata.
+deploy/backup/
+*.dump
+*.sql.gz
+
+# =============================================================================
+# Editor & OS
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# Catatan kerja lokal (bukan bagian dari produk)
+# =============================================================================
+# .hermes/ memuat rencana kerja dan catatan sesi agen.
+.hermes/
+# memory/ memuat catatan sesi agen (bukan dokumentasi produk).
+memory/
+# scratch/ untuk berkas sementara/uji lokal.
+scratch/

@@ -1,0 +1,64 @@
+info:
+  name: Daftar Perangkat
+  type: http
+  seq: 4
+  tags:
+    - notification
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/device-tokens"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Daftar Perangkat
+
+  Perangkat aktif milik user.
+
+  ## Token perangkat TIDAK dikembalikan
+
+  Ini keputusan privasi yang disengaja. Token perangkat adalah
+  **kredensial pengiriman**: siapa pun yang memegangnya bisa mengirim
+  notifikasi ke perangkat itu.
+
+  Yang dikembalikan hanya:
+
+  | Field | Isi |
+  |---|---|
+  | `id` | Untuk mencabut |
+  | `platform` | `web`, `android`, `ios` |
+  | `app_version` | Versi aplikasi saat mendaftar |
+  | `last_seen_at` | Terakhir terlihat |
+  | `created_at` | Kapan didaftarkan |
+
+  Itu cukup untuk menjawab "perangkat mana saja yang terdaftar" tanpa
+  menyebarkan kredensialnya.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019dd1...",
+        "platform": "web",
+        "app_version": "1.0.0",
+        "last_seen_at": "2026-10-11T10:00:00Z",
+        "created_at": "2026-10-11T10:00:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 1}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 10.

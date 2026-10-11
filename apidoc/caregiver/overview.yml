@@ -1,0 +1,122 @@
+info:
+  name: Ringkasan Pasien
+  type: http
+  seq: 7
+  tags:
+    - caregiver
+    - smoke
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/care/{{owner_id}}/overview?from=2026-10-05&to=2026-10-11"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.summary
+      operator: isDefined
+    - expression: res.body.data.permissions.can_manage_meds
+      operator: eq
+      value: false
+
+docs: |-
+  # Ringkasan Pasien
+
+  Kartu utama dashboard caregiver: kepatuhan pasien pada satu rentang.
+
+  ## Angkanya disusun dari perhitungan YANG SAMA dengan milik pasien
+
+  Caregiver **tidak punya jalur perhitungan tersendiri**. Kalau ada, cepat
+  atau lambat angkanya berbeda dari yang dilihat pasien, dan keduanya sama-sama
+  merasa benar.
+
+  ## Yang TIDAK dikirim
+
+  | Data | Kenapa |
+  |---|---|
+  | Foto resep | Data pribadi pasien, dikecualikan TRD bagian 5.2 |
+  | Catatan pribadi pasien | Sama |
+  | Audit log pasien | Bukan urusan caregiver |
+
+  Penyaringan dilakukan di **lapisan API**, bukan di UI. Kalau dikirim lalu
+  disembunyikan tampilan, datanya tetap ada di jaringan dan bisa dibaca siapa
+  pun yang memeriksa lalu lintas.
+
+  ## `permissions` selalu ikut
+
+  Klien tidak perlu menebak apa yang boleh dilakukan caregiver:
+
+  ```json
+  "permissions": {
+    "can_read": true,
+    "can_write_log": false,
+    "can_manage_meds": false,
+    "role": "viewer"
+  }
+  ```
+
+  `can_manage_meds` **selalu false** untuk caregiver, apa pun perannya.
+  Viewer dan helper sama-sama tidak boleh mengelola obat maupun jadwal.
+
+  ## Akses diperiksa ulang setiap request
+
+  Kalau relasinya dicabut, permintaan berikutnya langsung ditolak. Tidak ada
+  status yang di-cache di UI yang perlu disegarkan.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "owner_id": "019...",
+      "owner_name": "Budi Santoso",
+      "timezone": "Asia/Jakarta",
+      "from": "2026-10-05",
+      "to": "2026-10-11",
+      "summary": {
+        "scheduled_doses": 14,
+        "taken_doses": 11,
+        "late_doses": 2,
+        "skipped_doses": 1,
+        "missed_doses": 2,
+        "pending_doses": 0,
+        "adherence_ratio": 0.7857
+      },
+      "medications": [
+        {
+          "medication_id": "019ccc...",
+          "medication_name": "Amlodipine 10",
+          "color_tag": "#4F46E5",
+          "scheduled_doses": 14,
+          "taken_doses": 11,
+          "missed_doses": 2,
+          "pending_doses": 0,
+          "adherence_ratio": 0.7857
+        }
+      ],
+      "permissions": {
+        "can_read": true,
+        "can_write_log": false,
+        "can_manage_meds": false,
+        "role": "viewer"
+      }
+    }
+  }
+  ```
+
+  ## Contoh response — 404
+
+  ```json
+  {"error": {"code": "NOT_FOUND", "message": "data tidak ditemukan"}}
+  ```
+
+  Muncul bila tidak ada relasi `accepted` dengan pasien itu. Dijawab sebagai
+  tidak ditemukan, **bukan** tidak berhak: membedakannya akan memberi tahu
+  penyerang bahwa seorang user tertentu memang ada dan bisa dipantau.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

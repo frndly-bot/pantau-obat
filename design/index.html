@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pantau Obat — Hub Prototipe UI/UX</title>
+<meta name="description" content="Prototipe UI/UX statis Pantau Obat: aplikasi user (mobile-first) dan konsol admin (desktop-first). Data dummy, tanpa backend.">
+<script>try{var t=localStorage.getItem("po.design.theme")||"dark";var d=document.documentElement;d.dataset.theme=t;if(t==="dark")d.classList.add("dark");d.lang=localStorage.getItem("po.design.lang")||"id";}catch(e){}</script>
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .hub { max-width: 1180px; margin: 0 auto; padding: 26px 18px 70px; display: flex; flex-direction: column; gap: 22px; }
+  .hub-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .hub-head .logo-mark { width: 44px; height: 44px; border-radius: 14px; }
+  .hub-head .logo-mark svg { width: 24px; height: 24px; }
+  .hub-title { font-size: 22px; font-weight: 760; letter-spacing: -0.025em; }
+  .hub-sub { font-size: 13px; color: var(--muted-foreground); }
+  .launch { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .page-link { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); transition: all var(--dur) var(var(--ease)); }
+  .page-link:hover { border-color: var(--primary); background: var(--muted); transform: translateX(3px); }
+  .page-link b { font-size: 13.5px; font-weight: 650; }
+  .page-link span { display: block; font-size: 11.5px; color: var(--muted-foreground); margin-top: 1px; }
+  .page-link .ic { width: 17px; height: 17px; color: var(--primary); flex: none; }
+  .kbd-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .rule { display: flex; gap: 10px; font-size: 12.5px; color: var(--muted-foreground); line-height: 1.55; }
+  .rule .ic { width: 16px; height: 16px; color: var(--primary); flex: none; margin-top: 2px; }
+  .rule b { color: var(--foreground); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<div class="hub">
+
+  <header class="hub-head">
+    <span class="logo-mark" id="brand"></span>
+    <div class="grow">
+      <div class="hub-title">Pantau Obat — Prototipe UI/UX</div>
+      <div class="hub-sub">19 halaman statis · data dummy di <code class="mono">localStorage</code> · tanpa backend, tanpa API</div>
+    </div>
+    <div class="row gap-8" id="head-actions"></div>
+  </header>
+
+  <div class="banner info">
+    <span class="ic" id="bn-ic"></span>
+    <div>
+      <b>Cara pakai</b>
+      <p>Mulai dari <b>Login user</b> (email apa pun, mis. <code class="mono">budi@example.com</code>) atau <b>Login admin</b>
+      (<code class="mono">admin@example.com</code>). Sesi tersimpan di <code class="mono">localStorage</code>, jadi keputusan
+      Anda bertahan saat berpindah halaman. Tombol di luar cakupan dummy selalu memunculkan toast
+      “belum diintegrasi” — tidak ada tombol mati.</p>
+    </div>
+  </div>
+
+  <div class="launch">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Aplikasi User</h2>
+          <div class="sub">Mobile-first · 360px · bottom nav · target sentuh ≥ 44px</div>
+        </div>
+        <span id="badge-user"></span>
+      </div>
+      <div class="card-pad stack-8" id="list-user"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Konsol Admin</h2>
+          <div class="sub">Desktop-first · ≥1280px · sidebar tetap · tabel padat</div>
+        </div>
+        <span id="badge-admin"></span>
+      </div>
+      <div class="card-pad stack-8" id="list-admin"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Peta interaksi antar halaman</h2>
+        <div class="sub">Apa yang berubah dan tersimpan saat satu aksi dilakukan</div>
+      </div>
+    </div>
+    <div class="card-pad">
+      <div class="flow" id="flow"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Aturan yang dipatuhi prototipe ini</h2></div>
+    <div class="card-pad stack" id="rules"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Batas yang disengaja</h2></div>
+    <div class="card-pad stack" id="limits"></div>
+  </section>
+
+  <div class="row-wrap" style="justify-content:space-between">
+    <span class="xs muted-3">Kontrak API acuan: <span class="mono">docs/design-v2/api-v2.md</span> · enum Inggris, label Indonesia</span>
+    <button class="btn btn-danger btn-sm" id="reset"></button>
+  </div>
+</div>
+
+<div class="toasts"></div>
+<script src="assets/icons.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  var A = POAPP;
+
+  var USER_PAGES = [
+    ["user/login.html", "Login", "Masuk + sesi dummy tersimpan", "key"],
+    ["user/register.html", "Daftar", "Email, telepon, timezone, sandi", "user"],
+    ["user/hari-ini.html", "Hari Ini", "Ringkasan kepatuhan + aksi dosis satu ketukan", "home"],
+    ["user/obat.html", "Obat", "Daftar obat, cari, wizard tambah 5 pola", "pill"],
+    ["user/obat-detail.html?id=med-01", "Detail Obat", "Jadwal, stok, restock, riwayat, catatan", "file"],
+    ["user/riwayat.html", "Riwayat", "Kalender, bagan, timeline, ekspor CSV", "activity"],
+    ["user/caregiver.html", "Caregiver", "Undang & pantau (viewer/helper)", "users"],
+    ["user/pengaturan.html", "Pengaturan", "Profil, notifikasi, perangkat, privasi", "sliders"]
+  ];
+
+  var ADMIN_PAGES = [
+    ["admin/login.html", "Login Admin", "Kredensial admin@example.com", "key"],
+    ["admin/dashboard.html", "Dashboard", "Agregat, job gagal, audit terakhir", "grid"],
+    ["admin/users.html", "Pengguna", "Tabel, filter, aktif/nonaktif, peran admin", "users"],
+    ["admin/user-detail.html?id=u-04", "Detail Pengguna", "Metadata akun + jejak audit (tanpa isi obat)", "file"],
+    ["admin/catalog.html", "Preset Katalog", "Daftar preset, terbitkan/tarik/arsipkan", "database"],
+    ["admin/catalog-detail.html?id=cat-01", "Detail Preset", "Field lengkap, kurasi, audit", "book"],
+    ["admin/catalog-import.html", "Impor Katalog", "Sumber KFA/BPOM, pratinjau, idempoten", "upload"],
+    ["admin/notifications.html", "Notifikasi", "Antrean job, kanal, retry, batalkan", "send"],
+    ["admin/stats.html", "Statistik", "Kepatuhan agregat & kesehatan kanal", "bar"]
+  ];
+
+  A.boot({
+    title: "Hub",
+    after: function () {
+      document.getElementById("brand").innerHTML = A.icon("shield");
+      document.getElementById("bn-ic").innerHTML = A.icon("info");
+
+      document.getElementById("head-actions").innerHTML =
+        '<a class="btn btn-outline btn-sm" href="user/login.html">' + A.icon("user") + "User</a>" +
+        '<a class="btn btn-outline btn-sm" href="admin/login.html">' + A.icon("shield") + "Admin</a>";
+
+      function card(list) {
+        return list.map(function (p) {
+          return '<a class="page-link" href="' + p[0] + '">' + A.icon(p[3]) +
+            "<div class=\"grow\"><b>" + A.esc(p[1]) + "</b><span>" + A.esc(p[2]) + "</span></div>" +
+            A.icon("chev-right", "ic") + "</a>";
+        }).join("");
+      }
+      document.getElementById("list-user").innerHTML = card(USER_PAGES);
+      document.getElementById("list-admin").innerHTML = card(ADMIN_PAGES);
+      document.getElementById("badge-user").innerHTML = A.badge("mobile-first", "badge-accent");
+      document.getElementById("badge-admin").innerHTML = A.badge("desktop-first", "badge-info");
+
+      var FLOW = [
+        ["Sesi & auth", [
+          ["user/login.html — login", "sesi user tersimpan, masuk <b>hari-ini.html</b>"],
+          ["admin/login.html — login", "peran + scope tersimpan, masuk <b>dashboard.html</b>"],
+          ["pengaturan — keluar", "sesi dihapus, kembali ke login"]
+        ]],
+        ["Pencatatan dosis", [
+          ["hari-ini — tandai diminum", "status kartu jadi <b>taken/late</b>, stok turun, riwayat bertambah"],
+          ["hari-ini — tunda", "badge <b>ditunda</b>, jam tunda disimpan di log"],
+          ["hari-ini — lewati", "status <b>skipped</b> + alasan tersimpan"],
+          ["obat-detail — restock", "saldo naik, transaksi <b>restock</b> masuk riwayat"]
+        ]],
+        ["Obat & jadwal", [
+          ["obat — wizard 5 pola", "obat baru muncul di <b>hari-ini</b> & <b>obat</b>, jadwal dihitung dari aturan"],
+          ["obat-detail — hentikan/hapus", "obat pindah ke arsip, log lama tetap utuh"],
+          ["obat-detail — ubah jam", "berlaku untuk dosis ke depan, log lama tidak berubah"]
+        ]],
+        ["Caregiver", [
+          ["caregiver — undang", "status <b>pending</b> → diterima/ditolak"],
+          ["caregiver — helper catat dosis", "log <b>source=caregiver</b>, viewer tidak punya tombol tulis"],
+          ["caregiver — cabut akses", "status <b>revoked</b>, akses langsung hilang"]
+        ]],
+        ["Admin", [
+          ["catalog — terbitkan", "status <b>draft → published</b>, tercatat di audit"],
+          ["catalog — arsipkan", "preset pensiun, tidak dihapus permanen"],
+          ["users — nonaktifkan", "badge nonaktif, akun tidak bisa login"],
+          ["notifications — ulangi", "job <b>failed → pending</b>, audit bertambah"],
+          ["catalog-import — jalankan", "ringkasan impor + audit <b>catalog_import</b>"]
+        ]]
+      ];
+      document.getElementById("flow").innerHTML = FLOW.map(function (col) {
+        return '<div class="flow-col"><h4>' + A.esc(col[0]) + "</h4>" +
+          col[1].map(function (r) {
+            return '<div class="flow-link">' + A.icon("zap") + "<div><b>" + r[0] + "</b><br>" +
+              '<span class="arrow-note">' + r[1] + "</span></div></div>";
+          }).join("") + "</div>";
+      }).join("");
+
+      var RULES = [
+        ["Mobile responsive = requirement", "Semua halaman user terbaca di 360px tanpa zoom; target sentuh ≥ 44×44 px."],
+        ["Enum Inggris, label Indonesia", "Database & API memakai <span class=\"mono\">after_meal</span>, <span class=\"mono\">morning</span>, <span class=\"mono\">viewer</span>. UI menampilkan “Sesudah makan”, “Pagi”, “Baca saja”."],
+        ["Jadwal = aturan, bukan baris per hari", "Terapi seumur hidup tetap 3 baris: 1 pola + N jam. Tampilan hari ini dihitung dari aturan."],
+        ["Peran caregiver = izin akses", "Peran <span class=\"mono\">viewer</span> hanya membaca (“Baca saja”); <span class=\"mono\">helper</span> boleh mencatat dosis (“Bisa edit”) tanpa bisa mengubah obat/jadwal."],
+        ["Admin tidak melihat isi obat pasien", "Halaman admin hanya agregat & metadata akun. Nama obat pasien tidak pernah ditampilkan."],
+        ["Tema terang + gelap", "Token warna dua tema, efek kilau (sheen) dan kaca; pilihan tema tersimpan per browser."]
+      ];
+      document.getElementById("rules").innerHTML = RULES.map(function (r) {
+        return '<div class="rule">' + A.icon("check") + "<div><b>" + r[0] + "</b><br>" + r[1] + "</div></div>";
+      }).join("");
+
+      var LIMITS = [
+        "Tidak ada integrasi API/backend — semua angka dummy dan hidup di browser.",
+        "Auth tidak nyata: kredensial apa pun lolos, peran ditentukan dari pola email.",
+        "Foto resep hanya placeholder bergaris, bukan berkas nyata.",
+        "Notifikasi push/telegram/email hanya simulasi status, tidak benar-benar terkirim.",
+        "Service worker/PWA install belum termasuk di prototipe ini."
+      ];
+      document.getElementById("limits").innerHTML = LIMITS.map(function (t) {
+        return '<div class="rule">' + A.icon("info") + "<div>" + A.esc(t) + "</div></div>";
+      }).join("");
+
+      var btn = document.getElementById("reset");
+      btn.innerHTML = A.icon("undo") + "Reset data dummy";
+      btn.addEventListener("click", function () {
+        PO.reset();
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

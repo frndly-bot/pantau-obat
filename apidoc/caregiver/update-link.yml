@@ -1,0 +1,69 @@
+info:
+  name: Ubah Tingkat Izin
+  type: http
+  seq: 5
+  tags:
+    - caregiver
+
+http:
+  method: PATCH
+  url: "{{base_url}}/api/v1/care-links/{{care_link_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "role": "helper",
+        "relation": "spouse"
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+docs: |-
+  # Ubah Tingkat Izin
+
+  Mengubah tingkat izin (`viewer` ↔ `helper`) atau hubungan.
+
+  ## Hanya PEMILIK data yang boleh mengubah
+
+  Caregiver **tidak bisa** menaikkan perannya sendiri. Kalau bisa, batas izin
+  antara viewer dan helper tidak berarti apa-apa.
+
+  Percobaan dari caregiver dijawab 404, bukan 403 — membedakannya akan
+  memberi tahu bahwa relasi itu memang ada.
+
+  ## Efek perubahan langsung berlaku
+
+  Karena hak akses diperiksa ulang **setiap request**, menaikkan dari `viewer`
+  ke `helper` langsung memberi kemampuan mencatat dosis — tanpa perlu login
+  ulang.
+
+  ## Body kosong ditolak
+
+  ```json
+  {"error": {"code": "VALIDATION_FAILED", "message": "tidak ada field yang diubah"}}
+  ```
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "id": "019cc1...",
+      "role": "helper",
+      "relation": "spouse",
+      "status": "accepted"
+    }
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 9.

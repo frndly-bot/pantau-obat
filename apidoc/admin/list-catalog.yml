@@ -1,0 +1,69 @@
+info:
+  name: Daftar Katalog (Admin)
+  type: http
+  seq: 8
+  tags:
+    - admin
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/admin/catalog?status=draft&limit=50"
+  auth:
+    type: bearer
+    token: "{{admin_access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Daftar Katalog (Admin)
+
+  Katalog **termasuk draft dan arsip**. Butuh scope **`catalog`**.
+
+  Berbeda dari `GET /catalog` milik user yang hanya menampilkan preset
+  `published`: admin perlu melihat semua status untuk bisa mengurasi.
+
+  ## Query
+
+  | Parameter | Arti |
+  |---|---|
+  | `status` | `draft`, `published`, `archived` |
+  | `q` | Cari di nama tampilan |
+  | `limit` | Bawaan 50, maksimum 100 |
+
+  ## Hanya preset publik
+
+  Query-nya memfilter `is_preset = true`, sehingga katalog pribadi user
+  **tidak pernah muncul** di halaman admin. Nama obat yang dibuat user pribadi
+  bisa membocorkan kondisi kesehatannya.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "id": "019aaa...",
+        "display_name": "Amlodipine 10 mg Tablet",
+        "is_preset": true,
+        "curation_status": "draft",
+        "source": "manual",
+        "dosage_form_name": "Tablet",
+        "route_name": "Oral",
+        "kfa_code": null,
+        "bpom_nie": null,
+        "curated_by": null,
+        "curated_at": null,
+        "created_at": "2026-10-11T10:00:00Z"
+      }
+    ],
+    "page": {"next_cursor": null, "has_more": false, "limit": 50}
+  }
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 11.
