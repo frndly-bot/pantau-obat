@@ -1,123 +1,123 @@
 # Pantau Obat — Personal Medication Adherence + Caregiver Monitoring
 
-Status: **backend jalan & teruji.** 77 rute, 92 unit test lulus, dan uji e2e
-apidoc **75/75 request dengan 159/159 assertion** (idempoten). Frontend belum
-dimulai; wireframe HTML ada di `design/`.
-Stack: Backend Go 1.27 | DB PostgreSQL 18 | Frontend SvelteKit + Svelte 5 + shadcn-svelte | PWA (native menyusul)
+Status: **backend is running & tested.** 77 routes, 92 unit tests passing, and the
+apidoc e2e suite **75/75 requests with 159/159 assertions** (idempotent). The
+frontend has not started; HTML wireframes live in `design/`.
+Stack: Backend Go 1.27 | DB PostgreSQL 18 | Frontend SvelteKit + Svelte 5 + shadcn-svelte | PWA (native later)
 
-## Struktur
+## Layout
 
 ```
 pantau-obat/
-  Makefile               # titik masuk tunggal untuk semua perintah
+  Makefile               # single entry point for every command
   scripts/
-    setup-toolchain.sh   # pasang Go + Node + pnpm + TypeScript
-    dev-api.sh           # jalankan backend lokal (muat env, isi APP_PUBLIC_URL)
+    setup-toolchain.sh   # install Go + Node + pnpm + TypeScript
+    dev-api.sh           # run the backend locally (loads env, sets APP_PUBLIC_URL)
   db/
-    README.md            # aturan migrasi goose
+    README.md            # goose migration rules
   backend/
-    migrations -> internal/repo/postgres/migrations   # 25 migrasi (symlink)
-    cmd/ internal/       # Go 1.27, satu binary (lihat README)
+    migrations -> internal/repo/postgres/migrations   # 25 migrations (symlink)
+    cmd/ internal/       # Go 1.27, single binary (see README)
     README.md
-  apidoc/                # OpenCollection spec + uji e2e API (75 endpoint)
+  apidoc/                # OpenCollection spec + API e2e tests (75 endpoints)
     README.md
   deploy/
-    docker-compose.yml   # PostgreSQL 18, tuning hemat resource
-    .env.example         # contoh konfigurasi
+    docker-compose.yml   # PostgreSQL 18, resource-efficient tuning
+    .env.example         # example configuration
     postgres/            # postgresql.conf + initdb
     README.md
-  design/                # wireframe HTML interaktif (user + admin)
-  frontend/              # KOSONG — workspace SvelteKit (lihat README)
+  design/                # interactive HTML wireframes (user + admin)
+  frontend/              # EMPTY — SvelteKit workspace (see README)
   docs/
     trd-v2/              # TRD v2
-    design-v2/           # arsitektur, data model, API, notifikasi
+    design-v2/           # architecture, data model, API, notifications
     decisions-v2/        # ADR 001-005
-    design/erd.html      # ERD visual (buka langsung di browser)
-    issues/              # catatan debug per-isu
+    design/erd.html      # visual ERD (open directly in a browser)
+    issues/              # per-issue debug notes
 ```
 
-## Menjalankan backend
+## Running the backend
 
 ```bash
-make db-up                    # nyalakan PostgreSQL 18
-make db-migrate               # jalankan migrasi goose (25 file)
-scripts/dev-api.sh --bg       # jalankan API di latar, log ke /tmp
-curl -s localhost:8080/readyz # pastikan database: ok
+make db-up                    # start PostgreSQL 18
+make db-migrate               # run goose migrations (25 files)
+scripts/dev-api.sh --bg       # run the API in the background, log to /tmp
+curl -s localhost:8080/readyz # confirm database: ok
 
-# admin pertama (peran admin tidak bisa diberikan lewat API)
+# first admin (the admin role cannot be granted through the API)
 cd backend && go run ./cmd/admin-bootstrap \
-    --email admin@example.com --password 'Rahasia123!' --name "Admin"
+    --email admin@example.com --password 'ChangeMe123!' --name "Admin"
 
-make apidoc-run               # uji e2e: 75 request, 159 assertion
+make apidoc-run               # e2e test: 75 requests, 159 assertions
 ```
 
-## Dokumen aktif
+## Active documents
 
 ### TRD
-- `docs/trd-v2/TRD-v2.md` — tujuan, persona, user story, AC, NFR, lingkup versi
+- `docs/trd-v2/TRD-v2.md` — goals, personas, user stories, AC, NFR, version scope
 
-### Desain
-- `docs/design-v2/architecture-v2.md` — arsitektur, struktur backend/frontend, deployment
-- `docs/design-v2/data-model-v2.md` — entitas database lengkap + alasan tiap index
-- `docs/design-v2/api-v2.md` — kontrak endpoint, kode error, envelope
-- `docs/design-v2/notification-v2.md` — strategi pengingat, antrean, terlewat
-- `docs/design/erd.html` — ERD visual, offline, buka di browser
+### Design
+- `docs/design-v2/architecture-v2.md` — architecture, backend/frontend structure, deployment
+- `docs/design-v2/data-model-v2.md` — full database entities + rationale for each index
+- `docs/design-v2/api-v2.md` — endpoint contract, error codes, envelope
+- `docs/design-v2/notification-v2.md` — reminder strategy, queue, missed doses
+- `docs/design/erd.html` — visual ERD, offline, open in a browser
 
-### Keputusan
-- `docs/decisions-v2/ADR-001-stack-v2.md` — pilihan stack keseluruhan
+### Decisions
+- `docs/decisions-v2/ADR-001-stack-v2.md` — overall stack choice
 - `docs/decisions-v2/ADR-002-postgresql-18-v2.md` — PostgreSQL 18, uuidv7, tuning
-- `docs/decisions-v2/ADR-003-frontend-dua-app.md` — kenapa dua aplikasi frontend
-- `docs/decisions-v2/ADR-004-katalog-preset.md` — preset publik vs katalog pribadi user
-- `docs/decisions-v2/ADR-005-jadwal-aturan.md` — kenapa jadwal disimpan sebagai aturan
+- `docs/decisions-v2/ADR-003-frontend-dua-app.md` — why two frontend apps
+- `docs/decisions-v2/ADR-004-katalog-preset.md` — public presets vs the user's private catalog
+- `docs/decisions-v2/ADR-005-jadwal-aturan.md` — why schedules are stored as rules
 
-## Prinsip
+## Principles
 
-- **Explore → plan → build.** Tidak ada kode sebelum rencana disetujui.
-- **Wireframe = HTML interaktif per halaman dalam satu folder**, bukan ASCII.
-- **Mobile responsive = requirement**, bukan polish.
-- **`backend/migrations/` adalah sumber kebenaran skema.** Kalau dokumen berbeda, migrasi yang benar.
-- **Enum di database berbahasa Inggris** demi maintainability; terjemahan ke Bahasa Indonesia di frontend.
-- **Verifikasi live, bukan sekadar unit test hijau.** Bukti dari container yang berjalan.
+- **Explore → plan → build.** No code before the plan is approved.
+- **Wireframes = interactive HTML, one page per file in a single folder**, not ASCII.
+- **Mobile responsive = a requirement**, not polish.
+- **`backend/migrations/` is the source of truth for the schema.** If a document disagrees, the migrations win.
+- **Database enums are in English** for maintainability; translated to Indonesian in the frontend.
+- **Verify live, not just green unit tests.** Evidence from the running container.
 
-## Perubahan besar dari v1
+## Major changes from v1
 
-1. **Jadwal disimpan sebagai aturan**, bukan baris per hari. Terapi seumur hidup tetap 3 baris.
-2. **Pola frekuensi diperluas** ke lima bentuk: harian, interval, mingguan, siklus bulanan, PRN.
-3. **Stok dan restock** ditambahkan, termasuk peringatan obat hampir habis.
-4. **Katalog obat** dengan pemisahan preset publik (kurasi admin) dan katalog pribadi user.
-5. **Peran admin** ditambahkan, terpisah dari status aktif akun, dengan `admin_scope`.
-6. **Frontend dipecah dua**: user mobile-first dan admin desktop-first.
-7. **Backend tetap satu folder dan satu binary** — pemisahan admin di layer otorisasi.
+1. **Schedules are stored as rules**, not one row per day. Lifelong therapy stays at 3 rows.
+2. **Frequency patterns expanded** to five forms: daily, interval, weekly, monthly cycle, PRN.
+3. **Stock and restock** added, including low-medication warnings.
+4. **Drug catalog** with public presets (admin-curated) separated from each user's private catalog.
+5. **Admin role** added, separate from account active status, with `admin_scope`.
+6. **Frontend split in two**: user mobile-first and admin desktop-first.
+7. **Backend stays one folder and one binary** — admin separation lives in the authorization layer.
 
-## Menyiapkan lingkungan
+## Setting up the environment
 
-**Didukung:** macOS (Intel dan Apple Silicon) dan Linux Debian-based
+**Supported:** macOS (Intel and Apple Silicon) and Debian-based Linux
 (Ubuntu, Debian, Linux Mint, Pop!_OS).
 
-**Windows:** tidak didukung langsung. Pakai WSL2 dulu:
+**Windows:** not supported directly. Use WSL2 first:
 
 ```powershell
 wsl --install -d Ubuntu
 ```
 
-Restart, buka Ubuntu, lalu jalankan perintah di bawah dari dalam WSL.
+Restart, open Ubuntu, then run the commands below from inside WSL.
 
 ```bash
 make setup-toolchain   # Go 1.27 + nvm + Node 24 LTS + pnpm + TypeScript
-make check-tools       # hanya periksa, tidak mengubah apa pun
+make check-tools       # only checks, changes nothing
 ```
 
-Semua dipasang **user-local** di `$HOME`, tanpa sudo.
+Everything installs **user-local** under `$HOME`, without sudo.
 
-## Menjalankan database
+## Running the database
 
 ```bash
-make db-up         # nyalakan PostgreSQL 18
-make db-migrate    # jalankan migrasi goose
-make verify        # cek toolchain + DB + jumlah tabel
+make db-up         # start PostgreSQL 18
+make db-migrate    # run goose migrations
+make verify        # check toolchain + DB + table count
 ```
 
-Detail ada di `deploy/README.md`. Untuk melihat semua perintah:
+Details are in `deploy/README.md`. To see every command:
 
 ```bash
 make help
