@@ -1,38 +1,38 @@
-# apidoc — OpenCollection Spec (Kontrak API)
+# apidoc — OpenCollection Spec (API Contract)
 
-Status: **lengkap dan lulus.** 75 file endpoint di 12 folder; satu kali run
-koleksi menghasilkan **75/75 request lulus dengan 159/159 assertion**, dan
-idempoten (run kedua di database yang sama tetap lulus).
-Dokumen kontrak API: `docs/design-v2/api-v2.md`.
+Status: **complete and passing.** 75 endpoint files across 12 folders; one
+collection run produces **75/75 requests passing with 159/159 assertions**, and
+is idempotent (a second run against the same database still passes).
+API contract document: `docs/design-v2/api-v2.md`.
 
-Folder ini adalah **syarat kelayakan backend**. Backend belum dianggap selesai
-sampai setiap endpoint di `docs/design-v2/api-v2.md` punya file di sini, dengan
-contoh request dan contoh response yang benar-benar bisa dijalankan.
+This folder is the **backend's readiness gate**. The backend is not considered
+done until every endpoint in `docs/design-v2/api-v2.md` has a file here, with an
+example request and example response that actually run.
 
-## Kenapa OpenCollection
+## Why OpenCollection
 
-[OpenCollection](https://spec.opencollection.com/) (spesifikasi v1.0.0) adalah
-format terbuka untuk mendeskripsikan koleksi API: request, autentikasi,
-variabel, dan skrip. Dipilih karena:
+[OpenCollection](https://spec.opencollection.com/) (spec v1.0.0) is an open
+format for describing API collections: requests, auth, variables, and scripts.
+Chosen because:
 
-- **Format teks di repo.** Bisa di-diff, di-review, dan masuk git. Bukan file
-  biner atau export dari tool tertentu.
-- **Multi-file per folder.** Satu endpoint satu file. Tidak ada satu file raksasa
-  yang bentrok saat beberapa orang menambah endpoint.
-- **Bisa dijalankan sebagai test.** Bagian `runtime` mendukung skrip dan
-  assertion, jadi folder ini bukan cuma dokumentasi, tapi juga mekanisme uji
-  end-to-end.
-- **Tidak mengunci tool.** Bisa dibuka di Bruno, atau tool lain yang mendukung
-  spesifikasi ini.
+- **Text format in the repo.** It can be diffed, reviewed, and committed. Not a
+  binary file or a tool-specific export.
+- **Multi-file per folder.** One endpoint, one file. No single giant file that
+  conflicts when several people add endpoints.
+- **Runnable as a test.** The `runtime` section supports scripts and assertions,
+  so this folder is not just documentation but also an end-to-end test
+  mechanism.
+- **No tool lock-in.** It can be opened in Bruno, or any other tool that supports
+  this spec.
 
-## Struktur folder
+## Folder structure
 
 ```
 apidoc/
-  opencollection.yml              # metadata koleksi + variabel
+  opencollection.yml              # collection metadata + variables
   environments/
-    local.yml                    # base_url lokal
-    staging.yml                  # base_url staging
+    local.yml                    # local base_url
+    staging.yml                  # staging base_url
   authentication/
     register.yml
     login.yml
@@ -124,15 +124,15 @@ apidoc/
     readyz.yml
 ```
 
-Folder mengikuti **resource**, bukan halaman UI. Satu endpoint = satu file.
+Folders follow the **resource**, not the UI page. One endpoint = one file.
 
-## Format file
+## File format
 
-Mengikuti struktur OpenCollection. Contoh lengkap:
+Follows the OpenCollection structure. Full example:
 
 ```yaml
 info:
-  name: Buat Obat Baru
+  name: Create Medication
   type: http
   seq: 2
   tags:
@@ -178,111 +178,111 @@ runtime:
         bru.setVar("medication_id", res.body.data.id);
 
 docs: |-
-  # Buat Obat Baru
+  # Create Medication
 
-  Membuat obat beserta pola frekuensi, jam minum, dan stok awal.
+  Creates a medication together with its frequency pattern, dose times, and initial stock.
 
-  ## Catatan
-  - `frequency.pattern=daily` wajib menyertakan `times_per_day`.
-  - `uq_meds_owner_name` menolak duplikat nama+dosis+satuan milik user sama.
-  - Balasan 409 `DUPLICATE_MEDICATION` bila duplikat.
+  ## Notes
+  - `frequency.pattern=daily` must include `times_per_day`.
+  - `uq_meds_owner_name` rejects a duplicate name+dose+unit for the same user.
+  - Returns 409 `DUPLICATE_MEDICATION` on a duplicate.
 
-  Kontrak: `docs/design-v2/api-v2.md` bagian 5.
+  Contract: `docs/design-v2/api-v2.md` section 5.
 ```
 
-## Menyiapkan environment
+## Setting up the environment
 
-Nilai rahasia (password admin uji, secret webhook) **tidak** disimpan di file
-yang masuk git. Salin contohnya lalu isi:
+Secret values (test admin password, webhook secrets) are **not** stored in files
+that are committed to git. Copy the example and fill it in:
 
 ```bash
 cp apidoc/.env.example apidoc/.env
-# lalu edit apidoc/.env: ADMIN_PASSWORD, EMAIL_WEBHOOK_SECRET,
-# TELEGRAM_WEBHOOK_SECRET — nilainya harus cocok dengan backend yang dijalankan
+# then edit apidoc/.env: ADMIN_PASSWORD, EMAIL_WEBHOOK_SECRET,
+# TELEGRAM_WEBHOOK_SECRET — the values must match the backend you run
 ```
 
-`environments/local.yml` membaca nilai itu lewat interpolasi
-`{{process.env.NAMA}}`, jadi `local.yml` tetap aman untuk repo publik. `apidoc/.env`
-sendiri diabaikan oleh `.gitignore` root.
+`environments/local.yml` reads those values via
+`{{process.env.NAME}}` interpolation, so `local.yml` stays safe for a public
+repo. `apidoc/.env` itself is ignored by the root `.gitignore`.
 
-## Variabel
+## Variables
 
-Didefinisikan di `opencollection.yml`, nilai per environment di
-`environments/*.yml`. Rahasia diambil dari `apidoc/.env` (lihat di atas).
+Defined in `opencollection.yml`, per-environment values in
+`environments/*.yml`. Secrets come from `apidoc/.env` (see above).
 
-| Variabel | Isi |
+| Variable | Contents |
 |---|---|
 | `base_url` | `http://localhost:8080` (local) |
-| `access_token` | diisi otomatis oleh `authentication/login.yml` |
-| `user_id` | diisi otomatis oleh `authentication/register.yml` |
-| `medication_id` | diisi otomatis oleh `medication/create.yml` |
-| `schedule_id` | diisi otomatis oleh `schedule/create-time.yml` |
-| `log_id` | diisi otomatis oleh `log/create.yml` |
-| `catalog_id` | diisi otomatis oleh `catalog/create.yml` |
-| `care_link_id` | diisi otomatis oleh `caregiver/create-invite.yml` |
-| `admin_token` | token akun admin (dari seed, bukan register) |
+| `access_token` | set automatically by `authentication/login.yml` |
+| `user_id` | set automatically by `authentication/register.yml` |
+| `medication_id` | set automatically by `medication/create.yml` |
+| `schedule_id` | set automatically by `schedule/create-time.yml` |
+| `log_id` | set automatically by `log/create.yml` |
+| `catalog_id` | set automatically by `catalog/create.yml` |
+| `care_link_id` | set automatically by `caregiver/create-invite.yml` |
+| `admin_token` | admin account token (from the seed, not register) |
 
-Rantai variabel ini yang membuat folder ini bisa dipakai sebagai **uji e2e
-berurutan**: register → login → buat obat → catat dosis → cek stok → cek
-kepatuhan.
+This chain of variables is what lets the folder be used as a **sequential e2e
+test**: register → login → create medication → log a dose → check stock → check
+adherence.
 
-## Urutan jalan (collection run)
+## Run order (collection run)
 
-Urutan `seq` disusun supaya satu kali run membentuk alur nyata:
+The `seq` order is arranged so that a single run forms a real flow:
 
-1. `health/healthz` — pastikan API hidup
-2. `authentication/register` — buat akun uji
-3. `authentication/login` — dapat `access_token`
-4. `catalog/search` — cari preset
-5. `medication/create` — buat obat + frekuensi + jam + stok
-6. `log/create` — catat dosis, cek stok berkurang
-7. `stock/get` — pastikan saldo turun satu
-8. `medication/adherence` — cek angka kepatuhan
-9. `caregiver/create-invite` — undang caregiver
-10. `admin/*` — dengan `admin_token` terpisah
+1. `health/healthz` — make sure the API is up
+2. `authentication/register` — create a test account
+3. `authentication/login` — get `access_token`
+4. `catalog/search` — find a preset
+5. `medication/create` — create medication + frequency + times + stock
+6. `log/create` — log a dose, verify stock decreases
+7. `stock/get` — confirm the balance dropped by one
+8. `medication/adherence` — check the adherence figure
+9. `caregiver/create-invite` — invite a caregiver
+10. `admin/*` — with a separate `admin_token`
 
-## Aturan pengisian
+## Authoring rules
 
-1. **Satu file satu endpoint.** Jangan gabung.
-2. **Setiap file punya `docs`.** Isinya ringkas: tujuan, catatan penting, kode
-   error yang mungkin muncul, dan rujukan ke `api-v2.md`.
-3. **Setiap file punya `runtime.assertions` minimal status code.** Untuk endpoint
-   penting, tambah assertion pada field yang bermakna.
-4. **Contoh request harus benar-benar jalan.** Bukan placeholder seperti
-   `"name": "string"`. Pakai nilai nyata yang masuk akal.
-5. **Contoh response disimpan di `docs`.** Sertakan satu contoh sukses dan satu
-   contoh gagal yang relevan.
-6. **Enum wajib pakai nilai Inggris** yang sama dengan CHECK di migrasi:
-   `after_meal`, `morning`, `child`, `imported`. Jangan nilai Indonesia.
-7. **Tidak ada secret di file.** Pakai variabel. Password contoh boleh literal,
-   tapi token tidak. Untuk rahasia nyata (password admin uji, secret webhook),
-   simpan di `apidoc/.env` dan rujuk lewat `{{process.env.NAMA}}`.
-8. **Endpoint admin dipisah folder.** Jangan dicampur dengan endpoint user,
-   karena `admin_scope` dan auditnya berbeda.
+1. **One file, one endpoint.** Do not combine.
+2. **Every file has `docs`.** Keep it concise: purpose, important notes, error
+   codes that may occur, and a reference to `api-v2.md`.
+3. **Every file has `runtime.assertions` with at least a status code.** For
+   important endpoints, add assertions on meaningful fields.
+4. **Example requests must actually run.** Not placeholders like
+   `"name": "string"`. Use realistic values.
+5. **Example responses are stored in `docs`.** Include one success example and one
+   relevant failure example.
+6. **Enums must use English values** that match the CHECK constraints in the
+   migrations: `after_meal`, `morning`, `child`, `imported`. No Indonesian
+   values.
+7. **No secrets in files.** Use variables. Example passwords may be literal,
+   but tokens may not. For real secrets (test admin password, webhook secrets),
+   store them in `apidoc/.env` and reference them via `{{process.env.NAME}}`.
+8. **Admin endpoints get their own folder.** Do not mix them with user
+   endpoints, because `admin_scope` and auditing differ.
 
-## Kelayakan backend
+## Backend readiness
 
-Backend dianggap layak kalau **semua** ini terpenuhi:
+The backend is considered ready when **all** of these are met:
 
-- [x] Semua endpoint di `docs/design-v2/api-v2.md` punya file di `apidoc/`.
-- [x] Collection run dari nol (database kosong) lulus tanpa error.
-- [x] Setiap endpoint punya minimal satu assertion status code.
-- [x] Alur e2e bernilai: register → obat → catat → stok turun → kepatuhan naik.
-- [x] Alur admin terpisah lulus, termasuk uji `ADMIN_SCOPE_DENIED`.
-- [x] Tidak ada `access_token` atau secret yang ter-commit.
-- [ ] Environment `staging.yml`.
-- [ ] Target `apidoc-run` di CI dengan `set -o pipefail`.
+- [x] Every endpoint in `docs/design-v2/api-v2.md` has a file in `apidoc/`.
+- [x] A collection run from scratch (empty database) passes without errors.
+- [x] Every endpoint has at least one status-code assertion.
+- [x] The e2e flow is meaningful: register → medication → log → stock drops → adherence rises.
+- [x] The admin flow passes separately, including the `ADMIN_SCOPE_DENIED` test.
+- [x] No `access_token` or secret is committed.
+- [ ] `staging.yml` environment.
+- [ ] `apidoc-run` target in CI with `set -o pipefail`.
 
-Catatan pada butir terakhir: `make apidoc-run` memakai `bru run`, dan bila
-keluarannya dipipe (`| tail`), status keluarnya bisa tertutup oleh pipe.
-Untuk dipakai sebagai gerbang CI, pipa itu perlu `set -o pipefail` — kalau
-tidak, run yang gagal akan lolos hijau.
+A note on the last item: `make apidoc-run` uses `bru run`, and when its output
+is piped (`| tail`), its exit status can be masked by the pipe. To use it as a CI
+gate, that pipe needs `set -o pipefail` — otherwise a failing run passes green.
 
-## Yang sudah ada
+## What already exists
 
-**75 file endpoint** di 12 folder, ditambah 12 `folder.yml`.
+**75 endpoint files** across 12 folders, plus 12 `folder.yml`.
 
-| Folder | File | Isi |
+| Folder | Files | Contents |
 |---|---|---|
 | `health/` | 2 | `/healthz`, `/readyz` |
 | `authentication/` | 9 | register, register-caregiver, login, login-admin, refresh, logout, me, change-password, relogin |
@@ -297,17 +297,17 @@ tidak, run yang gagal akan lolos hijau.
 | `admin/` | 16 | list-users, get-user, disable/enable/erase-user, grant/revoke-admin, list/create/publish/unpublish/archive-catalog, list/retry/cancel-job, stats |
 | `webhook/` | 2 | email-status, telegram-update |
 
-Hasil run terakhir: **75/75 request lulus, 159/159 assertion**, dan
-**idempoten** — dijalankan dua kali di database yang sama tetap lulus.
+Latest run result: **75/75 requests passing, 159/159 assertions**, and
+**idempotent** — run twice against the same database it still passes.
 
-## Urutan folder WAJIB pakai `folder.yml`
+## Folder order MUST use `folder.yml`
 
-Bruno mengurutkan folder secara **alfabetis**, bukan berdasarkan alur. Tanpa
-`seq`, `adherence/` dan `admin/` berjalan **sebelum** `authentication/`,
-sehingga `access_token` belum ada dan puluhan request menanggung 401 berantai
-— terlihat seperti bug backend padahal bukan.
+Bruno sorts folders **alphabetically**, not by flow. Without `seq`, `adherence/`
+and `admin/` run **before** `authentication/`, so `access_token` does not exist
+yet and dozens of requests carry a cascade of 401s — it looks like a backend bug
+when it is not.
 
-Setiap folder karena itu punya `folder.yml` berisi `info.seq`:
+Every folder therefore has a `folder.yml` containing `info.seq`:
 
 | seq | Folder | seq | Folder |
 |---|---|---|---|
@@ -318,40 +318,39 @@ Setiap folder karena itu punya `folder.yml` berisi `info.seq`:
 | 5 | log | 11 | admin |
 | 6 | stock | 12 | webhook |
 
-Menambah folder baru **wajib** memberinya `folder.yml` dengan `seq`, dan
-menyisipkannya tanpa menggeser yang lain kalau memungkinkan.
+Adding a new folder **must** give it a `folder.yml` with a `seq`, inserted
+without shifting the others when possible.
 
-## Yang belum ada
+## What is missing
 
-- Environment `staging.yml`.
-- Target `apidoc-run` di CI.
-- Uji `ADMIN_SCOPE_DENIED` yang benar-benar menembak admin bercakupan
-  terbatas. Saat ini hanya diuji secara tidak langsung.
+- `staging.yml` environment.
+- `apidoc-run` target in CI.
+- An `ADMIN_SCOPE_DENIED` test that actually hits a scope-limited admin. Today it
+  is only tested indirectly.
 
-## Tiga jebakan yang sudah ditemukan (jangan diulang)
+## Three pitfalls already found (do not repeat)
 
-1. **`bru.getVar` tidak membaca variabel environment.** Ia hanya membaca
-   variabel yang diset lewat `bru.setVar` (runtime). Variabel dari
-   `environments/*.yml` harus dibaca dengan **`bru.getEnvVar`**. Terbukti:
-   secret webhook terbaca kosong lewat `getVar`, sehingga tanda tangan HMAC
-   selalu salah dan endpoint membalas 401.
+1. **`bru.getVar` does not read environment variables.** It only reads variables
+   set via `bru.setVar` (runtime). Variables from `environments/*.yml` must be
+   read with **`bru.getEnvVar`**. Proven: the webhook secret read as empty via
+   `getVar`, so the HMAC signature was always wrong and the endpoint returned
+   401.
 
-2. **`isObject` bukan operator assertion yang dikenal Bruno.** Operator yang
-   sah: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`, `contains`,
+2. **`isObject` is not a known Bruno assertion operator.** The valid operators
+   are: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`, `contains`,
    `notContains`, `length`, `matches`, `notMatches`, `startsWith`, `endsWith`,
    `between`, `isEmpty`, `isNotEmpty`, `isNull`, `isUndefined`, `isDefined`,
    `isTruthy`, `isFalsy`, `isJson`, `isNumber`, `isString`, `isBoolean`,
-   `isArray`. Operator tak dikenal jatuh ke `eq` dan membandingkan dengan
-   string namanya — assertion gagal walau responsnya benar.
+   `isArray`. An unknown operator falls back to `eq` and compares against its own
+   name — the assertion fails even when the response is correct.
 
-3. **Body webhook harus bertipe `text`, bukan `json`.** Kalau bertipe `json`,
-   Bruno mengurai lalu menyusun ulang body-nya, sehingga byte yang terkirim
-   tidak lagi sama dengan byte yang ditandatangani. Server membalas 401 walau
-   HMAC-nya benar.
+3. **The webhook body must be type `text`, not `json`.** If it is `json`, Bruno
+   parses then re-serializes the body, so the bytes sent no longer match the
+   bytes signed. The server returns 401 even when the HMAC is correct.
 
-## Rujukan
+## References
 
-- Spesifikasi: <https://spec.opencollection.com/> (v1.0.0)
-- Referensi struktur YAML: <https://docs.usebruno.com/v3/opencollection-yaml/structure-reference>
-- Kontrak endpoint: `docs/design-v2/api-v2.md`
-- Aturan backend: `backend/README.md`
+- Spec: <https://spec.opencollection.com/> (v1.0.0)
+- YAML structure reference: <https://docs.usebruno.com/v3/opencollection-yaml/structure-reference>
+- Endpoint contract: `docs/design-v2/api-v2.md`
+- Backend rules: `backend/README.md`
