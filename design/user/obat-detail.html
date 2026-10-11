@@ -89,7 +89,11 @@
 
   var id = A.qs("id") || "med-01";
   var m = PO.med(id);
-  var tab = "jadwal";
+  /* Tab awal bisa ditentukan lewat ?tab=stok (dipakai tautan dari banner
+     restock di Hari Ini). Divalidasi agar tidak membuka panel yang tidak ada. */
+  var TABS = ["jadwal", "stok", "riwayat", "catatan"];
+  var qtab = A.qs("tab");
+  var tab = TABS.indexOf(qtab) >= 0 ? qtab : "jadwal";
 
   if (!m) {
     A.boot({

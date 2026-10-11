@@ -90,6 +90,9 @@ Thumbs.db
 # design/_review/ = tangkapan layar hasil verifikasi wireframe; besar dan
 # hanya untuk review lokal, bukan bagian dari UI yang di-serve.
 design/_review/
+# design/_shot.html = halaman bantu sekali pakai untuk menyemai sesi localStorage
+# saat verifikasi render (headless Chrome). Bukan bagian dari UI yang di-serve.
+design/_shot.html
 
 # =============================================================================
 # Catatan kerja lokal (bukan bagian dari produk)

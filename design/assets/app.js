@@ -185,21 +185,16 @@
       : kind === "dose_reminder" ? "clock" : "bell";
   }
 
-  function notifChannelIcon(ch) {
-    return ch === "push" ? "bell" : ch === "telegram" ? "send" : ch === "email" ? "mail" : "monitor";
-  }
-
-  /* Satu notifikasi = satu ikon jenis + satu ikon kanal (selalu berbeda, lihat
-     notifIcon). Tanpa badge baca/baru karena daftar ini hanya memuat yang
-     belum dibaca. */
+  /* Satu notifikasi = ikon jenis + judul + isi + waktu.
+     Kanal (push/telegram/email/in-app) TIDAK ditampilkan: ekspektasi awal
+     pengguna adalah push, jadi label kanal hanya menambah bising. */
   function notifItemHTML(n) {
     return '<button type="button" class="notif-item unread" data-notif="' + esc(n.id) + '">' +
       '<span class="avatar sm">' + icon(notifIcon(n.kind)) + "</span>" +
       '<span class="grow">' +
         '<span class="sm trunc"><b>' + esc(n.title) + "</b></span>" +
         '<span class="xs muted-3 trunc-2">' + esc(n.body) + "</span>" +
-        '<span class="xs muted-3">' + icon(notifChannelIcon(n.channel)) +
-          " " + esc(PO.t("channel", n.channel)) + " · " + esc(PO.relTime(n.created_at)) + "</span>" +
+        '<span class="xs muted-3">' + esc(PO.relTime(n.created_at)) + "</span>" +
       "</span></button>";
   }
 
@@ -793,7 +788,7 @@
     overlay: overlay, initOverlays: initOverlays, initTabs: initTabs, initSeg: initSeg, filterRows: filterRows,
     svgDefs: svgDefs, ring: ring, donut: donut, bars: bars, spark: spark, heat: heat, meter: meter,
     badge: badge, stat: stat, empty: empty, doseBadge: doseBadge, doseClass: doseClass,
-    notifIcon: notifIcon, notifChannelIcon: notifChannelIcon,
+    notifIcon: notifIcon,
     skel: skel, skelRows: skelRows, skelLines: skelLines,
     USER_NAV: USER_NAV, ADMIN_NAV: ADMIN_NAV
   };

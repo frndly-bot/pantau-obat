@@ -31,7 +31,7 @@
     border: 1px solid color-mix(in oklab, var(--warn) 45%, var(--border));
     color: var(--foreground);
   }
-  .hero-streak .hs-flame { display: grid; place-items: center; color: var(--warn); }
+  .hero-streak .hs-flame { display: grid; place-items: center; color: color-mix(in oklab, var(--warn) 78%, black); }
   .hero-streak .hs-flame svg { width: 0.875rem; height: 0.875rem; }
   .hero-streak .hs-num {
     font-family: var(--font-mono); font-weight: 700; line-height: 1;
@@ -444,9 +444,12 @@
     /* hero: ringkasan actionable (compact) */
     html += heroCard(s, c);
 
-    /* banner stok menipis */
+    /* banner stok menipis — SELURUH kartu bisa diklik dan mengarah ke tab
+       "Stok" di detail obat (tanpa tombol terpisah). Bila beberapa obat perlu
+       restock, tautan menuju obat pertama; nama obatnya ikut ditampilkan. */
     if (refillOn.length) {
-      html += '<div class="banner warn">' +
+      var restockFirst = refillOn[0];
+      html += '<a class="banner warn banner-link" href="obat-detail.html?id=' + A.esc(restockFirst.id) + '&tab=stok">' +
         '<span class="ic">' + A.icon("alert") + "</span>" +
         "<div class=\"grow\"><b>" + refillOn.length + " obat perlu di-restock</b>" +
         "<p>" + refillOn.map(function (m) {
@@ -454,8 +457,8 @@
           return A.esc(m.name) + " (sisa " + m.stock.current_qty + " " + A.esc(PO.t("unit", m.stock.unit_code)) +
             (info && info.daysLeft !== null ? ", ± " + info.daysLeft + " hari lagi" : "") + ")";
         }).join(" · ") + "</p></div>" +
-        '<button class="btn btn-warn btn-sm" data-dead="Pesan ulang ke apotek">' + A.icon("refresh") + "Pesan</button>" +
-      "</div>";
+        '<span class="bn-chev">' + A.icon("chev-right") + "</span>" +
+      "</a>";
     }
 
     /* daftar dosis hari ini */

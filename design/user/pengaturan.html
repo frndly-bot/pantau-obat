@@ -223,8 +223,7 @@
           '<div class="grow">' +
             '<div class="sm trunc"><b>' + A.esc(n.title) + "</b></div>" +
             '<div class="xs muted-3 trunc">' + A.esc(n.body) + "</div>" +
-            '<div class="xs muted-3">' + A.icon(A.notifChannelIcon(n.channel)) +
-              " " + A.esc(PO.t("channel", n.channel)) + " · " + A.esc(PO.relTime(n.created_at)) + "</div>" +
+            '<div class="xs muted-3">' + A.esc(PO.relTime(n.created_at)) + "</div>" +
           "</div>" +
         "</div>";
       }).join("") : A.empty("Tidak ada notifikasi baru", "Semua pengingat sudah dibaca. Yang baru akan muncul di sini.", "check-check")) + "</div></section>";
