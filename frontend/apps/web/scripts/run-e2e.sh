@@ -61,6 +61,7 @@ SUITES=(
 	e2e-caregiver
 	e2e-pengaturan
 	e2e-terima-undangan
+	e2e-layout
 )
 
 if [[ $# -gt 0 ]]; then

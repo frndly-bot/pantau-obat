@@ -131,3 +131,40 @@
     transform: none;
   }
 }
+
+/* ============================================================
+   Target sentuh di layar kecil (TRD §7.4: minimal 44×44 px).
+
+   Skala bawaan shadcn (h-8/h-9/h-10 = 32/36/40 px) dirancang untuk
+   desktop dengan kursor. Di layar sentuh ukuran itu terlalu kecil untuk
+   jari, dan salah tekan pada aplikasi ini berarti mencatat dosis yang
+   keliru — bukan sekadar klik yang gagal.
+
+   Prototipe desain sudah menerapkan ini (`design/assets/app.css`, aturan
+   `@media (max-width: 720px)`), tetapi belum ikut dipindahkan saat
+   komponen dibuat. Akibatnya ukuran kontrol di aplikasi Svelte lebih
+   kecil daripada rancangannya.
+
+   Tombol ikon diperlakukan sama: 36px (h-9 w-9) terlalu kecil, dan
+   justru tombol ikon yang paling sering salah tekan karena tidak ada
+   teks yang menuntun mata.
+   ============================================================ */
+@media (max-width: 720px) {
+  button,
+  [role="button"],
+  a[href],
+  input,
+  select,
+  textarea {
+    /* Hanya menaikkan yang memang lebih pendek; kontrol yang sudah besar
+       (mis. kartu yang bisa diklik) tidak ikut membesar. */
+    min-height: var(--touch);
+  }
+
+  /* Tombol ikon perlu lebar juga, bukan hanya tinggi, supaya area
+     sentuhnya benar-benar 44×44 dan bukan 44px kali beberapa piksel. */
+  button:has(> svg:only-child),
+  a[href]:has(> svg:only-child) {
+    min-width: var(--touch);
+  }
+}

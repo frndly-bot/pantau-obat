@@ -223,12 +223,34 @@
 		{/each}
 	</div>
 {:else}
-	<!-- ============ Undangan untuk saya ============ -->
-	{#if received.length > 0}
-		<section class="mb-6">
-			<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-				Undangan untuk Anda
-			</h2>
+	<!-- ============ Undangan / relasi tempat SAYA pendamping ============ -->
+	<!--
+		Seksi ini SELALU tampil, termasuk saat kosong. Sebelumnya ia hanya
+		mucul bila ada isinya, sehingga pengguna baru tidak pernah tahu bahwa
+		orang lain bisa mengundangnya — dan tidak ada tempat untuk menjelaskan
+		bagaimana undangan itu sampai.
+
+		Catatan penting soal isi: undangan yang masih `pending` TIDAK muncul
+		di sini. Kolom `caregiver_id` baru diisi saat undangan diterima atau
+		ditolak, sedangkan endpoint `?as=caregiver` menyaring berdasarkan
+		kolom itu. Karena itu tidak ada tombol "Terima" di halaman ini — token
+		undangan hanya ada di tautan email, dan memang rahasia.
+	-->
+	<section class="mb-6">
+		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+			Undangan untuk Anda
+		</h2>
+		{#if received.length === 0}
+			<Card>
+				<CardContent class="flex flex-col items-center gap-2 py-10 text-center">
+					<p class="text-sm font-medium">Belum memantau siapa pun</p>
+					<p class="max-w-xs text-xs text-muted-foreground">
+						Anda bisa memantau seseorang setelah mereka mengundang email Anda. Undangan
+						datang lewat email berisi tautan khusus — buka tautan itu untuk menerima.
+					</p>
+				</CardContent>
+			</Card>
+		{:else}
 			<ul class="space-y-3">
 				{#each received as link (link.id)}
 					<li>
@@ -247,19 +269,13 @@
 										{statusLabel[link.status] ?? link.status}
 									</Badge>
 								</div>
-								{#if link.status === 'pending'}
-									<p class="mt-2.5 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-xs">
-										Undangan masih menunggu. Buka tautan undangan yang Anda terima untuk menerima
-										akses. Tautan itu memuat token rahasia, jadi tidak ditampilkan di sini.
-									</p>
-								{/if}
 							</CardContent>
 						</Card>
 					</li>
 				{/each}
 			</ul>
-		</section>
-	{/if}
+		{/if}
+	</section>
 
 	<!-- ============ Caregiver yang saya undang ============ -->
 	<section>
