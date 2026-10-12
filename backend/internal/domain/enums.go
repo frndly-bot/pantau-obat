@@ -158,8 +158,9 @@ const (
 type CareRole string
 
 const (
-	CareViewer CareRole = "viewer" // hanya GET
-	CareHelper CareRole = "helper" // boleh catat log, tidak boleh kelola obat
+	CareViewer  CareRole = "viewer"  // hanya GET
+	CareHelper  CareRole = "helper"  // boleh catat log, tidak boleh kelola obat
+	CareManager CareRole = "manager" // helper + kelola obat & stok pasien
 )
 
 // CareStatus = care_links.status.
@@ -307,7 +308,14 @@ func (s LogStatus) Valid() bool {
 
 // Valid memeriksa apakah tingkat izin caregiver dikenal.
 func (r CareRole) Valid() bool {
-	return r == CareViewer || r == CareHelper
+	return r == CareViewer || r == CareHelper || r == CareManager
+}
+
+// CanManageMedications melaporkan apakah role ini boleh mengelola obat dan
+// stok pasien. Hanya manager — helper dibatasi mencatat log, viewer hanya
+// membaca. Sesuai api-v2 bagian 9.
+func (r CareRole) CanManageMedications() bool {
+	return r == CareManager
 }
 
 // Valid memeriksa apakah jenis hubungan caregiver dikenal.

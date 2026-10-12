@@ -19,6 +19,7 @@ type CareLinks struct {
 	Svc    *service.CareLinks
 	LogSvc *service.Logs
 	Meds   *service.Medications
+	Stock  *service.Stock
 	Adh    *service.Adherence
 	Users  *service.Users
 	Logger *slog.Logger
@@ -31,9 +32,13 @@ type CareLinks struct {
 // NewCareLinks membuat handler caregiver.
 func NewCareLinks(
 	svc *service.CareLinks, logSvc *service.Logs, meds *service.Medications,
-	adh *service.Adherence, users *service.Users, logger *slog.Logger,
+	stock *service.Stock, adh *service.Adherence, users *service.Users,
+	logger *slog.Logger,
 ) *CareLinks {
-	return &CareLinks{Svc: svc, LogSvc: logSvc, Meds: meds, Adh: adh, Users: users, Logger: logger}
+	return &CareLinks{
+		Svc: svc, LogSvc: logSvc, Meds: meds, Stock: stock,
+		Adh: adh, Users: users, Logger: logger,
+	}
 }
 
 // Routes mendaftarkan endpoint caregiver.
@@ -51,6 +56,14 @@ func (h *CareLinks) Routes(r chi.Router) {
 	r.Get("/care/{ownerId}/adherence", h.Adherence)
 	r.Get("/care/{ownerId}/logs", h.ListLogs)
 	r.Post("/care/{ownerId}/logs", h.CreateLog)
+
+	// Kelola obat & stok pasien. HANYA role manager yang lolos (lihat
+	// service.RequireManage). Sesuai api-v2 bagian 9.
+	r.Post("/care/{ownerId}/medications", h.CreateMedication)
+	r.Patch("/care/{ownerId}/medications/{id}", h.UpdateMedication)
+	r.Delete("/care/{ownerId}/medications/{id}", h.DeleteMedication)
+	r.Post("/care/{ownerId}/medications/{id}/stock/restock", h.Restock)
+	r.Post("/care/{ownerId}/medications/{id}/stock/adjust", h.Adjust)
 }
 
 // -----------------------------------------------------------------------------

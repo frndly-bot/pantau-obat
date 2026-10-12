@@ -404,6 +404,33 @@ func (s *CareLinks) RequireWrite(ctx context.Context, actorID, ownerID string) (
 	return acc, nil
 }
 
+// RequireManage memastikan aktor boleh MENGELOLA obat & stok pasien.
+//
+// Dipakai endpoint /care/{ownerId}/medications* (tambah, ubah, arsip obat,
+// restock, koreksi stok). Hanya manager yang lolos — helper dibatasi mencatat
+// log, viewer hanya membaca. Sesuai api-v2 bagian 9.
+//
+// Pesan penolakan menyebut peran yang benar: caregiver helper yang mencoba
+// mengelola obat harus tahu bahwa yang dibutuhkan adalah manager, bukan
+// sekadar "tidak berhak".
+func (s *CareLinks) RequireManage(ctx context.Context, actorID, ownerID string) (*Access, error) {
+	acc, err := s.RequireAccess(ctx, actorID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	if acc.IsOwner {
+		// Pemilik datanya mengelola obatnya sendiri lewat endpoint biasa;
+		// rute care tidak pernah dipakai untuk diri sendiri.
+		return nil, fmt.Errorf("%w: gunakan endpoint /medications untuk obat milik sendiri",
+			domain.ErrForbidden)
+	}
+	if acc.Link == nil || !acc.Link.Role.CanManageMedications() {
+		return nil, fmt.Errorf("%w: mengelola obat pasien hanya untuk peran manager",
+			domain.ErrForbidden)
+	}
+	return acc, nil
+}
+
 // newInviteToken membuat token undangan acak 32 byte.
 func newInviteToken() (string, error) {
 	buf := make([]byte, 32)

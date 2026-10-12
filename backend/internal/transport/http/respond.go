@@ -109,16 +109,17 @@ func WriteDomainError(w http.ResponseWriter, r *http.Request, err error) {
 
 // MapDomainError memetakan sentinel domain ke pasangan status dan kode.
 //
-// Untuk ErrValidation, pesan spesifik dari error DITERUSKAN bila ada.
-// Alasannya: ErrValidation dipakai dengan pembungkusan seperti
+// Untuk ErrValidation DAN ErrForbidden, pesan spesifik dari error DITERUSKAN
+// bila ada. Alasannya: keduanya dipakai dengan pembungkusan seperti
 // `fmt.Errorf("%w: password lama salah", domain.ErrValidation)`, dan pesan
-// setelah titik dua itulah yang berguna bagi user. Menggantinya dengan
-// "input tidak valid" membuat user tidak tahu bagian mana yang salah.
+// setelah titik dua itulah yang berguna bagi user. Untuk ErrForbidden,
+// pesan itu menjelaskan PERAN yang dibutuhkan ("mengelola obat pasien hanya
+// untuk peran manager") — menggantinya dengan kalimat generik membuat user
+// tidak tahu harus apa.
 //
-// Ini AMAN dilakukan hanya untuk ErrValidation, karena pesan itu selalu
-// ditulis sendiri oleh kode aplikasi. Error lain tetap memakai pesan tetap,
-// supaya detail internal (SQL, nama tabel, path berkas) tidak pernah bocor
-// ke klien.
+// Ini AMAN dilakukan untuk keduanya karena pesannya selalu ditulis sendiri
+// oleh kode aplikasi. Error lain tetap memakai pesan tetap, supaya detail
+// internal (SQL, nama tabel, path berkas) tidak pernah bocor ke klien.
 func MapDomainError(err error) (status int, code, message string) {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
@@ -130,7 +131,7 @@ func MapDomainError(err error) (status int, code, message string) {
 	case errors.Is(err, domain.ErrTokenRevoked):
 		return http.StatusUnauthorized, CodeTokenRevoked, "sesi sudah dicabut, silakan masuk lagi"
 	case errors.Is(err, domain.ErrForbidden):
-		return http.StatusForbidden, CodeForbidden, "tidak berhak mengakses data ini"
+		return http.StatusForbidden, CodeForbidden, forbiddenMessage(err)
 	case errors.Is(err, domain.ErrAdminScopeDenied):
 		return http.StatusForbidden, CodeAdminScopeDenied, "peran admin Anda tidak mencakup bidang ini"
 	case errors.Is(err, domain.ErrCareNotAccepted):
@@ -156,6 +157,22 @@ func MapDomainError(err error) (status int, code, message string) {
 	default:
 		return http.StatusInternalServerError, CodeInternal, "terjadi kesalahan pada server"
 	}
+}
+
+// forbiddenMessage mengambil pesan spesifik dari error Forbidden.
+//
+// Bentuk yang diharapkan: "tidak berhak mengakses objek ini: <penjelasan>".
+// Yang diambil adalah bagian setelah titik dua pertama. Bila tidak ada
+// penjelasan, dipakai pesan umum.
+func forbiddenMessage(err error) string {
+	const fallback = "tidak berhak mengakses data ini"
+	msg := err.Error()
+	if i := strings.Index(msg, ": "); i >= 0 && i+2 < len(msg) {
+		if specific := strings.TrimSpace(msg[i+2:]); specific != "" {
+			return specific
+		}
+	}
+	return fallback
 }
 
 // validationMessage mengambil pesan spesifik dari error validasi.

@@ -337,7 +337,8 @@ func run() error {
 	stockHandler := handlers.NewStock(stockSvc, logger)
 	adherenceHandler := handlers.NewAdherence(adherenceSvc, usersSvc, logger)
 	notifHandler := handlers.NewNotifications(notifSvc, logger)
-	careHandler := handlers.NewCareLinks(careSvc, logsSvc, medsSvc, adherenceSvc, usersSvc, logger)
+	careHandler := handlers.NewCareLinks(careSvc, logsSvc, medsSvc, stockSvc,
+		adherenceSvc, usersSvc, logger)
 	// PublicURL diisi dari konfigurasi, BUKAN dari header permintaan.
 	// Tautan undangan yang disusun dari header Host bisa diarahkan penyerang
 	// ke domainnya sendiri, dan caregiver yang mengkliknya akan menyerahkan
