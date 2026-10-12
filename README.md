@@ -1,8 +1,9 @@
 # Pantau Obat — Personal Medication Adherence + Caregiver Monitoring
 
-Status: **backend is running & tested.** 77 routes, 92 unit tests passing, and the
-apidoc e2e suite **75/75 requests with 159/159 assertions** (idempotent). The
+Status: **backend is running & tested.** 82 routes, 92 unit tests passing, and the
+apidoc e2e suite **79/79 requests with 173/173 assertions** (idempotent). The
 frontend has not started; HTML wireframes live in `design/`.
+Notification channels active for v0.1: in-app only (push/email/telegram deferred to v0.2).
 Stack: Backend Go 1.27 | DB PostgreSQL 18 | Frontend SvelteKit + Svelte 5 + shadcn-svelte | PWA (native later)
 
 ## Layout
