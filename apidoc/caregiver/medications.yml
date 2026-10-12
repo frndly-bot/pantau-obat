@@ -70,10 +70,21 @@ docs: |-
   }
   ```
 
-  ## Caregiver tidak bisa mengubah apa pun di sini
+  ## Siapa yang boleh mengubah
 
-  Endpoint ini hanya membaca. Percobaan mengubah obat lewat
-  `PATCH /medications/{id}` akan membalas 404, karena endpoint itu memfilter
-  `owner_id` dan obat pasien tidak ada dalam ruang lingkup caregiver.
+  Endpoint ini (`GET /care/{ownerId}/medications`) hanya membaca, untuk semua
+  tingkat izin.
+
+  Mengubah obat lewat jalur caregiver hanya terbuka bagi **`manager`**:
+
+  | Tingkat | Boleh mengubah obat? |
+  |---|---|
+  | `viewer` | Tidak |
+  | `helper` | Tidak |
+  | `manager` | Ya — lewat `POST`/`PATCH`/`DELETE /care/{ownerId}/medications` |
+
+  Untuk `viewer` dan `helper`, percobaan mengubah obat lewat
+  `PATCH /medications/{id}` (rute pemilik) akan membalas 404, karena endpoint
+  itu memfilter `owner_id` dan obat pasien tidak ada dalam ruang lingkup mereka.
 
   Kontrak: `docs/design-v2/api-v2.md` bagian 9.

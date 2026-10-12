@@ -61,7 +61,7 @@ docs: |-
   |---|---|---|
   | `invite_email` | email | Boleh email yang belum terdaftar |
   | `relation` | `family` \| `child` \| `parent` \| `spouse` \| `friend` \| `nurse` \| `other` | Bawaan `other` |
-  | `role` | `viewer` \| `helper` | Bawaan `viewer` |
+  | `role` | `viewer` \| `helper` \| `manager` | Bawaan `viewer` |
 
   `role` di sini berarti **tingkat izin caregiver**, bukan peran akun. Karena
   itu ia diterima di endpoint ini, sementara `role` pada endpoint
@@ -73,8 +73,17 @@ docs: |-
   |---|---|
   | `viewer` | Hanya membaca |
   | `helper` | Membaca, **dan mencatat dosis** atas nama pasien |
+  | `manager` | Semua hak `helper`, **dan mengelola obat & stok** pasien |
 
-  Keduanya **tidak boleh** mengelola obat dan jadwal.
+  `viewer` dan `helper` **tidak boleh** mengelola obat dan jadwal. Hanya
+  `manager` yang boleh — itulah bedanya dengan `helper`.
+
+  Ketiganya tetap tidak pernah melihat foto resep, catatan pribadi pasien,
+  maupun audit log pasien.
+
+  > **Status:** `manager` belum ada di backend (CHECK `care_links.role` masih
+  > `('viewer','helper')`). Mengirim `role=manager` sekarang akan ditolak
+  > validasi sampai migrasi + enum Go disesuaikan.
 
   ## Masa berlaku
 

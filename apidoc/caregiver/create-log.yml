@@ -43,18 +43,32 @@ runtime:
 docs: |-
   # Catat Dosis Atas Nama Pasien
 
-  Caregiver `helper` mencatat bahwa pasiennya sudah minum obat.
+  Caregiver dengan izin mencatat mencatat bahwa pasiennya sudah minum obat.
 
-  ## HANYA `helper` yang boleh
+  ## `helper` ATAU `manager` yang boleh
 
   | Role | Hasil |
   |---|---|
   | `helper` | 201, tercatat |
+  | `manager` | 201, tercatat |
   | `viewer` | **403** `FORBIDDEN` |
   | Bukan caregiver | 404 |
 
   Untuk viewer, pesannya membedakan "bukan caregiver" dari "caregiver tapi
   viewer", karena artinya berbeda bagi klien.
+
+  ## Status yang didukung
+
+  | `status` | Arti | `taken_at` |
+  |---|---|---|
+  | `taken` | Sudah diminum | diisi |
+  | `late` | Diminum terlambat | diisi (jam sebenarnya) |
+  | `snoozed` | Ditunda, pengingat diulang | kosong; stok tidak dikurangi |
+  | `skipped` | Dilewati | kosong |
+  | koreksi | Memperbaiki catatan yang sudah ada | diisi ulang |
+
+  Koreksi dilakukan dengan soft-delete baris lama + insert baris baru dalam
+  satu transaksi (`uq_log_occurrence` mencegah dosis ganda).
 
   ## `source` dan `recorded_by` ditetapkan SERVER
 

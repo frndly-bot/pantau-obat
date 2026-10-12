@@ -300,6 +300,25 @@ gate, that pipe needs `set -o pipefail` — otherwise a failing run passes green
 Latest run result: **75/75 requests passing, 159/159 assertions**, and
 **idempotent** — run twice against the same database it still passes.
 
+## Caregiver permission levels
+
+`care_links.role` has three values. Enums stay English, matching the CHECK
+constraints; the UI translates them.
+
+| Role | May | `can_write_log` | `can_manage_meds` |
+|---|---|---|---|
+| `viewer` | read only | false | false |
+| `helper` | read + record doses | true | false |
+| `manager` | read + record doses + manage meds & stock | true | true |
+
+`GET /care/{ownerId}/overview` returns these as a `permissions` object, so
+clients gate buttons on it instead of guessing from `role`.
+
+> **Not implemented yet.** Only `viewer` and `helper` exist in the backend
+> today (`enums.go`, CHECK in `00014_care_links.sql`). `manager` and the
+> caregiver write routes for medications/stock are the **target contract** —
+> see `docs/design-v2/api-v2.md` § 9.
+
 ## Folder order MUST use `folder.yml`
 
 Bruno sorts folders **alphabetically**, not by flow. Without `seq`, `adherence/`

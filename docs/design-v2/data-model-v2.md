@@ -62,7 +62,7 @@ users 1───* medications 1───1 medication_frequency
   │
   │   owner_id        caregiver_id
   └───* care_links *───┘
-         (viewer | helper)
+         (viewer | helper | manager)
 
 audit_log *───1 users (actor_id, NULL untuk sistem)
   actor_role: user | admin | system
@@ -285,13 +285,18 @@ Index: `ix_users_inactive`, `ix_users_admins` (partial WHERE `role='admin'`).
 | `caregiver_id` | UUID | **NULL** FK `users` | NULL saat undangan belum diterima |
 | `invite_email` | CITEXT | NULL | email tujuan |
 | `relation` | TEXT | CHECK `family`/`child`/`parent`/`spouse`/`friend`/`nurse`/`other` | hubungan |
-| `role` | TEXT | CHECK `viewer`/`helper`, DEFAULT `viewer` | tingkat izin |
+| `role` | TEXT | CHECK `viewer`/`helper`/`manager`, DEFAULT `viewer` | tingkat izin |
 | `status` | TEXT | CHECK `pending`/`accepted`/`rejected`/`revoked`/`expired` | siklus |
 | `invited_by` | UUID | NOT NULL FK `users` | pengundang |
 | `invite_token_hash` | TEXT | NULL | SHA-256, satu pakai |
 | `invite_expires_at` | TIMESTAMPTZ | NULL | default +7 hari |
 | `decided_at` | TIMESTAMPTZ | NULL | kapan accept/reject |
 | `created_at`, `updated_at`, `deleted_at` | TIMESTAMPTZ | — | — |
+
+> **Status migrasi:** `00014_care_links.sql` saat ini masih
+> `CHECK (role IN ('viewer','helper'))`. Menambah `manager` perlu migrasi baru
+> (`ALTER`/`DROP CONSTRAINT` + `ADD CONSTRAINT` dengan tiga nilai), plus
+> menyesuaikan `enum_contract_test.go`. Lihat `api-v2.md` bagian 9.
 
 CHECK `ck_care_not_self`: `caregiver_id IS NULL OR owner_id <> caregiver_id`.
 
@@ -665,8 +670,15 @@ Tidak ada `updated_at` dan `deleted_at`. Aplikasi tidak boleh UPDATE/DELETE.
    hanya untuk baris hidup. Obat yang sudah dihapus boleh didaftarkan ulang.
 4. **Anti dosis ganda:** `uq_log_occurrence`. Koreksi = soft-delete baris lama +
    insert baris baru dalam satu transaksi.
-5. **Caregiver:** `viewer` hanya GET. `helper` boleh POST/PATCH log dengan
-   `recorded_by = caregiver_id` dan `source='caregiver'`. Tidak boleh kelola obat.
+5. **Caregiver:** tiga tingkat izin.
+   - `viewer` hanya GET.
+   - `helper` boleh POST/PATCH log dengan `recorded_by = caregiver_id` dan
+     `source='caregiver'`. Tidak boleh kelola obat.
+   - `manager` boleh juga POST/PATCH/DELETE obat, mengubah jam, serta mencatat
+     restock/koreksi stok — semuanya tetap atas nama pasien (`owner_id` pasien
+     dipertahankan) dan menulis audit dengan `actor_id` caregiver.
+   - Ketiganya tidak pernah melihat `prescription_photo_url`, catatan pribadi
+     pasien, maupun audit log pasien.
 6. **Zona waktu:** simpan absolut `TIMESTAMPTZ`. `slot_date` dihitung backend
    dari `users.timezone`, bukan `CURRENT_DATE` DB (zona DB = UTC).
 7. **Stok:** hanya berubah lewat `stock_transactions`. `balance_after` diisi

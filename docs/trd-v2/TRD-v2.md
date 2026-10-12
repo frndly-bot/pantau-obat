@@ -73,10 +73,19 @@ cek interaksi obat, tidak ada pengganti resep dokter.
 
 - Memantau kepatuhan satu atau lebih pasien.
 - `role=viewer`: baca saja terhadap data obat pasien. Tidak boleh menulis apa pun.
-- `role=helper`: selain membaca, boleh **mencatat log dosis** atas nama pasien.
+- `role=helper`: selain membaca, boleh **mencatat log dosis** atas nama pasien
+  (termasuk menunda dan mengoreksi catatan dosis).
   Tidak boleh menambah, mengubah, atau menghapus obat dan jadwal.
+- `role=manager`: selain hak `helper`, boleh **mengelola obat dan stok** pasien
+  — menambah/mengubah obat, mengatur jam minum, menghentikan (arsip) obat,
+  dan mencatat restock atau koreksi stok. Diberikan hanya bila pasien
+  menghendakinya; default tetap `viewer`.
+  **Status:** ini kontrak yang dituju — belum ada di backend (`enums.go` masih
+  `viewer`+`helper`, CHECK `00014_care_links.sql` masih dua nilai). Backend dan
+  migrasi perlu disesuaikan; lihat `api-v2.md` bagian 9.
 - Menerima notifikasi kalau pasien terlewat N kali berturut-turut.
-- Tidak pernah melihat foto resep, catatan pribadi pasien, atau audit log pasien.
+- Tidak pernah melihat foto resep, catatan pribadi pasien, atau audit log pasien —
+  berlaku untuk **ketiga** tingkat izin.
 
 ### 5.3 Admin (pengelola aplikasi)
 
@@ -264,8 +273,17 @@ Ini inti perubahan v2. Jadwal disimpan sebagai **aturan**, bukan baris per hari.
 
 **F3. Sebagai caregiver `helper`, saya ingin mencatat dosis atas nama pasien.**
 - AC: Log tercatat dengan `source='caregiver'` dan `recorded_by` = id caregiver.
+- AC: Status yang didukung: diminum, terlambat, ditunda, dilewati, dan koreksi.
 - AC: Hanya boleh pada relasi yang sudah `accepted`, dan diverifikasi tiap request.
 - AC: Tidak boleh mengelola obat maupun jadwal.
+
+**F3b. Sebagai caregiver `manager`, saya ingin mengelola obat dan stok pasien.**
+- AC: Boleh menambah dan mengubah obat pasien, termasuk jam minumnya.
+- AC: Boleh menghentikan (arsip) obat tanpa menghapus riwayat kepatuhan.
+- AC: Boleh mencatat restock dan koreksi stok; saldo tidak boleh negatif.
+- AC: Semua perubahan obat/stok menulis audit dengan `actor_id` caregiver.
+- AC: Pasien tetap melihat siapa yang mengubah datanya.
+- AC: Tidak boleh melihat foto resep, catatan pribadi pasien, maupun audit log pasien.
 
 **F4. Sebagai caregiver, saya menerima peringatan saat pasien terlewat N kali.**
 - AC: Default N = 3 dosis berturut-turut terlewat.
@@ -273,7 +291,10 @@ Ini inti perubahan v2. Jadwal disimpan sebagai **aturan**, bukan baris per hari.
 - AC: Maksimal satu eskalasi per hari per pasien.
 
 **F5. Sebagai pasien, saya ingin mengatur siapa saja yang boleh memantau.**
-- AC: Dua tingkat izin: `viewer` dan `helper`. Default `viewer`.
+- AC: Tiga tingkat izin: `viewer`, `helper`, dan `manager`. Default `viewer`.
+- AC: Menaikkan ke `manager` adalah keputusan sadar pasien; UI menjelaskan
+  bedanya sebelum pasien menyimpan.
+- AC: Pasien bisa menurunkan tingkat izin kapan saja; berlaku pada request berikutnya.
 
 **F6. Sebagai pasien, saya bisa mencabut akses caregiver.**
 - AC: Pencabutan mengubah status menjadi `revoked`; akses langsung hilang.
@@ -412,7 +433,7 @@ Ini inti perubahan v2. Jadwal disimpan sebagai **aturan**, bukan baris per hari.
 ### v0.1 — MVP
 
 Auth, obat, lima pola frekuensi, pencatatan, pengingat web push, caregiver
-(`viewer` + `helper`), stok dan peringatan restock, preset katalog dengan
+(`viewer` + `helper` + `manager`), stok dan peringatan restock, preset katalog dengan
 katalog pribadi user, halaman admin dasar (kelola user + kurasi preset),
 statistik dasar.
 
@@ -436,7 +457,9 @@ Semua yang tadinya terbuka di TRD v0.1 sudah diputuskan:
 
 1. **Timezone** — default `Asia/Jakarta`, diatur per user. Caregiver menerima
    notifikasi memakai timezone pasien, bukan timezone sendiri.
-2. **Izin caregiver** — `viewer` dan `helper` keduanya ada di v0.1.
+2. **Izin caregiver** — `viewer`, `helper`, dan `manager` ada di v0.1.
+   `manager` adalah perluasan sadar atas `helper`: ia boleh mengelola obat dan
+   stok pasien, bukan hanya mencatat dosis.
 3. **Kanal notifikasi awal** — web push saja untuk v0.1. Telegram dan email di v0.2.
 4. **Visibilitas data** — caregiver melihat nama obat, tetapi tidak foto resep
    dan tidak catatan pribadi pasien.

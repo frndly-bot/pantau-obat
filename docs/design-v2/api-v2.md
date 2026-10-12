@@ -176,12 +176,12 @@ nama dagang, nama generik, `rxterm`, nama ATC level 5, dan bentuk sediaan.
 
 | Method | Path | Auth | Role | Keterangan |
 |---|---|---|---|---|
-| GET | `/medications` | bearer | owner, caregiver viewer | `?status=active&q=&limit=&cursor=` |
+| GET | `/medications` | bearer | owner, caregiver viewer/helper/manager | `?status=active&q=&limit=&cursor=` |
 | POST | `/medications` | bearer | owner | buat obat + frekuensi + jam + stok |
-| GET | `/medications/{id}` | bearer | owner, caregiver viewer | detail lengkap |
-| PATCH | `/medications/{id}` | bearer | owner | ubah data obat; jadwal terpisah |
-| DELETE | `/medications/{id}` | bearer | owner | soft-delete obat + jam, log dipertahankan |
-| GET | `/medications/{id}/adherence` | bearer | owner, caregiver viewer | `?from=&to=` |
+| GET | `/medications/{id}` | bearer | owner, caregiver viewer/helper/manager | detail lengkap |
+| PATCH | `/medications/{id}` | bearer | owner, caregiver manager | ubah data obat; jadwal terpisah |
+| DELETE | `/medications/{id}` | bearer | owner, caregiver manager | soft-delete obat + jam, log dipertahankan |
+| GET | `/medications/{id}/adherence` | bearer | owner, caregiver viewer/helper/manager | `?from=&to=` |
 
 Field input lengkap (semua sesuai kolom schema):
 
@@ -262,10 +262,10 @@ Menggantikan `medication_schedules` di dokumen lama.
 
 | Method | Path | Auth | Role | Keterangan |
 |---|---|---|---|---|
-| GET | `/medications/{id}/times` | bearer | owner, caregiver viewer | daftar jam |
-| POST | `/medications/{id}/times` | bearer | owner | tambah jam |
-| PATCH | `/medications/{id}/times/{tid}` | bearer | owner | ubah jam/label/hari |
-| DELETE | `/medications/{id}/times/{tid}` | bearer | owner | soft-delete satu jam |
+| GET | `/medications/{id}/times` | bearer | owner, caregiver viewer/helper/manager | daftar jam |
+| POST | `/medications/{id}/times` | bearer | owner, caregiver manager | tambah jam |
+| PATCH | `/medications/{id}/times/{tid}` | bearer | owner, caregiver manager | ubah jam/label/hari |
+| DELETE | `/medications/{id}/times/{tid}` | bearer | owner, caregiver manager | soft-delete satu jam |
 
 ```json
 // POST /api/v1/medications/019ccc.../times
@@ -288,12 +288,12 @@ tercatat dipertahankan apa adanya. Perubahan pola dicatat sebagai
 
 | Method | Path | Auth | Role | Keterangan |
 |---|---|---|---|---|
-| GET | `/medications/{id}/logs` | bearer | owner, caregiver viewer | `?from=&to=&status=` |
-| GET | `/logs` | bearer | owner, caregiver viewer | feed semua obat per hari |
-| POST | `/medications/{id}/logs` | bearer | owner, caregiver helper | catat dosis |
-| POST | `/logs/from-reminder` | bearer | owner, caregiver helper | catat dari notifikasi |
-| PATCH | `/logs/{logId}` | bearer | owner, caregiver helper | koreksi status/catatan |
-| POST | `/logs/{logId}/snooze` | bearer | owner | tunda pengingat |
+| GET | `/medications/{id}/logs` | bearer | owner, caregiver viewer/helper/manager | `?from=&to=&status=` |
+| GET | `/logs` | bearer | owner, caregiver viewer/helper/manager | feed semua obat per hari |
+| POST | `/medications/{id}/logs` | bearer | owner, caregiver helper/manager | catat dosis |
+| POST | `/logs/from-reminder` | bearer | owner, caregiver helper/manager | catat dari notifikasi |
+| PATCH | `/logs/{logId}` | bearer | owner, caregiver helper/manager | koreksi status/catatan |
+| POST | `/logs/{logId}/snooze` | bearer | owner, caregiver helper/manager | tunda pengingat |
 | GET | `/logs/today` | bearer | owner | ringkasan hari ini |
 
 ```json
@@ -331,11 +331,11 @@ Aturan:
 
 | Method | Path | Auth | Role | Keterangan |
 |---|---|---|---|---|
-| GET | `/medications/{id}/stock` | bearer | owner, caregiver viewer | saldo + perkiraan habis |
-| PUT | `/medications/{id}/stock` | bearer | owner | set/ubah pengaturan stok |
-| GET | `/medications/{id}/stock/transactions` | bearer | owner, caregiver viewer | riwayat transaksi |
-| POST | `/medications/{id}/stock/restock` | bearer | owner | catat restock |
-| POST | `/medications/{id}/stock/adjust` | bearer | owner | koreksi manual |
+| GET | `/medications/{id}/stock` | bearer | owner, caregiver viewer/helper/manager | saldo + perkiraan habis |
+| PUT | `/medications/{id}/stock` | bearer | owner, caregiver manager | set/ubah pengaturan stok |
+| GET | `/medications/{id}/stock/transactions` | bearer | owner, caregiver viewer/helper/manager | riwayat transaksi |
+| POST | `/medications/{id}/stock/restock` | bearer | owner, caregiver manager | catat restock |
+| POST | `/medications/{id}/stock/adjust` | bearer | owner, caregiver manager | koreksi manual |
 | GET | `/stock/low` | bearer | owner | daftar obat yang perlu restock |
 
 ```json
@@ -369,6 +369,14 @@ Aturan stok:
 
 ## 9. Caregiver
 
+> **STATUS IMPLEMENTASI.** Tingkat izin `manager` beserta endpoint tulis
+> `/care/{ownerId}/medications*` dan `/care/{ownerId}/medications/{id}/stock/*`
+> **belum ada di backend**. Saat ini `backend/internal/domain/enums.go` hanya
+> punya `viewer` + `helper`, dan `00014_care_links.sql` CHECK-nya masih
+> `('viewer','helper')`. Bagian ini adalah **kontrak yang dituju**; backend,
+> migrasi, dan `enum_contract_test.go` perlu disesuaikan agar cocok.
+> Sampai itu terjadi, permintaan dengan `role=manager` akan ditolak validasi.
+
 Alur: pasien kirim undangan (`POST /care-links`) → caregiver terima token →
 `POST /care-links/accept` → status `accepted`.
 
@@ -389,16 +397,25 @@ Dashboard caregiver:
 | GET | `/care/{ownerId}/medications` | bearer | obat yang dipantau |
 | GET | `/care/{ownerId}/adherence` | bearer | `?from=&to=` |
 | GET | `/care/{ownerId}/logs` | bearer | feed kronologis |
-| POST | `/care/{ownerId}/logs` | bearer | **hanya `helper`** |
+| POST | `/care/{ownerId}/logs` | bearer | **`helper` atau `manager`** |
+| POST | `/care/{ownerId}/medications` | bearer | **hanya `manager`** |
+| PATCH | `/care/{ownerId}/medications/{id}` | bearer | **hanya `manager`** |
+| DELETE | `/care/{ownerId}/medications/{id}` | bearer | **hanya `manager`** (arsip) |
+| POST | `/care/{ownerId}/medications/{id}/stock/restock` | bearer | **hanya `manager`** |
+| POST | `/care/{ownerId}/medications/{id}/stock/adjust` | bearer | **hanya `manager`** |
 
 Aturan:
 
 - `viewer`: hanya GET. Tidak ada aksi tulis.
-- `helper`: tambah boleh POST/PATCH log dengan `recorded_by = caregiver_id`,
-  `source='caregiver'`.
-- Keduanya tidak boleh mengelola obat dan jadwal.
-- Caregiver tidak pernah melihat `prescription_photo_url`, `notes` pribadi
-  pasien, dan `audit_log` pasien. Field di-strip di query layer, bukan UI.
+- `helper`: boleh POST/PATCH log dengan `recorded_by = caregiver_id`,
+  `source='caregiver'`. Status: `taken`, `late`, `snoozed`, `skipped`, koreksi.
+- `manager`: semua hak `helper`, **ditambah** mengelola obat & stok pasien
+  (tambah/ubah/arsip obat, ubah jam, restock, koreksi stok). Menulis audit
+  dengan `actor_id` caregiver; `owner_id` data tetap milik pasien.
+- `viewer` dan `helper` **tidak** boleh mengelola obat dan jadwal.
+- Caregiver (ketiga tingkat) tidak pernah melihat `prescription_photo_url`,
+  `notes` pribadi pasien, dan `audit_log` pasien. Field di-strip di query layer,
+  bukan UI.
 - Setiap akses caregiver menulis `audit_log` (`action='read'`).
 - Relasi diverifikasi tiap request, bukan di-cache di UI.
 

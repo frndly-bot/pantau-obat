@@ -21,8 +21,7 @@ runtime:
     - expression: res.body.data.summary
       operator: isDefined
     - expression: res.body.data.permissions.can_manage_meds
-      operator: eq
-      value: false
+      operator: isBoolean
 
 docs: |-
   # Ringkasan Pasien
@@ -54,14 +53,25 @@ docs: |-
   ```json
   "permissions": {
     "can_read": true,
-    "can_write_log": false,
-    "can_manage_meds": false,
-    "role": "viewer"
+    "can_write_log": true,
+    "can_manage_meds": true,
+    "role": "manager"
   }
   ```
 
-  `can_manage_meds` **selalu false** untuk caregiver, apa pun perannya.
-  Viewer dan helper sama-sama tidak boleh mengelola obat maupun jadwal.
+  Nilainya mengikuti tingkat izin relasi:
+
+  | `role` | `can_read` | `can_write_log` | `can_manage_meds` |
+  |---|---|---|---|
+  | `viewer` | true | false | false |
+  | `helper` | true | true | false |
+  | `manager` | true | true | true |
+
+  `can_manage_meds` **hanya** true untuk `manager`. `viewer` dan `helper`
+  sama-sama tidak boleh mengelola obat maupun jadwal.
+
+  Klien sebaiknya memakai `permissions` ini untuk menampilkan atau
+  menyembunyikan tombol, bukan menebak dari `role`.
 
   ## Akses diperiksa ulang setiap request
 
@@ -101,9 +111,9 @@ docs: |-
       ],
       "permissions": {
         "can_read": true,
-        "can_write_log": false,
-        "can_manage_meds": false,
-        "role": "viewer"
+        "can_write_log": true,
+        "can_manage_meds": true,
+        "role": "manager"
       }
     }
   }

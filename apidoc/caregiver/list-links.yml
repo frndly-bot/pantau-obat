@@ -45,6 +45,17 @@ docs: |-
 
   Hanya `accepted` yang memberi akses.
 
+  ## Tingkat izin (`role`)
+
+  | Role | Boleh |
+  |---|---|
+  | `viewer` | Hanya membaca |
+  | `helper` | Membaca, **dan mencatat dosis** atas nama pasien |
+  | `manager` | Semua hak `helper`, **dan mengelola obat & stok** pasien |
+
+  Default `viewer`. Hanya pemilik data (pasien) yang boleh menaikkan tingkat
+  izin; caregiver tidak bisa menaikkan perannya sendiri.
+
   ## Contoh response — 200
 
   ```json

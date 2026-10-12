@@ -31,7 +31,23 @@ runtime:
 docs: |-
   # Ubah Tingkat Izin
 
-  Mengubah tingkat izin (`viewer` ↔ `helper`) atau hubungan.
+  Mengubah tingkat izin (`viewer` ↔ `helper` ↔ `manager`) atau hubungan.
+
+  ## Tingkat izin yang tersedia
+
+  | Role | Boleh |
+  |---|---|
+  | `viewer` | Hanya membaca |
+  | `helper` | Membaca, **dan mencatat dosis** atas nama pasien |
+  | `manager` | Semua hak `helper`, **dan mengelola obat & stok** pasien |
+
+  Menaikkan ke `manager` adalah keputusan sadar pasien: ia memberi izin
+  mengubah obat dan stok, bukan sekadar mencatat dosis. Karena itu UI pemilik
+  menjelaskan bedanya sebelum pasien menyimpan.
+
+  > **Status:** `manager` belum ada di backend (CHECK `care_links.role` masih
+  > `('viewer','helper')`). Endpoint ini akan menolak `role=manager` sampai
+  > migrasi + enum Go disesuaikan.
 
   ## Hanya PEMILIK data yang boleh mengubah
 
