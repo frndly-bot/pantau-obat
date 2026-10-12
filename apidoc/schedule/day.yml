@@ -1,0 +1,94 @@
+info:
+  name: Jadwal Harian
+  type: http
+  seq: 1
+  tags:
+    - schedule
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/schedule"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data
+      operator: isArray
+
+docs: |-
+  # Jadwal Harian
+
+  Daftar dosis yang **jatuh tempo pada satu tanggal**, termasuk yang belum
+  dicatat. Parameter `date` (YYYY-MM-DD, waktu lokal pemilik) opsional; tanpa
+  itu dipakai hari ini menurut zona waktu pengguna.
+
+  ## Kenapa bukan `GET /logs/today`
+
+  `/logs/today` hanya mengembalikan dosis yang **sudah dicatat**. Layar Hari Ini
+  yang dibangun di atasnya akan kosong sampai pengguna mencatat sesuatu —
+  justru pada saat pengingat paling dibutuhkan. Endpoint ini menghitung slot
+  dari **aturan frekuensi**, jadi dosis yang seharusnya diminum selalu terlihat.
+
+  ## Satu sumber aturan dengan laporan kepatuhan
+
+  Perhitungannya memakai `domain.ScheduledSlotsInRange` — fungsi yang **sama**
+  yang dipakai laporan kepatuhan. Jadi jumlah dosis di layar Hari Ini tidak
+  mungkin berbeda dengan angka kepatuhan.
+
+  ## Status
+
+  | status | arti |
+  |---|---|
+  | `pending` | jamnya belum lewat, belum dicatat |
+  | `due` | jamnya sudah lewat, belum dicatat — perlu ditindak |
+  | `taken` | sudah dicatat sebagai diminum |
+  | `late` | dicatat, tapi di luar jendela toleransi |
+  | `skipped` | sengaja dilewati |
+  | `snoozed` | ditunda |
+
+  `schedule_id` adalah id baris `medication_times`. Nilai itu **sama** dengan
+  `schedule_id` yang diharapkan `POST /medications/{id}/logs`, sehingga klien
+  bisa mencatat langsung dari slot tanpa menerjemahkan id.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": [
+      {
+        "medication_id": "01a13086-a8b3-775d-82f3-c8e4f0b0e1a2",
+        "medication_name": "Amlodipine 5mg",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "meal_relation": "after_meal",
+        "color_tag": null,
+        "schedule_id": "01a13086-a8ca-70c9-83c0-899517f60bc3",
+        "time_local": "07:00",
+        "time_label": "morning",
+        "dose_override": null,
+        "slot_date": "2026-10-12",
+        "scheduled_at": "2026-10-12T07:00:00+07:00",
+        "scheduled_tz": "Asia/Jakarta",
+        "scheduled_hour": 7,
+        "scheduled_minute": 0,
+        "status": "due",
+        "log_id": null,
+        "taken_at": null,
+        "note": null,
+        "stock_remaining": 29,
+        "stock_unit_code": "tablet"
+      }
+    ],
+    "page": { "next_cursor": null, "has_more": false, "limit": 1 }
+  }
+  ```
+
+  ## Obat PRN tidak muncul
+
+  Obat "bila perlu" tidak punya jadwal, jadi tidak ada dosis yang bisa dinilai
+  terlewat. Dosis PRN dicatat lewat `POST /medications/{id}/logs/prn`.

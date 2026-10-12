@@ -294,8 +294,35 @@ tercatat dipertahankan apa adanya. Perubahan pola dicatat sebagai
 | POST | `/logs/from-reminder` | bearer | owner, caregiver helper/manager | catat dari notifikasi |
 | PATCH | `/logs/{logId}` | bearer | owner, caregiver helper/manager | koreksi status/catatan |
 | POST | `/logs/{logId}/snooze` | bearer | owner, caregiver helper/manager | tunda pengingat |
-| GET | `/logs/today` | bearer | owner | ringkasan hari ini |
+| GET | `/logs/today` | bearer | owner | ringkasan hari ini (hanya yang SUDAH dicatat) |
 | GET | `/logs/export` | bearer | owner | ekspor CSV `?from=&to=` (maks 366 hari) |
+| GET | `/schedule` | bearer | owner | **jadwal dosis satu hari, termasuk yang belum dicatat** (`?date=YYYY-MM-DD`) |
+
+`GET /logs/today` dan `GET /schedule` menjawab pertanyaan yang berbeda dan
+keduanya diperlukan:
+
+- `/logs/today` — "apa yang sudah saya catat hari ini". Hanya berisi catatan.
+- `/schedule` — "dosis apa yang seharusnya saya minum hari ini". Dihitung dari
+  aturan frekuensi, jadi dosis yang **belum** dicatat tetap terlihat.
+
+Layar Hari Ini memakai `/schedule`; tanpa itu layar akan kosong sampai pengguna
+mencatat sesuatu, justru saat pengingat paling dibutuhkan.
+
+```json
+// GET /api/v1/schedule  → 200
+{"data":[{"medication_id":"01a13...","medication_name":"Amlodipine 5mg",
+          "dose_value":1,"dose_unit_code":"tablet","meal_relation":"after_meal",
+          "schedule_id":"01a13...","time_local":"07:00","time_label":"morning",
+          "slot_date":"2026-10-12","scheduled_at":"2026-10-12T07:00:00+07:00",
+          "scheduled_hour":7,"scheduled_minute":0,
+          "status":"due","log_id":null,"taken_at":null,"note":null,
+          "stock_remaining":29,"stock_unit_code":"tablet"}],
+ "page":{"next_cursor":null,"has_more":false,"limit":1}}
+```
+
+`status`: `pending` (belum waktunya) · `due` (perlu ditindak) · `taken` ·
+`late` · `skipped` · `snoozed`. `schedule_id` sama dengan yang diharapkan
+`POST /medications/{id}/logs`, jadi klien mencatat langsung dari slot.
 
 ```json
 // POST /api/v1/medications/019ccc.../logs

@@ -87,6 +87,34 @@ func (db *DB) StockByMedication(ctx context.Context, q Querier, medicationID str
 	return scanStock(row)
 }
 
+// StocksByOwner mengambil SELURUH baris stok milik satu pemilik sekaligus.
+//
+// Kenapa satu query untuk semua, bukan satu per obat: layar Hari Ini
+// menampilkan sisa stok untuk setiap obat yang jatuh tempo hari ini. Dengan
+// 20 obat, memanggil StockByMedication 20 kali berarti 20 perjalanan ke
+// database untuk satu kali buka halaman. Query ini mengembalikan semuanya
+// dalam satu perjalanan, dan pemanggil menyusunnya menjadi peta.
+func (db *DB) StocksByOwner(ctx context.Context, q Querier, ownerID string) (map[string]*domain.MedicationStock, error) {
+	rows, err := q.Query(ctx, `
+        SELECT `+stockColumns+`
+          FROM medication_stock
+         WHERE owner_id = $1 AND deleted_at IS NULL`, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("membaca stok pemilik: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[string]*domain.MedicationStock{}
+	for rows.Next() {
+		s, err := scanStock(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[s.MedicationID] = s
+	}
+	return out, rows.Err()
+}
+
 // StockByID mengambil baris stok berdasarkan id.
 func (db *DB) StockByID(ctx context.Context, q Querier, id, ownerID string) (*domain.MedicationStock, error) {
 	row := q.QueryRow(ctx, `

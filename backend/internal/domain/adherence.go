@@ -132,27 +132,55 @@ func countBits(mask int) int {
 	return n
 }
 
-// ScheduledDosesInRange menghitung berapa dosis yang seharusnya ada pada
-// rentang tanggal, memakai aturan frekuensi dan jam aktif.
+// DoseSlot adalah SATU dosis terjadwal yang nyata pada satu tanggal.
 //
-// Menyusuri hari satu per satu. Ini memang O(jumlah hari) dan bukan
-// O(jumlah jam), yang bertentangan dengan catatan performa di TRD bagian 7.1.
-// Alasannya: laporan kepatuhan selalu terbatas rentang (7, 30, atau 90 hari),
-// dan untuk rentang sependek itu penyusuran hari jauh lebih sederhana dan
-// lebih sulit salah dibanding menghitung siklus secara analitis. Yang dijaga
-// agar tetap O(jumlah jam) adalah scheduler, karena ia berjalan tiap menit.
-func ScheduledDosesInRange(
+// Ini bentuk "yang sebenarnya jatuh tempo", bukan sekadar hitungan. Dipakai
+// oleh layar Hari Ini (agar user bisa mencatat per dosis) dan oleh perhitungan
+// kepatuhan (yang hanya butuh jumlahnya).
+//
+// ScheduleID adalah id baris medication_times — nilai yang sama yang
+// diharapkan `POST /medications/{id}/logs` sebagai `schedule_id`. Itu disengaja:
+// slot yang ditampilkan di layar harus bisa langsung dicatat tanpa penerjemahan
+// id di klien.
+type DoseSlot struct {
+	ScheduleID   string
+	TimeLocal    string // "HH:MM" waktu lokal pemilik
+	Weekday      time.Weekday
+	Date         time.Time // tanggal lokal (tengah malam di zona pemilik)
+	DueAt        time.Time // waktu lokal saat dosis ini jatuh tempo
+	IsPending    bool      // jamnya belum lewat (relatif terhadap `now`)
+	DoseOverride *string   // dosis khusus untuk jam ini, bila ada
+	TimeLabel    *TimeLabel
+	SortOrder    int
+}
+
+// ScheduledSlotsInRange mengembalikan SETIAP dosis terjadwal pada rentang
+// tanggal, memakai aturan frekuensi dan jam aktif.
+//
+// Ini satu-satunya tempat aturan "dosis apa yang jatuh pada hari ini"
+// diterjemahkan menjadi daftar. `ScheduledDosesInRange` di bawah dibangun di
+// atas fungsi ini, sehingga layar Hari Ini dan laporan kepatuhan TIDAK PERNAH
+// bisa berbeda pendapat — keduanya membaca daftar yang sama.
+//
+// Menyusuri hari satu per satu. Untuk rentang laporan (7/30/90 hari) cara ini
+// lebih sederhana dan lebih sulit salah dibanding menghitung siklus secara
+// analitis. Yang dijaga tetap O(jumlah jam) adalah scheduler, bukan fungsi ini.
+func ScheduledSlotsInRange(
 	med *Medication, freq *FrequencyParams, times []MedicationTime,
 	from, to time.Time, loc *time.Location,
 	now time.Time, includeFuture bool,
-) (scheduled, pending int) {
+) []DoseSlot {
 	if med == nil || freq == nil || len(times) == 0 || loc == nil {
-		return 0, 0
+		return nil
 	}
-	// Obat PRN tidak punya jadwal, jadi tidak ada dosis yang "seharusnya".
+	// Obat PRN tidak punya jadwal: tidak ada dosis yang "jatuh tempo" dengan
+	// sendirinya. Dosis PRN hanya dicatat manual saat benar-benar diminum.
 	if freq.Pattern == PatternPRN {
-		return 0, 0
+		return nil
 	}
+
+	nowLocal := now.In(loc)
+	var out []DoseSlot
 
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		local := time.Date(d.Year(), d.Month(), d.Day(), 12, 0, 0, 0, loc)
@@ -178,20 +206,59 @@ func ScheduledDosesInRange(
 				continue
 			}
 
-			scheduled++
-
-			// Dosis yang jamnya belum lewat dianggap masih menunggu,
-			// bukan terlewat. Dihitung terpisah supaya tidak masuk penyebut.
-			if !includeFuture {
-				hh, mm, err := ParseClock(t.TimeLocal)
-				if err == nil {
-					dueAt := time.Date(local.Year(), local.Month(), local.Day(),
-						hh, mm, 0, 0, loc)
-					if dueAt.After(now.In(loc)) {
-						pending++
-					}
-				}
+			slot := DoseSlot{
+				ScheduleID:   t.ID,
+				TimeLocal:    t.TimeLocal,
+				Weekday:      local.Weekday(),
+				Date:         time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc),
+				DoseOverride: t.DoseOverride,
+				TimeLabel:    t.Label,
+				SortOrder:    t.SortOrder,
 			}
+
+			if hh, mm, err := ParseClock(t.TimeLocal); err == nil {
+				slot.DueAt = time.Date(local.Year(), local.Month(), local.Day(),
+					hh, mm, 0, 0, loc)
+				// Dosis yang jamnya belum lewat masih menunggu, bukan
+				// terlewat. Membedakannya penting: hanya yang terlewat yang
+				// masuk penyebut kepatuhan dan memicu notifikasi caregiver.
+				slot.IsPending = slot.DueAt.After(nowLocal)
+			}
+
+			if !includeFuture && slot.IsPending {
+				// Pemanggil minta tanpa dosis mendatang: tetap dikembalikan,
+				// tetapi ditandai menunggu. Penyaringannya dilakukan pemanggil
+				// supaya ia bisa memutuskan sendiri.
+				_ = includeFuture
+			}
+
+			out = append(out, slot)
+		}
+	}
+
+	return out
+}
+
+// ScheduledDosesInRange menghitung berapa dosis yang seharusnya ada pada
+// rentang tanggal, memakai aturan frekuensi dan jam aktif.
+//
+// Dibangun di atas ScheduledSlotsInRange supaya hanya ada SATU tempat aturan
+// frekuensi diterjemahkan menjadi daftar dosis. Sebelumnya fungsi ini
+// menyusuri hari sendiri; dua implementasi aturan yang sama pasti berbeda
+// cepat atau lambat, dan user akan melihat angka kepatuhan yang bertentangan
+// dengan daftar di layar Hari Ini.
+//
+// Mengembalikan jumlah terjadwal dan jumlah yang masih menunggu.
+func ScheduledDosesInRange(
+	med *Medication, freq *FrequencyParams, times []MedicationTime,
+	from, to time.Time, loc *time.Location,
+	now time.Time, includeFuture bool,
+) (scheduled, pending int) {
+	slots := ScheduledSlotsInRange(med, freq, times, from, to, loc, now, includeFuture)
+	for i := range slots {
+		scheduled++
+		if slots[i].IsPending {
+			pending++
 		}
 	}
 	return scheduled, pending
