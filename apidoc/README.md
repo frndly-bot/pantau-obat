@@ -280,7 +280,7 @@ gate, that pipe needs `set -o pipefail` — otherwise a failing run passes green
 
 ## What already exists
 
-**79 endpoint files** across 12 folders, plus 12 `folder.yml`.
+**81 endpoint files** across 12 folders, plus 12 `folder.yml`.
 
 | Folder | Files | Contents |
 |---|---|---|
@@ -288,7 +288,7 @@ gate, that pipe needs `set -o pipefail` — otherwise a failing run passes green
 | `authentication/` | 9 | register, register-caregiver, login, login-admin, refresh, logout, me, change-password, relogin |
 | `catalog/` | 6 | search, suggest, create, get, update, delete |
 | `medication/` | 9 | create, list, get, update, delete, create-interval, create-weekly, create-monthly, create-prn |
-| `log/` | 5 | create, from-reminder, update, snooze, today |
+| `log/` | 6 | create, from-reminder, update, snooze, today, export |
 | `stock/` | 6 | get, set, restock, adjust, transactions, low |
 | `caregiver/` | 11 | create-invite, list-links, accept, reject, update-link, revoke, overview, medications, adherence, logs, create-log (+ kelola obat/stok via manager, di handler) |
 | `adherence/` | 3 | summary, daily, by-medication |

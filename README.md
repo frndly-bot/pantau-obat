@@ -1,6 +1,6 @@
 # Pantau Obat — Personal Medication Adherence + Caregiver Monitoring
 
-Status: **backend is running & tested.** 82 routes, 92 unit tests passing, and the
+Status: **backend is running & tested.** 84 routes, 92 unit tests passing, and the
 apidoc e2e suite **79/79 requests with 173/173 assertions** (idempotent). The
 frontend has not started; HTML wireframes live in `design/`.
 Notification channels active for v0.1: in-app only (push/email/telegram deferred to v0.2).

@@ -1,6 +1,6 @@
 # Pantau Obat — Backend
 
-Status: **jalan dan terverifikasi.** 82 rute terdaftar di 12 kelompok handler,
+Status: **jalan dan terverifikasi.** 84 rute terdaftar di 12 kelompok handler,
 92 unit test lulus, dan uji e2e apidoc **79/79 request, 173/173 assertion**.
 Kanal notifikasi aktif untuk v0.1: in-app (push/email/telegram ditunda v0.2).
 Dokumen arsitektur: `docs/design-v2/architecture-v2.md` bagian 3.
@@ -169,14 +169,14 @@ membuat schema dan kode tidak sinkron.
 | `cmd/api/main.go` | config → db → migrasi → router → worker → graceful shutdown |
 | `cmd/admin-bootstrap/` | buat admin pertama, menolak berjalan di produksi |
 
-**82 rute** terdaftar. Rinciannya per kelompok:
+**84 rute** terdaftar. Rinciannya per kelompok:
 
 | Kelompok | Rute | Kelompok | Rute |
 |---|---|---|---|
 | auth | 6 | stock | 6 |
 | users | 4 | catalog | 6 |
 | medications | 9 | carelinks | 16 |
-| logs | 8 | adherence | 3 |
+| logs | 10 | adherence | 3 |
 | notifications | 6 | admin | 16 |
 | webhook | 5 | health | 2 (di luar `/api/v1`) |
 

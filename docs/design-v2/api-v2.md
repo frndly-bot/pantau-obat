@@ -295,6 +295,7 @@ tercatat dipertahankan apa adanya. Perubahan pola dicatat sebagai
 | PATCH | `/logs/{logId}` | bearer | owner, caregiver helper/manager | koreksi status/catatan |
 | POST | `/logs/{logId}/snooze` | bearer | owner, caregiver helper/manager | tunda pengingat |
 | GET | `/logs/today` | bearer | owner | ringkasan hari ini |
+| GET | `/logs/export` | bearer | owner | ekspor CSV `?from=&to=` (maks 366 hari) |
 
 ```json
 // POST /api/v1/medications/019ccc.../logs
@@ -397,6 +398,7 @@ Dashboard caregiver:
 | GET | `/care/{ownerId}/medications` | bearer | obat yang dipantau |
 | GET | `/care/{ownerId}/adherence` | bearer | `?from=&to=` |
 | GET | `/care/{ownerId}/logs` | bearer | feed kronologis |
+| GET | `/care/{ownerId}/logs/export` | bearer | **`manager`** — ekspor CSV, `?from=&to=&reason=` wajib |
 | POST | `/care/{ownerId}/logs` | bearer | **`helper` atau `manager`** |
 | POST | `/care/{ownerId}/medications` | bearer | **hanya `manager`** |
 | PATCH | `/care/{ownerId}/medications/{id}` | bearer | **hanya `manager`** |

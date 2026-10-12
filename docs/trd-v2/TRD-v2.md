@@ -324,12 +324,12 @@ Ini inti perubahan v2. Jadwal disimpan sebagai **aturan**, bukan baris per hari.
 ### Epic H — Laporan
 
 **H1. Sebagai pasien, saya ingin melihat statistik kepatuhan.**
-- AC: Angka kepatuhan harian, mingguan, dan bulanan.
-- AC: Menampilkan obat mana yang paling sering terlewat.
+- AC: Angka kepatuhan harian, mingguan, dan bulanan. *(selesai — GET /adherence, /adherence/daily)*
+- AC: Menampilkan obat mana yang paling sering terlewat. *(selesai — by-medication)*
 
 **H2. Sebagai pasien, saya ingin mengekspor data.**
-- AC: Ekspor CSV riwayat pemakaian untuk dibawa ke dokter.
-- AC: Ekspor hanya milik sendiri.
+- AC: Ekspor CSV riwayat pemakaian untuk dibawa ke dokter. *(selesai — GET /logs/export)*
+- AC: Ekspor hanya milik sendiri. *(selesai — jalur caregiver manager tersedia dengan audit reason)*
 
 ### Epic I — Admin (BARU)
 
@@ -441,7 +441,7 @@ statistik dasar.
 ### v0.2
 
 Kanal Telegram dan email, ringkasan harian, eskalasi caregiver lanjutan,
-ekspor CSV, tuning jam sunyi per kanal.
+tuning jam sunyi per kanal. (Ekspor CSV sudah didahulukan ke v0.1.)
 
 ### v0.3
 

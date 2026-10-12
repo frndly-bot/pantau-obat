@@ -1,0 +1,65 @@
+info:
+  name: Ekspor Riwayat CSV
+  type: http
+  seq: 6
+  tags:
+    - log
+    - export
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/logs/export?from=2026-10-01&to=2026-10-12"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body
+      operator: contains
+      value: "tanggal,jam_jadwal"
+
+docs: |-
+  # Ekspor Riwayat CSV (TRD H2)
+
+  Menulis riwayat pemakaian milik sendiri ke file CSV untuk dibawa ke dokter.
+
+  ## Parameter
+
+  | Parameter | Wajib | Ketentuan |
+  |---|---|---|
+  | `from` | ya | `YYYY-MM-DD`, awal rentang (inklusif) |
+  | `to` | ya | `YYYY-MM-DD`, akhir rentang (inklusif), maks 366 hari |
+
+  ## Bentuk file
+
+  CSV + BOM UTF-8 + CRLF, dibuka di Excel/Spreadsheet tanpa dialog impor.
+  Nama file menyertakan rentang: `pantau-obat-riwayat-YYYYMMDD-YYYYMMDD.csv`.
+  Kolom: `tanggal, jam_jadwal, obat, dosis, status, jam_diminum, sumber,
+  catatan`. Nilai enum tetap Inggris (`taken`, `skipped`) — menerjemahkan
+  nilai data membuat pemrosesan ulang jadi menebak-nebak.
+
+  ## HANYA milik sendiri
+
+  Ekspor mengeluarkan riwayat kesehatan dari sistem. Jalur caregiver ada
+  terpisah (`GET /care/{ownerId}/logs/export`) dengan syarat lebih ketat:
+  hanya `manager` dan wajib menyertakan `?reason=` yang tercatat di
+  `audit_log`.
+
+  ## Contoh response — 200
+
+  ```
+  tanggal,jam_jadwal,obat,dosis,status,jam_diminum,sumber,catatan
+  2026-10-12,08:00,Obat Dari Manager,1 tablet,late,2026-10-12 10:04,caregiver,
+  ```
+
+  ## Contoh response — 400
+
+  ```json
+  {"error":{"code":"VALIDATION_FAILED","message":"rentang ekspor maksimal 366 hari"}}
+  ```
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 7.
