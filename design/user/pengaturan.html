@@ -186,16 +186,21 @@
         (unread.length ? A.badge(unread.length + " belum dibaca", "badge-info badge-pulse") : "") + "</div>" +
       '<div class="card-pad">';
     PO.notifPrefs.forEach(function (p) {
+      /* Keputusan v0.1: hanya in-app yang aktif. Push/email/telegram tetap
+         ditampilkan (arah produk), tapi nonaktif + badge "nanti (v0.2)" —
+         bukan dihapus, supaya user tahu kemana produk ini menuju. */
+      var deferred = p.channel !== "in_app";
       html += '<div class="set-row">' +
         '<div class="lbl"><b>' + A.esc(PO.t("channel", p.channel)) + "</b>" +
           "<span>" + (p.channel === "in_app" ? "cadangan di dalam aplikasi, selalu tersedia"
             : p.channel === "push" ? "sampai walau aplikasi tertutup"
             : p.channel === "telegram" ? "butuh tautan bot Telegram"
             : "butuh alamat email terverifikasi") + "</span>" +
+          (deferred ? '<span class="badge" style="margin-left:.5rem">nanti (v0.2)</span>' : "") +
           (p.notif_throttled ? '<span class="err-text">sedang diturunkan otomatis karena terlalu sering</span>' : "") +
         "</div>" +
-        '<label class="sw"><input type="checkbox" data-ch="' + p.channel + '"' + (p.enabled ? " checked" : "") + '>' +
-          '<span class="track"></span></label>' +
+        '<label class="sw"><input type="checkbox" data-ch="' + p.channel + '"' + (p.enabled ? " checked" : "") +
+          (deferred ? " disabled" : "") + '><span class="track"></span></label>' +
       "</div>";
       if (p.enabled && p.channel !== "in_app") {
         html += '<div class="grid-2 mt-8 mb-8">' +

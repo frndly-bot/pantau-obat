@@ -711,10 +711,12 @@
   ];
 
   /* ---------- preferensi notifikasi ---------- */
+  /* Keputusan v0.1: hanya in-app aktif. Push/telegram/email disabled —
+     aktivasi ditunda v0.2, sesuai DefaultPrefs di backend. */
   var notifPrefs = [
-    { channel: "push", enabled: true, quiet_start: "22:00", quiet_end: "06:00", advance_minutes: 10, notif_throttled: false },
+    { channel: "push", enabled: false, quiet_start: "22:00", quiet_end: "06:00", advance_minutes: 10, notif_throttled: false },
     { channel: "in_app", enabled: true, quiet_start: null, quiet_end: null, advance_minutes: 0, notif_throttled: false },
-    { channel: "telegram", enabled: true, quiet_start: "22:00", quiet_end: "06:00", advance_minutes: 5, notif_throttled: false },
+    { channel: "telegram", enabled: false, quiet_start: "22:00", quiet_end: "06:00", advance_minutes: 5, notif_throttled: false },
     { channel: "email", enabled: false, quiet_start: null, quiet_end: null, advance_minutes: 0, notif_throttled: false }
   ];
 

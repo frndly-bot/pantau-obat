@@ -1,7 +1,7 @@
 # apidoc — OpenCollection Spec (API Contract)
 
-Status: **complete and passing.** 75 endpoint files across 12 folders; one
-collection run produces **75/75 requests passing with 159/159 assertions**, and
+Status: **complete and passing.** 79 endpoint files across 12 folders; one
+collection run produces **79/79 requests passing with 173/173 assertions**, and
 is idempotent (a second run against the same database still passes).
 API contract document: `docs/design-v2/api-v2.md`.
 
@@ -280,24 +280,24 @@ gate, that pipe needs `set -o pipefail` — otherwise a failing run passes green
 
 ## What already exists
 
-**75 endpoint files** across 12 folders, plus 12 `folder.yml`.
+**79 endpoint files** across 12 folders, plus 12 `folder.yml`.
 
 | Folder | Files | Contents |
 |---|---|---|
 | `health/` | 2 | `/healthz`, `/readyz` |
 | `authentication/` | 9 | register, register-caregiver, login, login-admin, refresh, logout, me, change-password, relogin |
 | `catalog/` | 6 | search, suggest, create, get, update, delete |
-| `medication/` | 5 | create, list, get, update, delete |
+| `medication/` | 9 | create, list, get, update, delete, create-interval, create-weekly, create-monthly, create-prn |
 | `log/` | 5 | create, from-reminder, update, snooze, today |
 | `stock/` | 6 | get, set, restock, adjust, transactions, low |
-| `caregiver/` | 11 | create-invite, list-links, accept, reject, update-link, revoke, overview, medications, adherence, logs, create-log |
+| `caregiver/` | 11 | create-invite, list-links, accept, reject, update-link, revoke, overview, medications, adherence, logs, create-log (+ kelola obat/stok via manager, di handler) |
 | `adherence/` | 3 | summary, daily, by-medication |
 | `notification/` | 6 | get-prefs, update-prefs, register-device, list-devices, unregister-device, inbox |
 | `user/` | 4 | get-profile, update-profile, audit-log, delete-account |
 | `admin/` | 16 | list-users, get-user, disable/enable/erase-user, grant/revoke-admin, list/create/publish/unpublish/archive-catalog, list/retry/cancel-job, stats |
 | `webhook/` | 2 | email-status, telegram-update |
 
-Latest run result: **75/75 requests passing, 159/159 assertions**, and
+Latest run result: **79/79 requests passing, 173/173 assertions**, and
 **idempotent** — run twice against the same database it still passes.
 
 ## Caregiver permission levels

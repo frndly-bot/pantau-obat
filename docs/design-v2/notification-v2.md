@@ -147,12 +147,18 @@ Satu baris per job per kanal. UNIQUE `(job_id, channel)`. Menyimpan
 
 ## 6. Kanal
 
-| Kanal | Latensi | Kapan | Prioritas |
+| Kanal | Latensi | Kapan | Status v0.1 |
 |---|---|---|---|
-| Web Push | < 2 detik | HP + desktop, perlu izin | utama |
-| Telegram | 1–5 detik | semua perangkat dengan chat aktif | utama (v0.2) |
-| Email | 30–120 detik | inbox, dibaca telat | opsional (v0.2) |
-| In-app | saat app dibuka | fallback, selalu aktif | fallback |
+| In-app | saat app dibuka | fallback, selalu aktif | **AKTIF** |
+| Web Push | < 2 detik | HP + desktop, perlu izin | ditunda (kandidat v0.2) |
+| Telegram | 1–5 detik | semua perangkat dengan chat aktif | ditunda (v0.2) |
+| Email | 30–120 detik | inbox, dibaca telat | ditunda (v0.2) |
+
+Keputusan aktivasi (2026-10-12): v0.1 hanya mengirim **in-app**. "Mengirim"
+untuk kanal ini berarti mencatat job `sent` yang dibaca inbox aplikasi
+sendiri — tidak butuh kredensial operator apa pun. Kode tiga kanal lain
+tetap ada di repo; aktivasi cukup mengisi kredensial (VAPID / SMTP / token
+bot) dan mengubah `DefaultPrefs`.
 
 Nilai `channel` di CHECK: `push`, `email`, `telegram`, `in_app`. Empat-empatnya
 sudah ada di schema, jadi tidak perlu migrasi CHECK saat menambah kanal.

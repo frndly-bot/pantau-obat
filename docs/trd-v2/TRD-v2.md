@@ -432,7 +432,8 @@ Ini inti perubahan v2. Jadwal disimpan sebagai **aturan**, bukan baris per hari.
 
 ### v0.1 — MVP
 
-Auth, obat, lima pola frekuensi, pencatatan, pengingat web push, caregiver
+Auth, obat, lima pola frekuensi, pencatatan, pengingat **in-app** (web push
+ditunda keputusan aktivasi, kandidat v0.2), caregiver
 (`viewer` + `helper` + `manager`), stok dan peringatan restock, preset katalog dengan
 katalog pribadi user, halaman admin dasar (kelola user + kurasi preset),
 statistik dasar.
@@ -460,7 +461,9 @@ Semua yang tadinya terbuka di TRD v0.1 sudah diputuskan:
 2. **Izin caregiver** — `viewer`, `helper`, dan `manager` ada di v0.1.
    `manager` adalah perluasan sadar atas `helper`: ia boleh mengelola obat dan
    stok pasien, bukan hanya mencatat dosis.
-3. **Kanal notifikasi awal** — web push saja untuk v0.1. Telegram dan email di v0.2.
+3. **Kanal notifikasi awal** — in-app saja untuk v0.1. Web push, Telegram,
+   dan email: keputusan aktivasi ditunda (kandidat v0.2). Kode ketiganya
+   sudah ada; cukup kredensial operator untuk mengaktifkan.
 4. **Visibilitas data** — caregiver melihat nama obat, tetapi tidak foto resep
    dan tidak catatan pribadi pasien.
 5. **Skala** — perkiraan v1: ratusan pengguna aktif. Index sudah disiapkan
