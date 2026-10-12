@@ -1,0 +1,133 @@
+/* ============================================================
+   Tailwind v4 — jembatan token desain → utilitas Tailwind.
+
+   Token mentah ada di `theme.css` (dipindah dari prototipe). Berkas ini
+   memetakannya ke namespace `@theme` Tailwind v4 sehingga bisa dipakai
+   sebagai utilitas biasa (`bg-background`, `text-primary`, `rounded-lg`,
+   `shadow-md`, …) tanpa konfigurasi JS.
+   ============================================================ */
+@import "tailwindcss";
+@import "./theme.css";
+
+/* Pemindaian kelas Tailwind di paket workspace (Tailwind v4 mendeteksi
+   sumber secara otomatis, tetapi paket `ui` perlu ditunjuk eksplisit
+   karena berada di luar direktori app). */
+@source "../../../..";
+
+@theme inline {
+  /* Warna — dipetakan dari variabel CSS di theme.css */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Token domain kepatuhan obat */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-info: var(--info);
+  --color-na: var(--na);
+  --color-private: var(--private);
+
+  /* Radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* Tipografi */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Bayangan */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Gerak */
+  --ease-brand: var(--ease);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Transisi halaman (View Transitions API) — diaktifkan lewat onNavigate di
+   +layout.svelte. Nonaktif otomatis bila pengguna meminta gerak minimal. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 180ms;
+    animation-timing-function: var(--ease);
+  }
+}
+
+/* Muncul saat masuk viewport — dipasang oleh aksi `reveal` (lihat utils). */
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 220ms var(--ease),
+      transform 220ms var(--ease);
+  }
+  [data-reveal="visible"] {
+    opacity: 1;
+    transform: none;
+  }
+}

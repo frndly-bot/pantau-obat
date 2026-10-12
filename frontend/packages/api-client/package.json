@@ -1,0 +1,17 @@
+{
+  "name": "@pantau-obat/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./session": "./src/session/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'api-client: no build step (source-only package)'",
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@pantau-obat/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./locales/*": "./locales/*"
+  },
+  "scripts": {
+    "build": "echo 'i18n: no build step (source-only package)'",
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

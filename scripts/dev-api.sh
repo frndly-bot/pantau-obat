@@ -43,6 +43,11 @@ set +a
 
 export DB_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB}?sslmode=disable"
 export JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+# Backend dev dijalankan dengan APP_ENV=development supaya cookie refresh
+# TIDAK memakai atribut Secure (localhost bukan HTTPS — cookie Secure akan
+# diabaikan browser) dan CORS mengizinkan origin localhost. Tanpa ini,
+# login dari dev server selalu gagal.
+export APP_ENV="${APP_ENV:-development}"
 export APP_PUBLIC_URL="${APP_PUBLIC_URL:-http://127.0.0.1:8080}"
 export APP_PORT="${APP_PORT:-8080}"
 export MIGRATE_ON_START="${MIGRATE_ON_START:-false}"

@@ -1,0 +1,21 @@
+{
+  "name": "pantau-obat-frontend",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "dev": "pnpm --filter @pantau-obat/web dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"**/*.{ts,svelte,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-svelte": "^3.4.0",
+    "typescript": "^5.9.3"
+  }
+}

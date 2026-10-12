@@ -1,0 +1,5 @@
+@import '@pantau-obat/ui/styles/app.css';
+
+/* Pemindaian kelas Tailwind untuk berkas aplikasi ini. */
+@source "./routes";
+@source "./lib";

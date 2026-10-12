@@ -1,145 +1,194 @@
 # Pantau Obat — Frontend
 
-Status: **belum ada kode.** Folder ini masih kosong.
+Status: **Fase 0–2 selesai** (fondasi, landing page, login/register).
+Fase 3 (halaman user lengkap) sedang berjalan.
 Dokumen arsitektur: `docs/design-v2/architecture-v2.md` bagian 4.
 Keputusan dua aplikasi: `docs/decisions-v2/ADR-003-frontend-dua-app.md`.
+Rencana lengkap: `.hermes/plans/2026-10-12_implementasi-sveltekit-user.md`.
 
-Dua aplikasi SvelteKit dalam satu workspace:
-
-| App | Perangkat utama | Navigasi | Tujuan |
-|---|---|---|---|
-| `apps/user` | HP 360px | bottom nav | catat dosis, riwayat, caregiver |
-| `apps/admin` | desktop ≥1280px | sidebar | kelola user, kurasi katalog, agregat |
-
-Komponen dasar dan klien API dipakai bersama, bukan diduplikasi.
+## Struktur
 
 ```
 frontend/
   pnpm-workspace.yaml
   package.json
   packages/
-    ui/              # komponen bersama (shadcn-svelte)
-    api-client/      # tipe + fetch wrapper, generate dari OpenAPI backend
-    config/          # preset tailwind, tsconfig, eslint
+    ui/              # komponen bersama (Svelte 5 + Tailwind v4)
+    api-client/      # tipe kontrak + klien fetch + adapter sesi
+    i18n/            # kamus JSON + mesin terjemahan
   apps/
-    user/            # SvelteKit, adapter-static, mobile-first
-    admin/           # SvelteKit, adapter-static, desktop-first
+    web/             # landing + aplikasi user (satu app)
 ```
+
+**Satu app (`apps/web`), bukan dua.** Landing → login → aplikasi adalah satu
+alur dengan domain dan sesi yang sama; memisahkannya berarti dua build, dua
+deploy, dan dua salinan klien API hanya untuk tiga halaman publik. Bundel
+statis yang sama juga menjadi sumber pembungkusan Capacitor nanti.
+`apps/admin` tetap terpisah sesuai ADR-003 (belum dikerjakan).
 
 ## Toolchain
 
-| Alat | Versi |
+| Alat | Versi terpasang |
 |---|---|
-| Node | 24 LTS (Krypton) |
-| npm | bawaan Node |
-| pnpm | 12.x (stabil terbaru) |
-| TypeScript | 7.x (stabil terbaru) |
-| Svelte | 5.x |
-| SvelteKit | 3.x |
-
-Kalau belum ada, dari root repo:
-
-```bash
-make setup-toolchain     # pasang Go + nvm + Node + pnpm + TypeScript
-make check-tools         # hanya periksa
-```
-
-Node dipasang lewat **nvm**, tidak mengubah Node sistem.
+| Node | v26.7.0 |
+| pnpm | 11.17.0 (lewat `corepack enable pnpm`) |
+| SvelteKit | 2.70.3 |
+| Svelte | 5.57.2 (runes) |
+| Tailwind CSS | 4.x (`@theme`, CSS-first) |
+| adapter | `@sveltejs/adapter-static` |
 
 ## Perintah
-
-Dari **root repo**:
-
-```bash
-make fe-install          # pnpm install seluruh workspace
-make fe-dev-user         # dev server aplikasi user
-make fe-dev-admin        # dev server aplikasi admin
-make fe-build            # build produksi kedua app (statis)
-make fe-test             # vitest
-make fe-check            # svelte-check + tsc
-make fe-clean            # hapus artefak build
-```
-
-Kalau lebih suka langsung di folder ini:
 
 ```bash
 cd frontend
 pnpm install
-pnpm --filter user dev
-pnpm --filter admin dev
-pnpm -r build
-pnpm -r check
+pnpm --filter @pantau-obat/web dev      # dev server di :5173
+pnpm --filter @pantau-obat/web check    # svelte-check + tsc
+pnpm --filter @pantau-obat/web build    # build statis ke apps/web/build
 ```
 
-## Menyiapkan project dari nol
+## Menjalankan secara lokal
 
-Workspace root:
+Backend harus jalan dalam mode **development**, bukan production. Ini penting
+di localhost: pada mode production cookie refresh memakai atribut `Secure`
+(diabaikan browser pada `http://`) dan CORS menolak origin localhost —
+akibatnya login selalu gagal.
 
 ```bash
-cd frontend
-corepack enable
-# buat pnpm-workspace.yaml:
-#   packages:
-#     - "packages/*"
-#     - "apps/*"
+# Terminal 1 — backend di :8081 (development)
+APP_ENV=development APP_PORT=8081 scripts/dev-api.sh
+
+# Terminal 2 — frontend
+cd frontend/apps/web && pnpm dev
 ```
 
-Setiap aplikasi:
+Buka <http://localhost:5173>.
+
+`.env` di `apps/web` menentukan `VITE_API_BASE_URL` (bawaan
+`http://127.0.0.1:8081/api/v1`).
+
+## Keputusan arsitektur yang wajib dipatuhi
+
+### 1. `adapter-static`, tanpa server Node
+
+Sesuai ADR-001. Halaman publik (`/`, `/login`, `/register`) di-**prerender**
+menjadi HTML terisi saat build — SEO baik, muat cepat, tanpa runtime Node.
+Halaman ber-guard dirender di klien (`ssr = false` di `(app)/+layout.ts`)
+karena isinya bergantung pada sesi.
+
+> Fallback SPA bernama **`spa.html`**, bukan `index.html`. Kalau memakai
+> `index.html`, adapter menimpanya dan landing page hasil prerender hilang
+> (sudah pernah terjadi). Server harus menyajikan `spa.html` untuk path yang
+> tidak punya berkas sendiri.
+
+### 2. Sesi: token di memori + refresh di cookie HttpOnly
+
+Frontend ini akan dibungkus **Capacitor** menjadi aplikasi mobile. Capacitor
+tidak bisa menjalankan server Node, jadi pola BFF (proxy sisi server) tidak
+bisa dipakai. Karena itu:
+
+| | Tempat |
+|---|---|
+| Refresh token | **Tidak pernah di JavaScript.** Web: cookie `po_refresh` (HttpOnly, SameSite=Strict, Path=/api/v1/auth). Mobile nanti: secure storage native. |
+| Access token | Memori saja (`ApiClient`), umur pendek (~15 menit) |
+| localStorage | **Tidak dipakai** untuk token apa pun |
+
+`packages/api-client/src/session/` berisi `SessionAdapter` — satu-satunya titik
+yang perlu ditukar saat Capacitor ditambahkan (`native.ts` sudah disiapkan
+sebagai kerangka). UI dan pemanggilan API tidak berubah.
+
+Penanda `po_session=1` (bukan token) dipakai supaya JS tahu kapan perlu
+memanggil `/auth/refresh`; tanpa itu setiap kunjungan tamu memicu refresh gagal.
+
+### 3. Backend membungkus balasan dalam envelope
+
+Semua balasan sukses berbentuk `{ "data": ..., "page"?: ... }`, error
+`{ "error": { "code", "message", "details"? } }`. `ApiClient` membuka envelope
+ini; `requestPage()` dipakai bila informasi paginasi dibutuhkan.
+
+Rincian error validasi ada di `error.details` (array `{field, issue}`), diakses
+lewat `ApiError.issueFor('password')`.
+
+### 4. Terjemahan enum dilakukan di frontend
+
+Database menyimpan bahasa Inggris (`after_meal`, `morning`, `child`). Frontend
+yang memetakannya ke Bahasa Indonesia. Jangan mengirim nilai Indonesia ke API.
+
+### 5. Mobile-first adalah requirement
+
+Semua halaman user harus terbaca di 360px tanpa zoom. Target sentuh minimal
+44×44 px (token `--touch`).
+
+## i18n
+
+Kamus ada di `packages/i18n/locales/{id,en}.json` — 13 domain, 747 kunci per
+bahasa, hasil konversi dari `design/assets/i18n.js`.
+
+```ts
+import { createTranslator } from '@pantau-obat/i18n';
+const { t } = createTranslator(dict, fallback);
+t('today.title');
+```
+
+- **JSON, bukan .js** — bisa dipakai alat terjemahan apa pun.
+- **Nested per domain** (`today.*`, `meds.*`, `settings.*`).
+- **Fallback berantai**: locale aktif → `id` → nama kunci.
+- **Interpolasi** `{nama}` didukung.
+- **Type-safe key**: `TranslationKey` menangkap salah ketik saat `tsc`.
+
+### Perbaikan mojibake (penting)
+
+Sumber `design/assets/i18n.js` mengandung **mojibake**: karakter UTF-8 tersimpan
+seolah latin-1/Windows-1252, lalu di-encode UTF-8 lagi. Contoh: `"6–20 digit"`
+menjadi `"6â€"20 digit"`, `"akun…"` menjadi `"akunâ€¦"` (59 entri).
+
+`packages/i18n/scripts/repair-mojibake.mjs` memulihkannya dengan memetakan
+kembali lewat tabel **cp1252** (bukan latin-1 — byte 0x80–0x9F di cp1252
+memetakan ke `€`, `"`, `…`, bukan karakter kontrol). Jalankan ulang bila kamus
+diregenerasi dari sumber:
 
 ```bash
-pnpm dlx sv create apps/user --template minimal --types ts
-pnpm dlx sv create apps/admin --template minimal --types ts
+cd frontend/packages/i18n
+node scripts/repair-mojibake.mjs
 ```
 
-shadcn-svelte dan dependency utama (jalankan di dalam tiap app):
+**Sumber aslinya sebaiknya diperbaiki juga**, supaya regenerasi berikutnya
+tidak memerlukan langkah ini.
+
+## Pengujian
 
 ```bash
-pnpm dlx shadcn-svelte@latest init
-pnpm dlx shadcn-svelte@latest add button input dialog table toast badge card form
-pnpm add -D tailwindcss @tailwindcss/vite
-pnpm add lucide-svelte
-pnpm add -D @vite-pwa/sveltekit
-pnpm add -D vitest @playwright/test
-pnpm add sveltekit-superforms zod
-pnpm add -D @tanstack/table-core
+# Alur auth terhadap backend nyata (register → me → refresh → logout)
+node apps/web/scripts/e2e-auth.mjs
+
+# Alur browser (Playwright): register lewat UI, cookie HttpOnly,
+# tidak ada token di localStorage, navigasi, pemulihan sesi, logout
+node apps/web/scripts/e2e-browser.mjs
 ```
 
-## Konfigurasi
+`e2e-auth.mjs` membutuhkan backend di `http://127.0.0.1:8081`.
+`e2e-browser.mjs` membutuhkan dev server di `:5173` dan Playwright tersedia
+(`CHROME_PATH` dapat diarahkan ke Chromium yang sudah terpasang).
 
-| Variabel | Dipakai di | Isi |
-|---|---|---|
-| `PUBLIC_API_BASE_URL` | dua app | base URL API, mis. `/api/v1` |
+## Yang belum dikerjakan
 
-Keduanya di-prerender, jadi tidak ada secret di frontend. Jangan pernah
-menaruh kunci rahasia di variabel `PUBLIC_*`.
+- **Fase 3**: wizard tambah obat (5 pola frekuensi), detail obat + stok,
+  filter riwayat + ekspor CSV, alur undang/terima caregiver, ganti sandi,
+  kanal notifikasi, perangkat, audit-log.
+- **Fase 4**: PWA (manifest, service worker), vitest untuk util, konfigurasi
+  Caddy.
+- **`apps/admin`** — plan terpisah.
+- **Capacitor** — hanya kerangka adapter; CORS perlu origin
+  `capacitor://localhost` (iOS) dan `http://localhost` (Android).
 
-## Catatan implementasi yang wajib dipatuhi
+## Keterbatasan backend yang ditemukan
 
-1. **`adapter-static` dengan prerender penuh.** Tidak ada server Node di
-   produksi. Hasil build diserve Caddy.
+1. **Tidak ada endpoint jadwal dosis.** `GET /logs/today` hanya mengembalikan
+   dosis yang **sudah dicatat**, bukan daftar dosis hari ini. Generator jadwal
+   (`domain/occurrence.go`) ada tetapi belum diekspos. Halaman "Hari Ini"
+   menampilkan apa yang tersedia dan menyatakan keterbatasan ini terbuka,
+   bukan mengarang data.
 
-2. **Terjemahan enum dilakukan di frontend.** Database menyimpan bahasa Inggris
-   (`after_meal`, `morning`, `child`). Frontend yang memetakannya ke Bahasa
-   Indonesia. Jangan mengirim nilai Indonesia ke API.
-
-3. **Guard admin hanya untuk pengalaman pengguna, bukan keamanan.** Periksa
-   `role === 'admin'` dan `admin_scope` untuk menyembunyikan menu, tapi
-   pemeriksaan sebenarnya tetap di backend. Rute admin selalu diverifikasi ulang.
-
-4. **`apps/admin` tidak boleh mengakses isi obat pasien.** Kalau UI admin
-   menampilkan data agregat, itu memang desainnya, bukan kekurangan.
-   Rincian: `docs/design-v2/api-v2.md` bagian 11.
-
-5. **Mobile responsive adalah requirement, bukan polish.** Semua halaman user
-   harus terbaca di 360px tanpa zoom. Target sentuh minimal 44×44 px.
-
-6. **Tipe API satu sumber.** `packages/api-client` digenerate dari OpenAPI
-   backend, jangan ditulis manual. Kalau kontrak berubah, build harus gagal.
-
-## Yang belum ada
-
-- `pnpm-workspace.yaml` dan seluruh kode.
-- `packages/ui`, `packages/api-client`, `packages/config`.
-- Konfigurasi Tailwind v4, shadcn-svelte, PWA, Vitest, Playwright.
-- Halaman wireframe HTML (prinsip repositori: wireframe per halaman sebelum
-  implementasi, bukan ASCII).
+2. **Backend belum punya `/openapi.json`.** Tipe di
+   `packages/api-client/src/types.ts` ditulis tangan dari
+   `docs/design-v2/api-v2.md` dan bentuk balasan handler.
