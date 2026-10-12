@@ -136,9 +136,11 @@ export interface AuditLogEntry {
 	actor_id: string;
 	actor_role: string;
 	action: string;
-	target_type: string | null;
-	target_id: string | null;
+	resource_type: string | null;
+	resource_id: string | null;
 	created_at: string;
+	/** Hanya ada bila tercatat; alamat kosong tidak dikirim. */
+	ip?: string;
 }
 
 /* ============================================================
@@ -579,15 +581,17 @@ export interface InAppNotification {
 }
 
 export interface DeviceToken {
-	token: string;
+	id: string;
 	platform: DevicePlatform;
+	app_version: string | null;
+	last_seen_at: string;
 	created_at: string;
-	last_seen_at: string | null;
 }
 
 export interface RegisterDeviceInput {
 	token: string;
 	platform: DevicePlatform;
+	app_version?: string;
 }
 
 /* ============================================================

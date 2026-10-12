@@ -65,7 +65,6 @@ export function createApi(client: ApiClient) {
 			remove: () => client.delete<void>('/users/me'),
 			auditLog: (query?: Query) => client.get<AuditLogEntry[]>('/users/me/audit-log', query),
 		},
-
 		/* ---------------- Obat ---------------- */
 		medications: {
 			list: (query?: Query) => client.get<Medication[]>('/medications', query),

@@ -198,23 +198,64 @@ node apps/web/scripts/e2e-browser.mjs
 
 ## Yang belum dikerjakan
 
-- **Fase 3**: wizard tambah obat (5 pola frekuensi), detail obat + stok,
-  filter riwayat + ekspor CSV, alur undang/terima caregiver, ganti sandi,
-  kanal notifikasi, perangkat, audit-log.
-- **Fase 4**: PWA (manifest, service worker), vitest untuk util, konfigurasi
-  Caddy.
+- **Fase 4**: PWA (manifest, service worker), konfigurasi Caddy.
 - **`apps/admin`** — plan terpisah.
 - **Capacitor** — hanya kerangka adapter; CORS perlu origin
   `capacitor://localhost` (iOS) dan `http://localhost` (Android).
 
-## Keterbatasan backend yang ditemukan
+## Halaman yang sudah jadi
 
-1. **Tidak ada endpoint jadwal dosis.** `GET /logs/today` hanya mengembalikan
-   dosis yang **sudah dicatat**, bukan daftar dosis hari ini. Generator jadwal
-   (`domain/occurrence.go`) ada tetapi belum diekspos. Halaman "Hari Ini"
-   menampilkan apa yang tersedia dan menyatakan keterbatasan ini terbuka,
-   bukan mengarang data.
+| Rute | Isi |
+|---|---|
+| `/` | Landing page (prerender, SEO) |
+| `/login`, `/register` | Masuk dan daftar |
+| `/hari-ini` | Dosis hari ini, termasuk yang **belum** dicatat; catat sekali ketuk |
+| `/obat` | Daftar obat + wizard tambah (5 langkah, 5 pola frekuensi) |
+| `/obat/[id]` | Detail obat, jam minum, stok, isi ulang, koreksi saldo, riwayat stok |
+| `/riwayat` | Filter rentang dan status, ekspor CSV |
+| `/caregiver` | Undang caregiver, kelola akses, terima undangan |
+| `/pengaturan` | Profil, ganti sandi, kanal notifikasi, perangkat, riwayat aktivitas, hapus akun |
 
-2. **Backend belum punya `/openapi.json`.** Tipe di
+## Keterbatasan backend yang ditemukan (dan yang diperbaiki)
+
+1. **Endpoint jadwal dosis** — dulu tidak ada; `GET /logs/today` hanya
+   mengembalikan dosis yang SUDAH dicatat, sehingga layar Hari Ini kosong
+   sampai pengguna mencatat sesuatu. Sudah **diperbaiki**: `GET /schedule`
+   ditambahkan dan memakai generator jadwal yang sama dengan laporan
+   kepatuhan (`domain.ScheduledSlotsInRange`).
+
+2. **Endpoint tabel referensi** — dulu tidak ada; formulir obat harus menebak
+   satuan/rute/bentuk sediaan, padahal ketiganya punya foreign key. Nilai yang
+   salah muncul sebagai 500. Sudah **diperbaiki**: `GET /refs`.
+
+3. **Log ERROR palsu** — konflik yang diharapkan (mis. mencatat dosis dua kali)
+   tercatat sebagai ERROR karena `isKnownDomainError` tidak lengkap. Sudah
+   **diperbaiki**, dengan uji regresi yang menjaga kedua daftar tetap sinkron.
+
+4. **Backend belum punya `/openapi.json`.** Tipe di
    `packages/api-client/src/types.ts` ditulis tangan dari
-   `docs/design-v2/api-v2.md` dan bentuk balasan handler.
+   `docs/design-v2/api-v2.md` dan bentuk balasan handler. Beberapa kali tipe
+   awal berbeda dari kontrak sebenarnya (mis. `quantity` vs `qty`,
+   `target_type` vs `resource_type`) dan baru ketahuan saat pengujian; ini
+   alasan konkret mengapa generator OpenAPI akan berguna nanti.
+
+## Catatan yang mudah terlewat
+
+- **`GET /medications` tidak menyertakan frekuensi.** Itu disengaja (menghindari
+  N+1 query pada daftar panjang), jadi daftar obat TIDAK bisa menampilkan pola.
+  Pola hanya ada di halaman detail. Jangan "memperbaiki" ini dengan menghitung
+  di klien.
+- **`GET /care-links` mengembalikan satu sisi saja**, dipilih lewat `?as=`.
+  Tanpa parameter, yang datang adalah "siapa yang memantau saya"; sisi
+  sebaliknya perlu `?as=caregiver`.
+- **Undangan yang masih `pending` belum terhubung ke akun caregiver.**
+  `caregiver_id` baru terisi saat undangan diterima, jadi daftar "siapa yang
+  saya pantau" memang kosong sebelum penerimaan.
+- **Tautan undangan hanya ditampilkan sekali** (`invite_url` di balasan
+  pembuatan). Backend tidak menyimpan token dalam bentuk yang bisa diambil
+  ulang.
+- **Koreksi saldo stok mewajibkan alasan.** Ia memutus hubungan antara saldo dan
+  riwayat transaksi, jadi harus bisa dipertanggungjawabkan.
+- **Unduhan CSV tidak bisa lewat `<a href>`.** Access token ada di memori dan
+  dikirim sebagai header; tautan biasa akan menghasilkan 401.
+
