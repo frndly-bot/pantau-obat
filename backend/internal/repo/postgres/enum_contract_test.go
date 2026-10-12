@@ -97,7 +97,7 @@ func TestEnumContract(t *testing.T) {
 		},
 		{
 			constraint: "care_links_role_check",
-			values:     []string{string(domain.CareViewer), string(domain.CareHelper)},
+			values:     []string{string(domain.CareViewer), string(domain.CareHelper), string(domain.CareManager)},
 		},
 		{
 			constraint: "care_links_status_check",
