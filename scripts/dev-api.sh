@@ -48,7 +48,15 @@ export JWT_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
 # diabaikan browser) dan CORS mengizinkan origin localhost. Tanpa ini,
 # login dari dev server selalu gagal.
 export APP_ENV="${APP_ENV:-development}"
-export APP_PUBLIC_URL="${APP_PUBLIC_URL:-http://127.0.0.1:8080}"
+# APP_PUBLIC_URL adalah alamat APLIKASI WEB, bukan alamat backend.
+#
+# Backend memakainya untuk menyusun tautan undangan caregiver
+# (`{APP_PUBLIC_URL}/terima-undangan?token=...`). Di produksi keduanya
+# berbagi satu origin lewat Caddy, jadi nilainya adalah domain aplikasi.
+# Di dev, aplikasi disajikan Vite di :5173 sedangkan backend di :8081 —
+# menunjuk ke port backend membuat tautan undangan menuju 404, dan alur
+# caregiver tidak bisa diuji sama sekali.
+export APP_PUBLIC_URL="${APP_PUBLIC_URL:-http://127.0.0.1:5173}"
 export APP_PORT="${APP_PORT:-8080}"
 export MIGRATE_ON_START="${MIGRATE_ON_START:-false}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"

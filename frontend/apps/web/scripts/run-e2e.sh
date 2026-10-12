@@ -60,6 +60,7 @@ SUITES=(
 	e2e-riwayat
 	e2e-caregiver
 	e2e-pengaturan
+	e2e-terima-undangan
 )
 
 if [[ $# -gt 0 ]]; then

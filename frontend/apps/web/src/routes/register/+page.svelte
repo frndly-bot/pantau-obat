@@ -5,7 +5,9 @@
  * Validasi kekuatan sandi dilakukan backend; pesannya ditampilkan apa adanya
  * (`VALIDATION_FAILED` menyertakan field yang bermasalah).
  */
+import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
+import { page } from '$app/state';
 import { ApiError } from '@pantau-obat/api-client';
 import { Button, Input, Label } from '@pantau-obat/ui';
 import { api } from '$lib/api';
@@ -22,6 +24,40 @@ let error = $state<string | null>(null);
 let fieldIssues = $state<Record<string, string>>({});
 let submitting = $state(false);
 
+/**
+ * Benar setelah JavaScript selesai memuat (hidrasi).
+ *
+ * Halaman ini di-PRERENDER, jadi form tampil sebelum JS siap. Selama itu
+ * belum ada penangan `onsubmit`, sehingga menekan tombol mengirim form
+ * secara native (GET) dan isian hilang tanpa penjelasan. Lihat penjelasan
+ * lengkap di `login/+page.svelte`.
+ */
+let hydrated = $state(false);
+
+onMount(() => {
+	hydrated = true;
+	next = safeNext(page.url.searchParams.get('next'));
+});
+
+/**
+ * Tujuan setelah pendaftaran berhasil.
+ *
+ * Sama seperti di halaman masuk: tautan undangan mengarah ke sini lewat
+ * `?next=`, dan mengabaikannya membuat pengguna baru terdampar di beranda
+ * tanpa tahu bahwa undangannya belum diterima. Hanya jalur internal yang
+ * diterima — lihat penjelasan lengkap di `login/+page.svelte`.
+ *
+ * Dibaca di `onMount`, bukan saat render, karena halaman ini di-PRERENDER
+ * dan SvelteKit melarang menyentuh `url.searchParams` saat prerender.
+ */
+let next = $state('/hari-ini');
+
+function safeNext(raw: string | null): string {
+	if (!raw) return '/hari-ini';
+	if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/hari-ini';
+	return raw;
+}
+
 async function onSubmit(event: SubmitEvent) {
 	event.preventDefault();
 	error = null;
@@ -35,7 +71,7 @@ async function onSubmit(event: SubmitEvent) {
 			timezone,
 		});
 		await session.adopt(result.access_token, result.user);
-		await goto('/hari-ini');
+		await goto(next);
 	} catch (err) {
 		if (err instanceof ApiError) {
 			error = err.message;
@@ -80,6 +116,7 @@ async function onSubmit(event: SubmitEvent) {
 						id="full_name"
 						autocomplete="name"
 						required
+						disabled={!hydrated}
 						bind:value={fullName}
 						aria-invalid={fieldIssues.full_name ? 'true' : undefined}
 					/>
@@ -95,6 +132,7 @@ async function onSubmit(event: SubmitEvent) {
 						type="email"
 						autocomplete="username"
 						required
+						disabled={!hydrated}
 						bind:value={email}
 						placeholder="nama@contoh.com"
 						aria-invalid={fieldIssues.email ? 'true' : undefined}
@@ -112,6 +150,7 @@ async function onSubmit(event: SubmitEvent) {
 						autocomplete="new-password"
 						required
 						minlength={8}
+						disabled={!hydrated}
 						bind:value={password}
 						aria-invalid={fieldIssues.password ? 'true' : undefined}
 					/>
@@ -127,7 +166,7 @@ async function onSubmit(event: SubmitEvent) {
 					</p>
 				{/if}
 
-				<Button type="submit" class="w-full" disabled={submitting}>
+				<Button type="submit" class="w-full" disabled={submitting || !hydrated}>
 					{submitting ? 'Membuat akun…' : 'Daftar'}
 				</Button>
 			</form>
@@ -135,7 +174,12 @@ async function onSubmit(event: SubmitEvent) {
 
 		<p class="mt-6 text-center text-sm text-muted-foreground">
 			Sudah punya akun?
-			<a href="/login" class="font-medium text-primary underline-offset-4 hover:underline">Masuk</a>
+			<a
+				href={`/login${next === '/hari-ini' ? '' : `?next=${encodeURIComponent(next)}`}`}
+				class="font-medium text-primary underline-offset-4 hover:underline"
+			>
+				Masuk
+			</a>
 		</p>
 	</div>
 </div>
