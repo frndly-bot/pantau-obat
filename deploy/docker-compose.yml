@@ -285,24 +285,40 @@ services:
   #
   # Dipanggil lewat subcommand `retention` binary, bukan SQL langsung,
   # supaya aturan retensinya di SATU tempat di kode.
+  # ===========================================================================
+  # RETENTION — pembersihan data kedaluwarsa
+  # ===========================================================================
+  #
+  # MASALAH YANG DIPERBAIKI DI SINI: sebelumnya service ini memakai
+  # `restart: unless-stopped` padahal `api retention` adalah perintah SEKALI
+  # JALAN (binary selesai, lalu keluar dengan kode 0). Docker menganggap
+  # container yang keluar sebagai "harus dijalankan lagi", sehingga retensi
+  # berjalan terus-menerus — bukan harian. Terukur: 854 restart, dan karena
+  # backoff Docker naik sampai 60 detik, pembersihan berjalan tiap menit.
+  #
+  # Selain memboroskan resource, ini berbahaya: setiap putaran membuka
+  # koneksi, memindai tabel, dan menulis log. Pekerjaan yang seharusnya
+  # sekali sehari menjadi beban tetap.
+  #
+  # PERBAIKAN: penjadwalan dipindahkan KE DALAM container. Entrypoint-nya
+  # menunggu sampai jam yang ditentukan, menjalankan pembersihan, lalu tidur
+  # lagi. Dengan begitu container memang layak berjalan terus, dan
+  # `restart: unless-stopped` menjadi benar.
+  #
+  # Jam jalan (RETENTION_HOUR, default 03:00 UTC = 10:00 WIB) sengaja di luar
+  # jam sunyi pengguna (22:00–06:00 lokal).
   retention:
     image: pantau-obat-api:latest
     container_name: po-retention
-    # Image api memakai scratch: TIDAK ada shell. Loop "tidur sampai jam 03:00"
-    # karena itu tidak bisa dipakai di sini; penjadwalannya memakai HEALTHCHECK
-    # Docker dengan interval panjang, dan pekerjaan dijalankan lewat
-    # `docker compose restart retention` oleh cron host — atau cukup dibiarkan:
-    # Docker menjalankan container sekali, binary selesai, lalu restart-poliisi
-    # memulainya lagi dengan jeda bawaan Docker (default 100ms, dinaikkan di
-    # bawah lewat restart delay yang ditangani host cron bila ada).
-    #
-    # Praktisnya: container ini berjalan SEKALI per start compose. Untuk
-    # jadwal harian, pasang cron di host:
-    #   docker compose run --rm retention
-    entrypoint: ["/api", "retention"]
+    # Image api memakai scratch: TIDAK ada shell, jadi `sleep` atau loop
+    # shell tidak bisa dipakai. Penjadwalan karena itu ada di dalam binary
+    # (`api retention --loop`), bukan di entrypoint shell.
+    entrypoint: ["/api", "retention", "--loop"]
     restart: unless-stopped
     environment:
       <<: *app-environment
+      # Jam (UTC) menjalankan pembersihan tiap hari.
+      RETENTION_HOUR: ${RETENTION_HOUR:-3}
     depends_on:
       postgres:
         condition: service_healthy

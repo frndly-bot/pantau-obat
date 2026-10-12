@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -135,12 +136,34 @@ func migrateCmd() int {
 	return 0
 }
 
-// retentionCmd membersihkan tabel append-only yang usang lalu keluar.
+// retentionCmd menjalankan pembersihan data kedaluwarsa.
 //
-// Dipanggil berkala oleh service `retention` di compose. Aturan umurnya di
-// sini — SATU tempat di kode — supaya tidak ada SQL berserakan yang nilainya
-// berbeda antar tempat.
+// Dua mode:
+//   - sekali jalan (bawaan): untuk dijalankan cron host atau `docker compose run`
+//   - `--loop`: container menunggu sampai jam yang ditentukan, menjalankan
+//     pembersihan, lalu tidur lagi
+//
+// Mode `--loop` ada karena `restart: unless-stopped` pada perintah SEKALI JALAN
+// menghasilkan restart loop: Docker menganggap container yang keluar sebagai
+// "harus dijalankan lagi", sehingga pembersihan berjalan tiap kali backoff
+// habis — bukan harian. Terukur: 854 restart. Pekerjaan yang seharusnya sekali
+// sehari menjadi beban tetap, dan itu memboroskan resource sekaligus membuat
+// log penuh.
 func retentionCmd() int {
+	loop := false
+	for _, arg := range os.Args[2:] {
+		switch arg {
+		case "--loop":
+			loop = true
+		case "-h", "--help":
+			fmt.Fprintln(os.Stdout, "pemakaian: api retention [--loop]")
+			return 0
+		default:
+			fmt.Fprintf(os.Stderr, "argumen tidak dikenal: %s\n", arg)
+			return 2
+		}
+	}
+
 	logger := slog.Default()
 	cfg, err := config.Load()
 	if err != nil {
@@ -148,13 +171,95 @@ func retentionCmd() int {
 		return 1
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+	if !loop {
+		// Sekali jalan: timeout total wajar supaya tidak menggantung.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := runRetentionOnce(ctx, cfg, logger); err != nil {
+			logger.Error("retensi gagal", slog.String("error", err.Error()))
+			return 1
+		}
+		return 0
+	}
 
+	// Mode loop. Sinyal ditangani supaya `docker stop` menghentikannya dengan
+	// rapi, bukan menunggu sampai Docker menembak SIGKILL.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	hour := retentionHour()
+	logger.Info("retensi berjalan dalam mode loop",
+		slog.Int("jam_utc", hour),
+		slog.String("catatan", "pembersihan dijalankan sekali sehari pada jam tersebut"))
+
+	for {
+		next := nextRetentionRun(time.Now(), hour)
+		logger.Info("retensi menunggu jadwal berikutnya",
+			slog.String("jalan_pada", next.Format(time.RFC3339)))
+
+		select {
+		case <-ctx.Done():
+			logger.Info("retensi berhenti")
+			return 0
+		case <-time.After(time.Until(next)):
+		}
+
+		// Timeout per putaran, bukan untuk seluruh masa hidup proses.
+		runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		err := runRetentionOnce(runCtx, cfg, logger)
+		cancel()
+
+		if err != nil {
+			// Kegagalan satu putaran TIDAK menghentikan loop: pembersihan
+			// yang tertunda sehari masih bisa menyusul besok. Yang penting
+			// kegagalannya terlihat di log.
+			logger.Error("retensi gagal pada putaran ini", slog.String("error", err.Error()))
+		}
+	}
+}
+
+// retentionHour membaca jam jalan (UTC) dari RETENTION_HOUR.
+//
+// Nilai yang tidak masuk akal diabaikan dan diganti bawaan, bukan membuat
+// proses gagal: jadwal pembersihan bukan alasan yang cukup untuk mematikan
+// layanan pemeliharaan.
+func retentionHour() int {
+	const fallback = 3
+	raw := os.Getenv("RETENTION_HOUR")
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 || n > 23 {
+		slog.Default().Warn("RETENTION_HOUR tidak sah, memakai bawaan",
+			slog.String("nilai", raw), slog.Int("dipakai", fallback))
+		return fallback
+	}
+	return n
+}
+
+// nextRetentionRun menghitung waktu jalan berikutnya pada jam tertentu (UTC).
+//
+// Bila jam itu belum lewat hari ini, dipakai hari ini; bila sudah lewat,
+// besok. Hasilnya selalu di masa depan, sehingga pemanggil tidak perlu
+// menangani kasus "sudah lewat".
+func nextRetentionRun(now time.Time, hour int) time.Time {
+	nowUTC := now.UTC()
+	next := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), hour, 0, 0, 0, time.UTC)
+	if !next.After(nowUTC) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next
+}
+
+// runRetentionOnce menjalankan satu putaran pembersihan.
+//
+// Aturan umur data ada di sini — SATU tempat di kode — supaya tidak ada SQL
+// berserakan yang nilainya berbeda antar tempat.
+func runRetentionOnce(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
 	db, err := postgres.NewDB(ctx, cfg.DB)
 	if err != nil {
-		logger.Error("database tidak terjangkau", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("database tidak terjangkau: %w", err)
 	}
 	defer db.Close()
 
@@ -164,8 +269,7 @@ func retentionCmd() int {
 	// bump_queue: 7 hari. Antrean pengingat; umurnya pendek. Riwayatnya tidak
 	// punya pembaca — hasil kirim tercatat di notification_jobs.
 	if n, err := queue.PurgeDoneBumps(ctx, db.Pool(), 7*24*time.Hour); err != nil {
-		logger.Error("gagal membersihkan bump_queue", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("membersihkan bump_queue: %w", err)
 	} else if n > 0 {
 		logger.Info("bump_queue dibersihkan", slog.Int64("jumlah", n))
 		total += int(n)
@@ -175,8 +279,7 @@ func retentionCmd() int {
 	// sampai" harus masih bisa dicari selama itu. Hanya job selesai yang
 	// dihapus — job failed tetap ada untuk diperiksa operator.
 	if n, err := db.PurgeDoneJobs(ctx, db.Pool(), 30*24*time.Hour); err != nil {
-		logger.Error("gagal membersihkan notification_jobs", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("membersihkan notification_jobs: %w", err)
 	} else if n > 0 {
 		logger.Info("notification_jobs dibersihkan", slog.Int64("jumlah", n))
 		total += int(n)
@@ -187,8 +290,7 @@ func retentionCmd() int {
 	// barisnya aman dihapus — termasuk ketika user yang bersangkutan sudah
 	// tidak ada (DELETE di sini tidak memicu FK apa pun).
 	if n, err := db.PurgeOldRevocations(ctx, 35*24*time.Hour); err != nil {
-		logger.Error("gagal membersihkan user_token_revocations", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("membersihkan user_token_revocations: %w", err)
 	} else if n > 0 {
 		logger.Info("user_token_revocations dibersihkan", slog.Int64("jumlah", n))
 		total += int(n)
@@ -198,8 +300,7 @@ func retentionCmd() int {
 	// Sesi aktif TIDAK disentuh — yang dihapus hanya jejak sesi yang sudah
 	// mati sendiri dan tidak mungkin dipakai lagi.
 	if n, err := db.PurgeExpiredSessions(ctx, 30*24*time.Hour); err != nil {
-		logger.Error("gagal membersihkan refresh_sessions", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("membersihkan refresh_sessions: %w", err)
 	} else if n > 0 {
 		logger.Info("refresh_sessions dibersihkan", slog.Int64("jumlah", n))
 		total += int(n)
@@ -207,15 +308,14 @@ func retentionCmd() int {
 
 	// device_tokens yang dicabut: 30 hari. Token aktif tidak disentuh.
 	if n, err := db.PurgeRevokedTokens(ctx, 30*24*time.Hour); err != nil {
-		logger.Error("gagal membersihkan device_tokens", slog.String("error", err.Error()))
-		return 1
+		return fmt.Errorf("membersihkan device_tokens: %w", err)
 	} else if n > 0 {
 		logger.Info("device_tokens dibersihkan", slog.Int64("jumlah", n))
 		total += int(n)
 	}
 
 	logger.Info("retensi selesai", slog.Int("total_baris", total))
-	return 0
+	return nil
 }
 
 func run() error {
