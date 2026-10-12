@@ -20,6 +20,7 @@ import type {
 	CreateLogInput,
 	CreateMedicationInput,
 	CreatePrnLogInput,
+	DaySlot,
 	DeviceToken,
 	InAppNotification,
 	LoginInput,
@@ -72,6 +73,15 @@ export function createApi(client: ApiClient) {
 				client.patch<Medication>(`/medications/${id}`, input),
 			remove: (id: string) => client.delete<void>(`/medications/${id}`),
 			times: (id: string) => client.get<Medication['times']>(`/medications/${id}/times`),
+		},
+
+		/* ---------------- Jadwal harian ---------------- */
+		schedule: {
+			/**
+			 * Jadwal satu hari. Tanpa `date`, dipakai hari ini menurut zona
+			 * waktu pengguna (bukan UTC).
+			 */
+			day: (date?: string) => client.get<DaySlot[]>('/schedule', date ? { date } : undefined),
 		},
 
 		/* ---------------- Catatan dosis ---------------- */

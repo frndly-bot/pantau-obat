@@ -303,6 +303,57 @@ export interface MedicationLog {
 	updated_at: string;
 }
 
+/* ============================================================
+   Jadwal harian (GET /schedule)
+   ============================================================ */
+
+/**
+ * Status satu dosis terjadwal.
+ *
+ * `pending` dan `due` dihitung dari waktu; sisanya berasal dari catatan yang
+ * sudah ada. Bedanya penting bagi UI: hanya `due` yang perlu ditindak.
+ */
+export type SlotStatus = 'pending' | 'due' | 'taken' | 'late' | 'skipped' | 'snoozed';
+
+/**
+ * Satu dosis pada satu tanggal.
+ *
+ * `schedule_id` adalah id baris `medication_times` — nilai yang sama yang
+ * dikirim sebagai `schedule_id` saat mencatat dosis, jadi slot bisa langsung
+ * dicatat tanpa penerjemahan id.
+ */
+export interface DaySlot {
+	medication_id: string;
+	medication_name: string;
+	dose_value: number;
+	dose_unit_code: string;
+	meal_relation: MealRelation;
+	color_tag: string | null;
+
+	schedule_id: string;
+	/** `HH:MM` waktu lokal pemilik. */
+	time_local: string;
+	time_label: TimeLabel | null;
+	dose_override: string | null;
+
+	/** Tanggal lokal pemilik, `YYYY-MM-DD`. */
+	slot_date: string;
+	/** Waktu jatuh tempo dalam RFC 3339. */
+	scheduled_at: string;
+	scheduled_tz: string;
+	scheduled_hour: number;
+	scheduled_minute: number;
+
+	status: SlotStatus;
+	log_id: string | null;
+	taken_at: string | null;
+	note: string | null;
+
+	/** Sisa stok saat ini, bila obat punya stok. */
+	stock_remaining: number | null;
+	stock_unit_code: string | null;
+}
+
 export interface CreateLogInput {
 	schedule_id: string;
 	slot_date: string;

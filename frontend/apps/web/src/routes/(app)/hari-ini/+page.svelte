@@ -1,38 +1,64 @@
 <script lang="ts">
 	/**
-	 * Halaman "Hari Ini".
+	 * Halaman "Hari Ini" — daftar dosis hari ini, termasuk yang BELUM dicatat.
 	 *
-	 * CATATAN PENTING (temuan saat implementasi):
-	 * Backend saat ini hanya menyediakan `GET /logs/today`, yang mengembalikan
-	 * dosis yang SUDAH dicatat — bukan daftar jadwal dosis hari ini. Generator
-	 * jadwal (`OccurrenceKey` di `domain/occurrence.go`) ada, tetapi belum
-	 * diekspos lewat endpoint. Jadi halaman ini menampilkan catatan hari ini
-	 * secara jujur, dan menandai bagian "belum tercatat" sebagai belum
-	 * tersedia — bukan mengarang data.
+	 * Sumber: `GET /schedule` (bukan `GET /logs/today`). Bedanya menentukan:
+	 * `/logs/today` hanya mengembalikan dosis yang sudah dicatat, sehingga
+	 * layar kosong sampai user mencatat sesuatu — justru saat pengingat paling
+	 * dibutuhkan. `/schedule` menghitung slot dari aturan frekuensi, jadi dosis
+	 * yang jatuh tempo selalu terlihat.
 	 */
 	import { onMount } from 'svelte';
-	import { ApiError, type MedicationLog } from '@pantau-obat/api-client';
-	import { Badge, Card, CardContent, Skeleton } from '@pantau-obat/ui';
+	import { ApiError, type DaySlot } from '@pantau-obat/api-client';
+	import { Badge, Button, Card, CardContent, Skeleton } from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
 
-	let logs = $state<MedicationLog[]>([]);
+	let slots = $state<DaySlot[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	/** schedule_id yang sedang diproses, supaya tombolnya tidak diklik dua kali. */
+	let busy = $state<string | null>(null);
+	let actionError = $state<string | null>(null);
 
 	const statusLabel: Record<string, string> = {
+		pending: 'Belum waktunya',
+		due: 'Belum dicatat',
 		taken: 'Diminum',
 		late: 'Terlambat',
 		skipped: 'Dilewati',
 		snoozed: 'Ditunda'
 	};
 
-	const statusVariant: Record<string, 'ok' | 'warn' | 'na' | 'info'> = {
+	const statusVariant: Record<string, 'ok' | 'warn' | 'na' | 'info' | 'outline'> = {
+		pending: 'outline',
+		due: 'info',
 		taken: 'ok',
 		late: 'warn',
 		skipped: 'na',
 		snoozed: 'info'
 	};
+
+	const mealLabel: Record<string, string> = {
+		before_meal: 'sebelum makan',
+		after_meal: 'setelah makan',
+		with_meal: 'bersama makan',
+		not_related: 'bebas'
+	};
+
+	/** Dosis yang perlu ditindak lebih dulu: `due`, lalu `pending`, lalu sisanya. */
+	let ordered = $derived(
+		[...slots].sort((a, b) => {
+			const rank = (s: DaySlot) => (s.status === 'due' ? 0 : s.status === 'pending' ? 1 : 2);
+			const diff = rank(a) - rank(b);
+			return diff !== 0 ? diff : a.time_local.localeCompare(b.time_local);
+		})
+	);
+
+	let dueCount = $derived(slots.filter((s) => s.status === 'due').length);
+	let doneCount = $derived(
+		slots.filter((s) => ['taken', 'late', 'skipped'].includes(s.status)).length
+	);
 
 	let today = $derived(
 		new Intl.DateTimeFormat('id-ID', {
@@ -43,15 +69,40 @@
 		}).format(new Date())
 	);
 
-	onMount(async () => {
+	async function load() {
 		try {
-			logs = await api.logs.today();
+			slots = await api.schedule.day();
+			error = null;
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : 'Gagal memuat data hari ini.';
+			error = err instanceof ApiError ? err.message : 'Gagal memuat jadwal hari ini.';
 		} finally {
 			loading = false;
 		}
-	});
+	}
+
+	/** Mencatat satu dosis, lalu menyegarkan daftar dari server. */
+	async function record(slot: DaySlot, status: 'taken' | 'skipped') {
+		if (busy) return;
+		busy = slot.schedule_id;
+		actionError = null;
+		try {
+			await api.logs.create(slot.medication_id, {
+				schedule_id: slot.schedule_id,
+				slot_date: slot.slot_date,
+				scheduled_hour: slot.scheduled_hour,
+				scheduled_minute: slot.scheduled_minute,
+				scheduled_tz: slot.scheduled_tz,
+				status
+			});
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal menyimpan catatan.';
+		} finally {
+			busy = null;
+		}
+	}
+
+	onMount(load);
 </script>
 
 <svelte:head>
@@ -63,8 +114,21 @@
 	<h1 class="mt-1 text-2xl font-semibold tracking-tight">
 		Halo{session.user?.full_name ? `, ${session.user.full_name.split(' ')[0]}` : ''}
 	</h1>
-	<p class="mt-1 text-sm text-muted-foreground">Berikut catatan dosis Anda hari ini.</p>
+	{#if !loading && !error && slots.length > 0}
+		<p class="mt-1 text-sm text-muted-foreground">
+			{#if dueCount > 0}<span class="font-medium text-foreground">{dueCount} dosis</span> menunggu dicatat ·{/if}
+			{doneCount} dari {slots.length} selesai
+		</p>
+	{:else}
+		<p class="mt-1 text-sm text-muted-foreground">Berikut jadwal dosis Anda hari ini.</p>
+	{/if}
 </header>
+
+{#if actionError}
+	<div class="mb-4 rounded-lg border border-destructive/30 bg-destructive/8 px-4 py-3 text-sm text-destructive" role="alert">
+		{actionError}
+	</div>
+{/if}
 
 {#if error}
 	<div class="rounded-lg border border-destructive/30 bg-destructive/8 px-4 py-3 text-sm text-destructive" role="alert">
@@ -73,10 +137,10 @@
 {:else if loading}
 	<div class="space-y-3">
 		{#each [1, 2, 3] as n (n)}
-			<Skeleton class="h-20 w-full" />
+			<Skeleton class="h-24 w-full" />
 		{/each}
 	</div>
-{:else if logs.length === 0}
+{:else if slots.length === 0}
 	<Card>
 		<CardContent class="flex flex-col items-center gap-2 py-10 text-center">
 			<span class="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground" aria-hidden="true">
@@ -84,43 +148,64 @@
 					<path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
 				</svg>
 			</span>
-			<p class="text-sm font-medium">Belum ada catatan dosis hari ini</p>
+			<p class="text-sm font-medium">Tidak ada dosis terjadwal hari ini</p>
 			<p class="max-w-xs text-xs text-muted-foreground">
-				Catatan muncul di sini setelah Anda menandai dosis diminum, ditunda, atau dilewati.
+				Tambahkan obat beserta jadwalnya untuk mulai memantau dosis harian.
 			</p>
+			<Button size="sm" variant="outline" href="/obat" class="mt-2">Kelola obat</Button>
 		</CardContent>
 	</Card>
 {:else}
 	<ul class="space-y-3">
-		{#each logs as log (log.id)}
+		{#each ordered as slot (slot.schedule_id + slot.slot_date)}
+			{@const actionable = slot.status === 'due' || slot.status === 'pending'}
 			<li>
-				<Card>
-					<CardContent class="flex items-center justify-between gap-3 py-4">
-						<div class="min-w-0">
-							<p class="truncate text-sm font-medium">
-								{log.scheduled_time ?? 'Tanpa jam jadwal'}
-							</p>
-							<p class="mt-0.5 text-xs text-muted-foreground">
-								{log.note ?? (log.source === 'caregiver' ? 'Dicatat oleh caregiver' : 'Dicatat sendiri')}
-							</p>
+				<Card class={slot.status === 'due' ? 'border-info/40' : ''}>
+					<CardContent class="py-4">
+						<div class="flex items-start justify-between gap-3">
+							<div class="min-w-0">
+								<div class="flex items-baseline gap-2">
+									<span class="text-sm font-semibold tabular-nums">{slot.time_local}</span>
+									<span class="truncate text-sm">{slot.medication_name}</span>
+								</div>
+								<p class="mt-1 text-xs text-muted-foreground">
+									{slot.dose_override ?? `${slot.dose_value} ${slot.dose_unit_code}`}
+									· {mealLabel[slot.meal_relation] ?? slot.meal_relation}
+								</p>
+								{#if slot.stock_remaining !== null}
+									<p class="mt-1 text-xs {slot.stock_remaining <= 5 ? 'text-warn' : 'text-muted-foreground'}">
+										Sisa stok: {slot.stock_remaining} {slot.stock_unit_code ?? ''}
+									</p>
+								{/if}
+							</div>
+							<Badge variant={statusVariant[slot.status] ?? 'outline'}>
+								{statusLabel[slot.status] ?? slot.status}
+							</Badge>
 						</div>
-						<Badge variant={statusVariant[log.status] ?? 'outline'}>
-							{statusLabel[log.status] ?? log.status}
-						</Badge>
+
+						{#if actionable}
+							<div class="mt-3.5 flex gap-2">
+								<Button
+									size="sm"
+									class="flex-1"
+									disabled={busy === slot.schedule_id}
+									onclick={() => record(slot, 'taken')}
+								>
+									{busy === slot.schedule_id ? 'Menyimpan…' : 'Diminum'}
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={busy === slot.schedule_id}
+									onclick={() => record(slot, 'skipped')}
+								>
+									Lewati
+								</Button>
+							</div>
+						{/if}
 					</CardContent>
 				</Card>
 			</li>
 		{/each}
 	</ul>
 {/if}
-
-<!-- Keterbatasan yang disampaikan terbuka, bukan disembunyikan. -->
-<div class="mt-6 rounded-lg border border-border bg-muted/40 px-4 py-3">
-	<p class="text-xs leading-relaxed text-muted-foreground">
-		<strong class="font-medium text-foreground">Catatan pengembangan:</strong>
-		daftar dosis yang <em>belum</em> tercatat hari ini belum bisa ditampilkan karena backend
-		belum mengekspos endpoint jadwal dosis (generatornya sudah ada di
-		<code class="rounded bg-background px-1 py-0.5 font-mono text-[11px]">domain/occurrence.go</code>).
-		Halaman ini akan menyusul begitu endpoint tersebut tersedia.
-	</p>
-</div>
