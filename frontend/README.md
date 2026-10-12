@@ -192,6 +192,28 @@ node apps/web/scripts/e2e-schedule.mjs
 node apps/web/scripts/e2e-browser.mjs
 ```
 
+Semuanya sekaligus, dengan pemeriksaan prasyarat:
+
+```bash
+cd frontend/apps/web
+export CHROME_PATH=/usr/bin/google-chrome   # opsional: pakai Chromium sistem
+bash scripts/run-e2e.sh
+bash scripts/run-e2e.sh e2e-wizard          # satu suite saja
+```
+
+Sepuluh suite tersedia: `e2e-auth`, `e2e-session-persist`, `e2e-schedule`,
+`e2e-browser`, `e2e-hariini`, `e2e-wizard`, `e2e-detail`, `e2e-riwayat`,
+`e2e-caregiver`, `e2e-pengaturan`.
+
+Prasyarat: backend dev di `:8081`, dev server di `:5173`, dan `playwright`
+terpasang (sudah ada di `devDependencies`). `CHROME_PATH` opsional — tanpa itu
+Playwright memakai peramban yang diunduhnya sendiri.
+
+> **Catatan:** uji-uji ini memakai peramban sungguhan karena hal yang
+> dibuktikannya tidak bisa dibuktikan oleh uji API: cookie HttpOnly benar-benar
+> diterima peramban, token tidak pernah masuk `localStorage`, sesi bertahan
+> setelah refresh, dan tombol benar-benar mengubah keadaan di backend.
+
 `e2e-auth.mjs` membutuhkan backend di `http://127.0.0.1:8081`.
 `e2e-browser.mjs` membutuhkan dev server di `:5173` dan Playwright tersedia
 (`CHROME_PATH` dapat diarahkan ke Chromium yang sudah terpasang).

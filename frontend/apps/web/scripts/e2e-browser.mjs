@@ -10,7 +10,9 @@ const BASE = process.env.WEB_BASE ?? 'http://127.0.0.1:5173';
 const email = `browser-${Date.now()}@example.com`;
 const password = 'SandiUji123!';
 
-const browser = await chromium.launch();
+// CHROME_PATH memungkinkan memakai Chromium yang sudah ada di sistem,
+// sehingga Playwright tidak perlu mengunduh peramban sendiri.
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
 
