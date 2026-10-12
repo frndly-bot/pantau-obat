@@ -62,10 +62,30 @@ APP_ENV=development APP_PORT=8081 scripts/dev-api.sh
 cd frontend/apps/web && pnpm dev
 ```
 
-Buka <http://localhost:5173>.
+Buka <http://localhost:5173> (atau <http://127.0.0.1:5173> — keduanya sama).
 
-`.env` di `apps/web` menentukan `VITE_API_BASE_URL` (bawaan
-`http://127.0.0.1:8081/api/v1`).
+### Kenapa API dipanggil lewat dev server, bukan langsung ke backend
+
+`VITE_API_BASE_URL` bawaannya **relatif** (`/api/v1`), dan dev server mem-proxy
+`/api` ke backend (`vite.config.ts`). Alasannya bukan kenyamanan:
+
+Cookie refresh memakai `SameSite=Strict`. Bila halaman dibuka di
+`localhost:5173` sementara API dipanggil ke `127.0.0.1:8081`, browser
+menganggapnya **dua situs berbeda** dan menolak menyimpan cookie itu. Gejalanya
+menipu: login tampak berhasil (access token ada di memori), tetapi **begitu
+halaman di-refresh, sesi hilang** dan tidak bisa dipulihkan.
+
+Dengan proxy, browser hanya pernah bicara ke satu origin. Ini juga meniru cara
+produksi bekerja: Caddy menyajikan berkas statis dan mem-proxy `/api`.
+
+Bila backend berjalan di port lain, arahkan proxy tanpa mengubah kode:
+
+```bash
+PO_API_TARGET=http://127.0.0.1:9000 pnpm dev
+```
+
+**Untuk Capacitor nanti**, alamat absolut diisi lewat `VITE_API_BASE_URL`
+(di sana tidak ada origin web, jadi proxy tidak berlaku).
 
 ## Keputusan arsitektur yang wajib dipatuhi
 
@@ -160,6 +180,12 @@ tidak memerlukan langkah ini.
 ```bash
 # Alur auth terhadap backend nyata (register → me → refresh → logout)
 node apps/web/scripts/e2e-auth.mjs
+
+# Sesi bertahan setelah refresh (termasuk kasus lintas-situs)
+node apps/web/scripts/e2e-session-persist.mjs
+
+# Jadwal harian: slot, status due/pending, anti-ganda
+node apps/web/scripts/e2e-schedule.mjs
 
 # Alur browser (Playwright): register lewat UI, cookie HttpOnly,
 # tidak ada token di localStorage, navigasi, pemulihan sesi, logout
