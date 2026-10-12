@@ -27,6 +27,7 @@ import type {
 	Medication,
 	MedicationLog,
 	MedicationStock,
+	MedicationTime,
 	NotificationPrefs,
 	RegisterDeviceInput,
 	RegisterInput,
@@ -73,7 +74,13 @@ export function createApi(client: ApiClient) {
 			update: (id: string, input: Partial<CreateMedicationInput>) =>
 				client.patch<Medication>(`/medications/${id}`, input),
 			remove: (id: string) => client.delete<void>(`/medications/${id}`),
-			times: (id: string) => client.get<Medication['times']>(`/medications/${id}/times`),
+			times: (id: string) => client.get<MedicationTime[]>(`/medications/${id}/times`),
+			addTime: (id: string, input: { time_local: string; label?: string }) =>
+				client.post<MedicationTime>(`/medications/${id}/times`, input),
+			updateTime: (id: string, timeId: string, input: { time_local?: string; label?: string }) =>
+				client.patch<MedicationTime>(`/medications/${id}/times/${timeId}`, input),
+			removeTime: (id: string, timeId: string) =>
+				client.delete<void>(`/medications/${id}/times/${timeId}`),
 		},
 
 		/* ---------------- Tabel referensi ---------------- */

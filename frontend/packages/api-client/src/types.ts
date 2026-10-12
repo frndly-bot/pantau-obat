@@ -182,22 +182,30 @@ export interface MedicationTime {
 	is_active: boolean;
 }
 
+/**
+ * Saldo stok sebuah obat.
+ *
+ * Bentuknya mengikuti `stockDetailResponse` di backend. `doses_remaining`,
+ * `needs_refill`, dan `estimated_days_left` dihitung server, bukan klien —
+ * khususnya `estimated_days_left` yang memakai LAJU PEMAKAIAN NYATA 30 hari
+ * terakhir, bukan jumlah dosis terjadwal. Pasien yang sering melewatkan dosis
+ * akan kehabisan obat lebih lambat daripada jadwalnya, dan perkiraan berbasis
+ * jadwal akan terus salah untuknya.
+ */
 export interface MedicationStock {
-	id: string;
 	medication_id: string;
-	owner_id: string;
 	unit_code: string;
 	initial_qty: number;
 	current_qty: number;
 	qty_per_dose: number;
 	refill_threshold_qty: number | null;
 	refill_reminder: boolean;
-	last_restocked_at: string | null;
-	created_at: string;
-	updated_at: string;
-	/** Turunan dari backend: `current_qty / qty_per_dose`. */
 	doses_remaining: number;
 	needs_refill: boolean;
+	/** `null` berarti belum cukup data untuk memperkirakan — bukan nol. */
+	estimated_days_left: number | null;
+	last_restocked_at: string | null;
+	last_consumed_at: string | null;
 }
 
 export interface Medication {
@@ -412,11 +420,11 @@ export interface SnoozeLogInput {
 
 export interface StockTransaction {
 	id: string;
-	medication_id: string;
-	owner_id: string;
 	kind: StockTxnKind;
-	quantity: number;
+	/** Perubahan saldo (positif menambah, negatif mengurangi). */
+	qty_delta: number;
 	balance_after: number;
+	log_id: string | null;
 	note: string | null;
 	recorded_by: string;
 	created_at: string;
@@ -431,12 +439,17 @@ export interface SetStockInput {
 }
 
 export interface RestockInput {
-	quantity: number;
+	/** Jumlah yang ditambahkan, dalam satuan stok. Field backend: `qty`. */
+	qty: number;
 	note?: string | null;
 }
 
 export interface AdjustStockInput {
-	quantity: number;
+	/** Perubahan saldo; negatif mengurangi. Field backend: `qty_delta`. */
+	qty_delta: number;
+	/** Jenis penyesuaian (mis. `adjust`). */
+	kind?: StockTxnKind;
+	/** Alasan koreksi — WAJIB menurut backend, dan ikut tercatat di audit. */
 	note: string;
 }
 

@@ -106,24 +106,31 @@
 	<ul class="space-y-3">
 		{#each meds as med (med.id)}
 			<li>
-				<Card>
-					<CardContent class="py-4">
-						<div class="flex items-start justify-between gap-3">
-							<div class="min-w-0">
-								<p class="truncate text-sm font-medium">{med.name}</p>
-								<p class="mt-0.5 text-xs text-muted-foreground">
-									{med.dose_value} {med.dose_unit_code} · {mealLabel[med.meal_relation] ?? med.meal_relation}
-								</p>
-								{#if med.must_finish}
-									<p class="mt-1 text-xs text-muted-foreground">Harus dihabiskan</p>
-								{/if}
+				<a href="/obat/{med.id}" class="block transition-opacity hover:opacity-90">
+					<Card>
+						<CardContent class="py-4">
+							<div class="flex items-start justify-between gap-3">
+								<div class="min-w-0">
+									<p class="truncate text-sm font-medium">{med.name}</p>
+									<p class="mt-0.5 text-xs text-muted-foreground">
+										{med.dose_value} {med.dose_unit_code} · {mealLabel[med.meal_relation] ?? med.meal_relation}
+									</p>
+									{#if med.must_finish}
+										<p class="mt-1 text-xs text-muted-foreground">Harus dihabiskan</p>
+									{/if}
+								</div>
+								<div class="flex shrink-0 items-center gap-2">
+									<Badge variant={med.is_active ? 'ok' : 'na'}>
+										{med.is_active ? 'Aktif' : 'Arsip'}
+									</Badge>
+									<svg viewBox="0 0 24 24" class="size-4 text-muted-foreground" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<path d="m9 18 6-6-6-6" />
+									</svg>
+								</div>
 							</div>
-							<Badge variant={med.is_active ? 'ok' : 'na'}>
-								{med.is_active ? 'Aktif' : 'Arsip'}
-							</Badge>
-						</div>
-					</CardContent>
-				</Card>
+						</CardContent>
+					</Card>
+				</a>
 			</li>
 		{/each}
 	</ul>
