@@ -236,6 +236,28 @@ docker build -f backend/Dockerfile -t pantau-obat-api:latest .
 docker compose up -d --force-recreate api
 ```
 
+## Catatan penting untuk `retention`
+
+Service ini menjalankan `api retention --loop`: menunggu sampai `RETENTION_HOUR`
+(UTC, bawaan 3 = 10:00 WIB), membersihkan data kedaluwarsa, lalu menunggu lagi.
+
+**Jangan mengganti entrypoint-nya menjadi `api retention` tanpa `--loop`.**
+Perintah tanpa `--loop` adalah pekerjaan SEKALI JALAN: binary selesai lalu
+keluar, dan dengan `restart: unless-stopped` Docker akan memulainya lagi —
+menghasilkan restart loop. Ini pernah terjadi: **854 restart**, dan karena
+backoff Docker naik sampai 60 detik, pembersihan berjalan tiap menit alih-alih
+harian.
+
+Untuk menjalankan sekali saja secara manual (mis. saat menelusuri masalah):
+
+```bash
+docker compose run --rm retention /api retention
+```
+
+Aturan umur data ada di `backend/cmd/api/main.go` (`runRetentionOnce`) — satu
+tempat, supaya tidak ada SQL berserakan dengan nilai berbeda antar tempat.
+Logikanya diuji di `backend/cmd/api/retention_test.go`.
+
 ## Catatan keamanan
 
 - `POSTGRES_PASSWORD` di `.env.example` hanya placeholder.
