@@ -44,6 +44,7 @@ func (h *Logs) Routes(r chi.Router) {
 
 	r.Get("/logs", h.List)
 	r.Get("/logs/today", h.Today)
+	r.Get("/logs/export", h.Export)
 	r.Patch("/logs/{logId}", h.Correct)
 	r.Post("/logs/{logId}/snooze", h.Snooze)
 }

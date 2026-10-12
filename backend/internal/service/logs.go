@@ -768,3 +768,24 @@ func (s *Logs) RecordFor(ctx context.Context, ownerID, actorID, medicationID str
 	}
 	return result, nil
 }
+
+// WriteExportAudit mencatat jejak ekspor CSV ke audit_log.
+//
+// WAJIB untuk ekspor atas nama pasien (jalur caregiver): data kesehatan
+// keluar dari sistem atas nama orang lain, dan itu harus berjejak dengan
+// alasan yang bisa dibaca manusia. Ekspor milik sendiri TIDAK lewat sini —
+// tidak ada yang perlu diaudit dari orang membaca catatannya sendiri.
+func (s *Logs) WriteExportAudit(ctx context.Context, actorID, ownerID string, from, to time.Time, reason string) error {
+	return s.db.WriteAudit(ctx, s.db.Pool(), postgres.AuditEntry{
+		ActorID:      &actorID,
+		OwnerID:      &ownerID,
+		ActorRole:    string(domain.ActorUser),
+		Action:       postgres.ActionExport,
+		ResourceType: postgres.ResourceLog,
+		Meta: map[string]any{
+			"from":   from.Format(time.DateOnly),
+			"to":     to.Format(time.DateOnly),
+			"reason": reason,
+		},
+	})
+}

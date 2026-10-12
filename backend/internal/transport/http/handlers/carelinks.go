@@ -55,6 +55,7 @@ func (h *CareLinks) Routes(r chi.Router) {
 	r.Get("/care/{ownerId}/medications", h.Medications)
 	r.Get("/care/{ownerId}/adherence", h.Adherence)
 	r.Get("/care/{ownerId}/logs", h.ListLogs)
+	r.Get("/care/{ownerId}/logs/export", h.ExportForOwner)
 	r.Post("/care/{ownerId}/logs", h.CreateLog)
 
 	// Kelola obat & stok pasien. HANYA role manager yang lolos (lihat
