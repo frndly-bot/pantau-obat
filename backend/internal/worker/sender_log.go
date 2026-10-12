@@ -7,13 +7,13 @@ import (
 	"github.com/frndly-bot/pantau-obat/backend/internal/domain"
 )
 
-// LogSender adalah sender yang hanya mencatat, tidak benar-benar mengirim.
+// LogSender adalah sender kanal in-app untuk v0.1.
 //
-// Dipakai saat kanal notifikasi belum dikonfigurasi (VAPID belum diisi).
-// Gunanya bukan sekadar pengganti sementara: dengan sender ini, seluruh
-// rantai worker bisa diuji end-to-end tanpa kredensial push, dan yang
-// dihasilkan tetap jejak nyata di notification_jobs dan
-// notification_deliveries.
+// "Mengirim" di sini berarti mencatat job `sent` yang dibaca inbox
+// aplikasi sendiri (GET /notifications) — tidak ada pengiriman ke luar
+// sistem, karena isinya memang ditampilkan DI DALAM aplikasi. Dengan ini
+// seluruh rantai worker teruji end-to-end tanpa kredensial apa pun, dan
+// pengingat user benar-benar muncul di lonceng header.
 //
 // Yang PENTING: sender ini TIDAK menulis nama obat ke log. Ia mencatat
 // medication_id, sesuai aturan privasi yang berlaku untuk seluruh aplikasi.
@@ -22,9 +22,10 @@ import (
 type LogSender struct {
 	logger *slog.Logger
 
-	// Enabled menentukan apakah sender ini mengaku tersedia. Diisi false
-	// secara bawaan supaya tidak ada yang tanpa sadar menjalankan produksi
-	// dengan sender yang tidak mengirim apa pun.
+	// Available melaporkan kesiapan. Diisi true untuk v0.1: in-app adalah
+	// satu-satunya kanal aktif sesuai keputusan produk. Kalau false,
+	// dispatcher menjatuhkan semua job ke `skipped` NO_CHANNEL dan inbox
+	// menampilkan pengingat yang tidak pernah terkirim.
 	Enabled bool
 }
 

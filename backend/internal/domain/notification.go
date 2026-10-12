@@ -30,10 +30,12 @@ type ChannelPrefs struct {
 func DefaultPrefs(ch Channel) ChannelPrefs {
 	return ChannelPrefs{
 		Channel: ch,
-		// Push aktif secara bawaan: aplikasi pengingat obat yang tidak
-		// mengirim pengingat tidak ada gunanya. Kanal lain nonaktif, karena
-		// butuh langkah tambahan dari user untuk mengaktifkannya.
-		Enabled: ch == ChannelPush,
+		// Keputusan v0.1: kanal AKTIF hanya in-app. Ia selalu bisa
+		// "mengirim" karena isinya dibaca dari inbox aplikasi sendiri —
+		// tidak bergantung pada kredensial operator apa pun. Push aktif
+		// secara bawaan di versi sebelumnya; aktivasi ditunda ke v0.2
+		// bersama email dan Telegram (butuh VAPID/SMTP/token bot).
+		Enabled: ch == ChannelInApp,
 
 		// Jam sunyi bawaan 22:00-06:00. Ini keputusan yang perlu disadari:
 		// menahan notifikasi tengah malam lebih baik daripada membuat user

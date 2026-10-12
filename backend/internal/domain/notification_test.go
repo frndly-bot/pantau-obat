@@ -139,21 +139,22 @@ func TestEffectiveSendTime_AdvanceIntoQuietGetsHeld(t *testing.T) {
 	}
 }
 
-func TestDefaultPrefs_PushEnabledOthersNot(t *testing.T) {
-	// Push aktif bawaan: aplikasi pengingat obat yang tidak mengirim
-	// pengingat tidak ada gunanya. Kanal lain butuh langkah tambahan user.
-	push := DefaultPrefs(ChannelPush)
-	if !push.Enabled {
-		t.Error("push harus aktif secara bawaan")
+func TestDefaultPrefs_InAppOnly(t *testing.T) {
+	// Keputusan v0.1: satu-satunya kanal aktif adalah in-app. Ia selalu bisa
+	// "mengirim" karena isinya dibaca inbox aplikasi sendiri. Push, email,
+	// dan Telegram butuh kredensial operator — aktivasi ditunda (v0.2).
+	if !DefaultPrefs(ChannelInApp).Enabled {
+		t.Error("in-app harus aktif secara bawaan")
 	}
-	for _, ch := range []Channel{ChannelEmail, ChannelTelegram} {
+	for _, ch := range []Channel{ChannelPush, ChannelEmail, ChannelTelegram} {
 		if DefaultPrefs(ch).Enabled {
-			t.Errorf("kanal %s tidak boleh aktif secara bawaan", ch)
+			t.Errorf("kanal %s tidak boleh aktif secara bawaan di v0.1", ch)
 		}
 	}
 	// Jam sunyi bawaan harus terisi, supaya tidak ada yang dibangunkan
 	// tengah malam pada hari pertama pakai.
-	if push.QuietStart == "" || push.QuietEnd == "" {
+	prefs := DefaultPrefs(ChannelInApp)
+	if prefs.QuietStart == "" || prefs.QuietEnd == "" {
 		t.Error("jam sunyi bawaan harus terisi")
 	}
 }

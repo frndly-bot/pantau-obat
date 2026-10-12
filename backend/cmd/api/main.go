@@ -297,25 +297,31 @@ func run() error {
 	// Scheduler, dispatcher, dan missed_pass hidup di proses yang SAMA
 	// dengan HTTP server, sesuai architecture-v2 bagian 2 (Opsi A).
 	//
-	// Kanal notifikasi yang tersedia ditentukan di sini. Kalau VAPID belum
-	// dikonfigurasi, LogSender dipakai dengan Enabled=false, sehingga
-	// dispatcher tahu tidak ada kanal yang perlu dicoba — dan antrean tidak
-	// menumpuk sebagai kegagalan.
+	// Keputusan v0.1: kanal yang AKTIF hanya in-app. Push, email, dan
+	// Telegram tetap dirancang (kodenya tidak dihapus) tapi aktivasi
+	// ditunda — otomatis tidak aktif karena kredensialnya kosong.
+	//
+	// LogSender di sini bukan "pengganti sementara": untuk kanal in-app,
+	// "mengirim" berarti mencatat job `sent` yang dibaca inbox aplikasi
+	// sendiri (GET /notifications). Karena itu Enabled=true — kalau false,
+	// dispatcher menjatuhkan semua job ke `skipped` NO_CHANNEL dan inbox
+	// user menampilkan pengingat yang sebenarnya tidak pernah terkirim.
 	var senders []worker.Sender
 	if cfg.Push.Enabled() {
 		// Langganan push dipasang supaya sender benar-benar punya daftar
 		// perangkat. Tanpa ini, sender akan mengembalikan error "belum
 		// dipasang" untuk setiap pengiriman.
+		// DITUNDA v0.2: aktivasi butuh kredensial VAPID dari operator.
 		senders = append(senders, worker.NewPushSender(cfg.Push, logger).
 			WithSubscriptions(workerBridge))
 	}
 	if cfg.Email.Enabled() {
+		// DITUNDA v0.2: aktivasi butuh SMTP dari operator.
 		senders = append(senders, worker.NewEmailSender(cfg.Email, logger))
 	}
 	if len(senders) == 0 {
-		logger.Warn("tidak ada kanal notifikasi yang dikonfigurasi; " +
-			"pengingat hanya akan dicatat, tidak dikirim")
-		senders = append(senders, worker.NewLogSender(logger, false))
+		logger.Info("kanal aktif: in-app; push/email/telegram ditunda (v0.2)")
+		senders = append(senders, worker.NewLogSender(logger, true))
 	}
 
 	queue := worker.NewDBQueue(db)
