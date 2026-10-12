@@ -17,3 +17,6 @@ export * from './components/badge';
 export * from './components/accordion';
 export * from './components/skeleton';
 export * from './components/placeholder';
+export * from './components/select';
+export * from './components/textarea';
+export * from './components/dialog';

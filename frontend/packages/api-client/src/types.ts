@@ -304,6 +304,29 @@ export interface MedicationLog {
 }
 
 /* ============================================================
+   Tabel referensi (GET /refs)
+   ============================================================ */
+
+/** Satu entri tabel referensi: kode yang dikirim ke API + nama tampilan. */
+export interface RefItem {
+	code: string;
+	name: string;
+}
+
+/**
+ * Tabel referensi untuk formulir obat.
+ *
+ * Diambil dari backend, bukan ditulis di klien: kolom-kolom ini punya foreign
+ * key ke tabel referensinya, jadi pilihan yang tidak ada di database akan
+ * berakhir sebagai 500 saat menyimpan.
+ */
+export interface Refs {
+	units: RefItem[];
+	routes: RefItem[];
+	dosage_forms: RefItem[];
+}
+
+/* ============================================================
    Jadwal harian (GET /schedule)
    ============================================================ */
 

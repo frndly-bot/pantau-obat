@@ -30,6 +30,7 @@ import type {
 	NotificationPrefs,
 	RegisterDeviceInput,
 	RegisterInput,
+	Refs,
 	RestockInput,
 	SetStockInput,
 	AdjustStockInput,
@@ -73,6 +74,12 @@ export function createApi(client: ApiClient) {
 				client.patch<Medication>(`/medications/${id}`, input),
 			remove: (id: string) => client.delete<void>(`/medications/${id}`),
 			times: (id: string) => client.get<Medication['times']>(`/medications/${id}/times`),
+		},
+
+		/* ---------------- Tabel referensi ---------------- */
+		refs: {
+			/** Satuan, rute, dan bentuk sediaan — satu panggilan untuk formulir obat. */
+			all: () => client.get<Refs>('/refs'),
 		},
 
 		/* ---------------- Jadwal harian ---------------- */
