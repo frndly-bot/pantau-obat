@@ -326,12 +326,26 @@ func (h *Auth) writeAuthError(w http.ResponseWriter, r *http.Request, err error)
 	pohttp.WriteDomainError(w, r, err)
 }
 
-// isKnownDomainError melaporkan apakah error punya pemetaan HTTP khusus.
+// isKnownDomainError melaporkan apakah error sudah punya padanan status HTTP
+// yang jelas (lihat MapDomainError).
+//
+// Dipakai untuk memutuskan perlu-tidaknya mencatat ERROR. Kalau daftar ini
+// TIDAK memuat sentinel yang sudah dipetakan, konflik yang sepenuhnya normal —
+// mis. mencatat dosis yang sudah tercatat, atau mengirim undangan ganda —
+// akan tercatat sebagai ERROR. Akibatnya log penuh kebisingan, dan masalah
+// sungguhan tenggelam di dalamnya.
+//
+// Karena itu daftar di sini harus sepadan dengan cabang di MapDomainError.
 func isKnownDomainError(err error) bool {
 	for _, sentinel := range []error{
 		domain.ErrNotFound, domain.ErrUnauthenticated, domain.ErrInvalidCredentials,
 		domain.ErrTokenRevoked, domain.ErrForbidden, domain.ErrAdminScopeDenied,
 		domain.ErrCareNotAccepted, domain.ErrValidation, domain.ErrRateLimited,
+		// Konflik yang diharapkan, bukan kerusakan server.
+		domain.ErrDuplicateMedication, domain.ErrLogOccurrenceTaken,
+		domain.ErrDuplicateTimes, domain.ErrInvitePending,
+		domain.ErrStockInsufficient, domain.ErrCatalogImmutable,
+		domain.ErrCatalogDuplicateName,
 	} {
 		if errors.Is(err, sentinel) {
 			return true
