@@ -30,6 +30,15 @@
 		document.documentElement.dataset.theme =
 			document.documentElement.dataset.theme ?? 'light';
 
+		// Daftarkan service worker (PWA). Hanya di produksi: di dev, cache
+		// akan menyajikan berkas lama dan membuat perubahan tidak terlihat.
+		if ('serviceWorker' in navigator && import.meta.env.PROD) {
+			navigator.serviceWorker.register('/service-worker.js').catch(() => {
+				// PWA bersifat tambahan; kegagalannya tidak boleh mengganggu
+				// aplikasi.
+			});
+		}
+
 		return () => window.removeEventListener('po:session-expired', onExpired);
 	});
 

@@ -3,8 +3,15 @@
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/icon-192.png" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="color-scheme" content="light dark" />
+		<!-- theme-color disamakan dengan token --primary (teal) supaya bilah
+		     peramban di Android menyatu dengan aplikasi. -->
+		<meta name="theme-color" content="#0f9d8f" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Pantau Obat" />
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

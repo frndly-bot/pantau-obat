@@ -314,6 +314,47 @@ services:
     networks:
       - internal
 
+  # ===========================================================================
+  # WEB — berkas statis frontend + reverse proxy /api (Caddy)
+  # ===========================================================================
+  #
+  # Satu service untuk dua peran, dan itu disengaja. Halaman dan API harus
+  # berada di ORIGIN YANG SAMA: cookie refresh memakai SameSite=Strict, jadi
+  # bila keduanya berbeda origin, browser menolak cookie itu dan sesi hilang
+  # setiap halaman di-refresh.
+  #
+  # Ini juga satu-satunya service yang menghadap internet. Postgres dan API
+  # tetap di jaringan internal.
+  #
+  # Build dari root repo: workspace pnpm mencakup beberapa paket, jadi konteks
+  # build harus mencakup frontend/ secara utuh.
+  web:
+    image: pantau-obat-web:latest
+    container_name: po-web
+    build:
+      context: ..
+      dockerfile: frontend/apps/web/Dockerfile
+    environment:
+      # ":80" untuk pengujian lokal; ganti dengan domain di produksi supaya
+      # Caddy menerbitkan sertifikat TLS otomatis.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${WEB_PORT_HOST:-80}:80"
+      - "${WEB_PORT_HOST_TLS:-443}:443"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Image Caddy punya wget bawaan (busybox), jadi bisa memeriksa sendiri.
+      # Yang diperiksa halaman utama: bila berkas statis tidak terpasang,
+      # healthcheck ini gagal dan operator tahu sebelum pengguna melapor.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    <<: *app-limits
+
 volumes:
   pgdata:
     name: po-pgdata

@@ -1,0 +1,92 @@
+# ============================================================================
+# Caddy — Pantau Obat
+# ============================================================================
+#
+# Satu proses menyajikan berkas statis aplikasi web DAN mem-proxy /api ke
+# backend. Kenapa satu proses, bukan dua:
+#
+#   - Cookie refresh memakai SameSite=Strict. Bila halaman dan API berada di
+#     origin yang berbeda, browser menolak menyimpan cookie itu, dan sesi
+#     hilang setiap kali halaman di-refresh. Menyatukan keduanya di satu
+#     origin membuat cookie selalu pihak-pertama.
+#   - Aplikasi ini membawa data kesehatan. Semakin sedikit proses yang
+#     menghadap internet, semakin kecil permukaan yang harus diamankan.
+#
+# Ganti {$SITE_ADDRESS} lewat environment: nama domain di produksi, atau
+# ":80" untuk pengujian lokal. Caddy menerbitkan sertifikat TLS otomatis
+# begitu alamatnya berupa domain sungguhan.
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# ------------------------------------------------------------------------
+	# Header keamanan
+	# ------------------------------------------------------------------------
+	# Data kesehatan: jangan sampai halaman ini di-embed di situs lain, dan
+	# jangan biarkan peramban menebak tipe berkas.
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), camera=(), microphone=()"
+		# Service worker dan kamera tidak dibutuhkan; sisanya dibatasi ke asal
+		# sendiri supaya XSS tidak bisa memuat skrip pihak ketiga.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		# HSTS hanya bermakna di HTTPS. Aman dikirim selalu: peramban
+		# mengabaikannya pada http://.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# ------------------------------------------------------------------------
+	# API — SELALU ke backend, tidak pernah di-cache
+	# ------------------------------------------------------------------------
+	# Tanpa `no-store`, peramban atau proxy perantara bisa menyimpan balasan
+	# berisi data kesehatan dan menyajikannya ke pengguna lain di perangkat
+	# yang sama.
+	handle /api/* {
+		header Cache-Control "no-store"
+		reverse_proxy api:8080
+	}
+
+	handle /healthz {
+		reverse_proxy api:8080
+	}
+	handle /readyz {
+		reverse_proxy api:8080
+	}
+
+	# ------------------------------------------------------------------------
+	# Aset ber-hash — boleh di-cache selamanya
+	# ------------------------------------------------------------------------
+	# Nama berkasnya memuat hash isi, jadi isi yang berubah selalu punya nama
+	# baru. Aman disimpan lama, dan itu membuat pemuatan berikutnya instan.
+	handle /_app/immutable/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * /srv
+		file_server
+	}
+
+	# ------------------------------------------------------------------------
+	# Sisanya — berkas statis dengan cadangan SPA
+	# ------------------------------------------------------------------------
+	# Halaman publik (`/`, `/login`, `/register`) sudah berupa HTML terisi
+	# hasil prerender, jadi dilayani apa adanya. Rute aplikasi (mis.
+	# `/hari-ini`) dirender di klien dan tidak punya berkas sendiri, sehingga
+	# perlu `spa.html` sebagai cadangan.
+	#
+	# PENTING: cadangannya `spa.html`, BUKAN `index.html`. Bila memakai
+	# `index.html`, halaman itu akan tertimpa kerangka SPA dan landing page
+	# kehilangan seluruh isinya — termasuk alasan ia di-prerender.
+	handle {
+		header Cache-Control "no-cache"
+		root * /srv
+		try_files {path} {path}.html {path}/index.html /spa.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

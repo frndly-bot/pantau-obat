@@ -25,9 +25,43 @@ deploy/
     postgresql.conf      # tuning hemat resource
     initdb/
       00-init.sql        # dijalankan otomatis saat volume masih kosong
+  caddy/
+    Caddyfile            # berkas statis frontend + reverse proxy /api
   backup/                # hasil pg_dump (tidak masuk git)
   README.md
 ```
+
+## Arsitektur service
+
+```
+internet
+   │
+   ▼
+┌─────────┐   /api/*    ┌─────┐        ┌──────────┐
+│  caddy  │────────────▶│ api │───────▶│ postgres │
+│  (web)  │             └─────┘        └──────────┘
+│         │  sisanya: berkas statis        ▲
+└─────────┘                                │
+      ▲                              ┌─────┴──────┐
+      │ hasil build frontend         │ db-backup  │
+      │ (adapter-static)             │ retention  │
+                                     └────────────┘
+```
+
+**Hanya `web` (Caddy) yang menghadap internet.** Postgres dan API berada di
+jaringan `internal`.
+
+### Kenapa Caddy menyajikan frontend DAN mem-proxy /api dari satu origin
+
+Cookie refresh memakai `SameSite=Strict`. Bila halaman dan API berada di origin
+yang berbeda, browser **menolak** menyimpan cookie itu — dan gejalanya menipu:
+login tampak berhasil (access token ada di memori), tetapi sesi hilang setiap
+kali halaman di-refresh. Menyatukan keduanya di satu origin membuat cookie
+selalu pihak-pertama.
+
+Ini juga cara kerja pengembangan: dev server Vite mem-proxy `/api` ke backend
+(lihat `frontend/apps/web/vite.config.ts`). Jadi perilaku di produksi dan di
+lokal sama, bukan dua jalur berbeda yang bisa berbeda diam-diam.
 
 ## Mulai cepat
 
@@ -171,16 +205,36 @@ service di folder ini.
 | Service | Status | Catatan |
 |---|---|---|
 | `postgres` | **ada** | PostgreSQL 18, resource minimal |
-| `backend` | belum | binary Go, image multi-stage Alpine |
-| `frontend-user` | belum | build statis `apps/user` |
-| `frontend-admin` | belum | build statis `apps/admin` |
-| `caddy` | belum | TLS + static + reverse proxy ke backend |
-| `migrate` | belum | job sekali jalan menjalankan goose sebelum `api` start |
-| `backup` | belum | cron pg_dump + retensi 30 hari |
+| `api` | **ada** | binary Go, image multi-stage (scratch) |
+| `migrate` | **ada** | job sekali jalan menjalankan goose sebelum `api` |
+| `web` | **ada** | Caddy: berkas statis frontend + reverse proxy `/api` |
+| `db-backup` | **ada** | cron pg_dump + retensi 14 hari |
+| `retention` | **ada** | pembersihan data kedaluwarsa |
+| `frontend-admin` | belum | build statis `apps/admin` (ADR-003) |
 
 Saat menambah service, ikuti pola yang ada: satu service satu blok,
 environment dari `.env`, `depends_on` dengan `condition: service_healthy`,
 dan pasang `healthcheck`. Jangan expose port ke publik kecuali Caddy.
+
+## Catatan penting untuk `web`
+
+- **Cadangan SPA bernama `spa.html`, bukan `index.html`.** Halaman publik
+  (`/`, `/login`, `/register`) adalah HTML terisi hasil prerender. Bila
+  cadangannya `index.html`, berkas itu akan **menimpa** landing page dan
+  seluruh isinya hilang — termasuk alasan ia di-prerender (SEO).
+- **`SITE_ADDRESS`** menentukan alamat. `:80` untuk pengujian lokal; isi nama
+  domain di produksi supaya Caddy menerbitkan sertifikat TLS otomatis.
+- **`/api/*` selalu `Cache-Control: no-store`.** Tanpa itu, peramban atau proxy
+  perantara bisa menyimpan balasan berisi data kesehatan dan menyajikannya ke
+  pengguna lain di perangkat yang sama.
+- **Setelah kode backend berubah, image `api` harus di-build ulang.** Container
+  yang masih menjalankan image lama akan membalas 404 untuk endpoint baru —
+  gejalanya mudah disalahartikan sebagai masalah Caddy atau frontend.
+
+```bash
+docker build -f backend/Dockerfile -t pantau-obat-api:latest .
+docker compose up -d --force-recreate api
+```
 
 ## Catatan keamanan
 

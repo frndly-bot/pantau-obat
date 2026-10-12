@@ -175,28 +175,25 @@ be-clean: ## Bersihkan artefak build backend
 # =============================================================================
 # Frontend (aktif setelah frontend/ diisi)
 # =============================================================================
-.PHONY: fe-install fe-dev-user fe-dev-admin fe-build fe-test fe-check fe-clean
+.PHONY: fe-install fe-dev-user fe-build fe-test fe-check fe-clean
 FE_DIR := $(ROOT)/frontend
 
 fe-install: ## Pasang dependency semua workspace frontend
 	@test -f $(FE_DIR)/package.json || { printf '%sfrontend/ belum ada package.json%s\n' '$(YELLOW)' '$(RESET)'; exit 1; }
 	@cd $(FE_DIR) && pnpm install
 
-fe-dev-user: ## Dev server aplikasi user
-	@cd $(FE_DIR) && pnpm --filter user dev
+fe-dev-user: ## Dev server aplikasi web (landing + user)
+	@cd $(FE_DIR) && pnpm --filter @pantau-obat/web dev
 
-fe-dev-admin: ## Dev server aplikasi admin
-	@cd $(FE_DIR) && pnpm --filter admin dev
-
-fe-build: ## Build produksi kedua aplikasi (statis)
+fe-build: ## Build produksi aplikasi web (statis)
 	@cd $(FE_DIR) && pnpm -r build
 	@printf '%sbuild frontend selesai.%s\n' '$(GREEN)' '$(RESET)'
 
 fe-test: ## Test frontend (vitest)
-	@cd $(FE_DIR) && pnpm -r test
+	@cd $(FE_DIR)/apps/web && pnpm test
 
 fe-check: ## svelte-check + tsc
-	@cd $(FE_DIR) && pnpm -r check
+	@cd $(FE_DIR)/apps/web && pnpm check
 
 fe-clean: ## Bersihkan artefak build frontend
 	@rm -rf $(FE_DIR)/apps/*/.svelte-kit $(FE_DIR)/apps/*/build $(FE_DIR)/packages/*/dist
