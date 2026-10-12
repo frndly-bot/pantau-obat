@@ -221,8 +221,14 @@ func (d *Dispatcher) dispatch(ctx context.Context, it *BumpItem) error {
 	// bump-nya. Tapi bump_queue belum punya kolom waktu tunda terpisah;
 	// karena itu penundaan dilakukan dengan MENGEMBALIKAN item ke antrean
 	// pada waktu kirim yang baru.
+	//
+	// d.sender bisa nil (tidak ada kanal yang dikonfigurasi). channelOrDefault
+	// dipakai di sini, BUKAN d.sender.Channel() langsung — pemanggilan
+	// langsung dulu pernah menyebabkan nil pointer dereference dan panic di
+	// tengah siklus dispatcher, karena pemeriksaan nil ada SETELAH bagian ini.
 	if d.prefs != nil {
-		prefs, err := d.prefs.PrefsFor(ctx, it.OwnerID, d.sender.Channel())
+		channel := d.channelOrDefault()
+		prefs, err := d.prefs.PrefsFor(ctx, it.OwnerID, channel)
 		if err != nil {
 			// Gagal membaca preferensi diperlakukan sebagai "kirim dengan
 			// bawaan", bukan "tahan". Menahan notifikasi karena kesalahan
@@ -231,7 +237,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, it *BumpItem) error {
 			d.logger.WarnContext(ctx, "gagal membaca preferensi notifikasi, memakai bawaan",
 				slog.String("owner_id", it.OwnerID),
 				slog.String("error", err.Error()))
-			prefs = domain.DefaultPrefs(d.sender.Channel())
+			prefs = domain.DefaultPrefs(channel)
 		}
 
 		if !domain.ChannelEnabled(prefs) {
