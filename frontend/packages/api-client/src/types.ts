@@ -521,16 +521,17 @@ export interface CareLink {
 	status: CareStatus;
 	decided_at: string | null;
 	created_at: string;
-	updated_at: string;
 }
 
 export interface CreateInviteInput {
-	email: string;
+	/** Email yang diundang. Boleh belum terdaftar — undangan menunggu. */
+	invite_email: string;
 	relation: CareRelation;
 	role: CareRole;
 }
 
 export interface AcceptInviteInput {
+	/** Token dari tautan undangan. */
 	token: string;
 }
 

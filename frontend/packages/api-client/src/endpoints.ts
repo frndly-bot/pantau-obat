@@ -148,7 +148,11 @@ export function createApi(client: ApiClient) {
 
 		/* ---------------- Caregiver ---------------- */
 		care: {
+			/** Relasi tempat SAYA pemilik data ("siapa yang memantau saya"). */
 			list: (query?: Query) => client.get<CareLink[]>('/care-links', query),
+			/** Relasi tempat SAYA pendamping ("siapa yang saya pantau"). */
+			listAsCaregiver: (query?: Query) =>
+				client.get<CareLink[]>('/care-links', { ...query, as: 'caregiver' }),
 			invite: (input: CreateInviteInput) => client.post<CareLink>('/care-links', input),
 			accept: (input: AcceptInviteInput) => client.post<CareLink>('/care-links/accept', input),
 			reject: (input: AcceptInviteInput) => client.post<CareLink>('/care-links/reject', input),
