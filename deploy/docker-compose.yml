@@ -314,6 +314,16 @@ services:
     # shell tidak bisa dipakai. Penjadwalan karena itu ada di dalam binary
     # (`api retention --loop`), bukan di entrypoint shell.
     entrypoint: ["/api", "retention", "--loop"]
+    # HEALTHCHECK di Dockerfile memeriksa /healthz — itu benar untuk server,
+    # tetapi container ini TIDAK menjalankan server HTTP (hanya penjadwal),
+    # sehingga healthcheck warisan akan selalu gagal dan container ditandai
+    # unhealthy padahal bekerja normal. Dimatikan di sini.
+    #
+    # Kesehatan container ini diperiksa dengan cara lain: bila prosesnya mati,
+    # `restart: unless-stopped` menghidupkannya lagi, dan kegagalan pembersihan
+    # tercatat di log.
+    healthcheck:
+      disable: true
     restart: unless-stopped
     environment:
       <<: *app-environment
