@@ -1,0 +1,81 @@
+info:
+  name: Buat Obat — Pola Siklus Bulanan
+  type: http
+  seq: 9
+  tags:
+    - medication
+    - frequency
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Obat Siklus Uji",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "meal_relation": "not_related",
+        "start_date": "2026-10-12",
+        "frequency": {
+          "pattern": "monthly_cycle",
+          "cycle_intake_days": 21,
+          "cycle_pause_days": 7,
+          "cycle_anchor": "from_start",
+          "schedule_timezone": "Asia/Jakarta"
+        },
+        "times": [
+          {"time_local": "20:00", "label": "evening"}
+        ]
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.frequency.pattern
+      operator: eq
+      value: "monthly_cycle"
+    - expression: res.body.data.frequency.cycle_intake_days
+      operator: eq
+      value: 21
+    - expression: res.body.data.frequency.cycle_pause_days
+      operator: eq
+      value: 7
+  scripts:
+    - type: after-response
+      code: |-
+        const ids = bru.getVar("pattern_test_ids") || [];
+        ids.push(res.body.data.id);
+        bru.setVar("pattern_test_ids", ids);
+
+docs: |-
+  # Buat Obat — Pola Siklus Bulanan
+
+  Menguji pola keempat dari lima: `monthly_cycle` — diminum N hari, lalu
+  berhenti M hari, berulang. Kasus nyata: pil KB 21/7, terapi siklus.
+
+  ## Pola ini TIDAK ada di dokumen lama
+
+  `monthly_cycle` adalah tambahan v2 (Epic C) yang diminta user: terapi
+  seumur hidup TIDAK selalu diminum tiap hari. Jadwal disimpan sebagai ATURAN
+  (3 baris), bukan slot per hari — lihat ADR-005.
+
+  ## `cycle_anchor` menentukan titik hitung
+
+  | Nilai | Arti |
+  |---|---|
+  | `from_start` | siklus dihitung sejak `start_date` (dipakai di sini) |
+  | `dom` | siklus mengikuti tanggal dalam bulan (`cycle_anchor_dom`) |
+  | `end_of_month` | siklus mengikuti akhir bulan kalender |
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 6.

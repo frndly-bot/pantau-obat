@@ -1,0 +1,75 @@
+info:
+  name: Buat Obat — Pola Mingguan
+  type: http
+  seq: 8
+  tags:
+    - medication
+    - frequency
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Obat Mingguan Uji",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "meal_relation": "after_meal",
+        "start_date": "2026-10-12",
+        "frequency": {
+          "pattern": "weekly",
+          "days_of_week": 65,
+          "schedule_timezone": "Asia/Jakarta"
+        },
+        "times": [
+          {"time_local": "08:00", "label": "morning"}
+        ]
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.frequency.pattern
+      operator: eq
+      value: "weekly"
+    - expression: res.body.data.frequency.days_of_week
+      operator: eq
+      value: 65
+  scripts:
+    - type: after-response
+      code: |-
+        const ids = bru.getVar("pattern_test_ids") || [];
+        ids.push(res.body.data.id);
+        bru.setVar("pattern_test_ids", ids);
+
+docs: |-
+  # Buat Obat — Pola Mingguan
+
+  Menguji pola ketiga dari lima: `weekly` — hanya diminum di hari-hari
+  tertentu dalam seminggu.
+
+  ## `days_of_week` adalah bitmask
+
+  Bit 1 = Senin … bit 7 = Minggu. Nilai `65` = 64 + 1 = Minggu + Senin.
+  Rentang sah 1–127 (CHECK `ck_freq_params`). Menguji nilai yang BUKAN
+  kelipatan bulat sederhana memastikan bitmask disimpan apa adanya, bukan
+  dinormalisasi diam-diam.
+
+  ## `times` tetap wajib
+
+  Berbeda dari pola interval: pola mingguan butuh jam minum konkret, karena
+  bitmask hanya menjawab "hari apa", bukan "jam berapa". `time_local` di sini
+  berlaku untuk semua hari yang dicentang.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 6.

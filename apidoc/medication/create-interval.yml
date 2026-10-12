@@ -1,0 +1,82 @@
+info:
+  name: Buat Obat — Pola Interval
+  type: http
+  seq: 7
+  tags:
+    - medication
+    - frequency
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Obat Interval Uji",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "meal_relation": "not_related",
+        "start_date": "2026-10-12",
+        "frequency": {
+          "pattern": "interval",
+          "interval_hours": 8,
+          "start_time": "07:00",
+          "schedule_timezone": "Asia/Jakarta"
+        },
+        "times": [
+          {"time_local": "07:00", "label": "morning"}
+        ]
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.frequency.pattern
+      operator: eq
+      value: "interval"
+    - expression: res.body.data.frequency.interval_hours
+      operator: eq
+      value: 8
+  scripts:
+    - type: after-response
+      code: |-
+        // ID disimpan hanya untuk dibersihkan di akhir folder (lihat
+        // medication/delete). Tanpa pembersihan, uji pola ini menumpuk
+        // obat di database yang sama.
+        const ids = bru.getVar("pattern_test_ids") || [];
+        ids.push(res.body.data.id);
+        bru.setVar("pattern_test_ids", ids);
+
+docs: |-
+  # Buat Obat — Pola Interval
+
+  Menguji pola frekuensi kedua dari lima: `interval` — dosis berulang setiap
+  N jam sejak jam mulai, tanpa jam tetap.
+
+  ## Kenapa satu file per pola
+
+  Wizard obat di UI menyediakan lima pola (Epic C). Backend menerimanya lewat
+  satu endpoint yang sama, tapi `ck_freq_params` di database menolak pola yang
+  parameternya tidak cocok (mis. `interval` tanpa `interval_hours`). Menguji
+  satu per satu memastikan setiap pola benar-benar lolos validasi dan tersimpan
+  dengan parameternya — bukan sekadar "diterima".
+
+  ## Pola interval TETAP wajib punya minimal satu `times`
+
+  Backend menuntut jam minum untuk semua pola non-PRN (`wajib ada minimal
+  satu jam minum`). Untuk interval, jam itu adalah TITIK MULAI — dosis
+  berikutnya dihitung +8 jam dari sana. `start_time` di frequency dan jam
+  pertama di `times` sengaja sama, supaya keduanya menceritakan hal yang
+  sama.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 6.

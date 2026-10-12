@@ -1,0 +1,76 @@
+info:
+  name: Buat Obat — Pola PRN (Sesuai Kebutuhan)
+  type: http
+  seq: 10
+  tags:
+    - medication
+    - frequency
+
+http:
+  method: POST
+  url: "{{base_url}}/api/v1/medications"
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Obat PRN Uji",
+        "dose_value": 1,
+        "dose_unit_code": "tablet",
+        "route_code": "O",
+        "meal_relation": "not_related",
+        "as_needed": true,
+        "start_date": "2026-10-12",
+        "frequency": {
+          "pattern": "prn",
+          "prn_max_per_day": 4,
+          "schedule_timezone": "Asia/Jakarta"
+        }
+      }
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.body.data.as_needed
+      operator: eq
+      value: true
+    - expression: res.body.data.frequency.pattern
+      operator: eq
+      value: "prn"
+    - expression: res.body.data.frequency.prn_max_per_day
+      operator: eq
+      value: 4
+  scripts:
+    - type: after-response
+      code: |-
+        const ids = bru.getVar("pattern_test_ids") || [];
+        ids.push(res.body.data.id);
+        bru.setVar("pattern_test_ids", ids);
+
+docs: |-
+  # Buat Obat — Pola PRN (Sesuai Kebutuhan)
+
+  Menguji pola kelima dari lima: `prn` (pro re nata) — diminum kalau ada
+  keluhan, dengan batas maksimum per hari.
+
+  ## PRN TIDAK punya jadwal dan TIDAK punya pengingat
+
+  Tidak ada `times`, tidak ada `bump_queue` yang diisi scheduler — dosisnya
+  dicatat lewat `POST /medications/{id}/logs/prn` saat user membutuhkannya.
+  Yang dibatasi server hanyalah `prn_max_per_day` (CHECK `ck_freq_params`),
+  supaya "sesuai kebutuhan" tidak berarti "tanpa batas".
+
+  ## `as_needed` dan `pattern: prn` berpasangan
+
+  `as_needed=true` adalah tanda UI; `pattern=prn` adalah aturan data. Keduanya
+  dikirim bersama supaya konsisten — kalau salah satunya hilang, artinya
+  terjadi ketidaksesuaian antara bentuk kabel dan aturan database.
+
+  Kontrak: `docs/design-v2/api-v2.md` bagian 6.
