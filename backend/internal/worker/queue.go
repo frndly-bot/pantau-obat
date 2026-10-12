@@ -180,6 +180,29 @@ func (db *DBQueue) CountPendingBumps(ctx context.Context, q Querier) (int, error
 	return n, nil
 }
 
+// PurgeDoneBumps menghapus baris antrean yang sudah selesai dan lebih tua
+// dari cutoff.
+//
+// bump_queue menjawab "KAPAN sesuatu harus terjadi" — umurnya pendek. Riwayat
+// yang lebih lama tidak punya pembaca: hasil pengiriman tercatat terpisah di
+// notification_jobs (30 hari). Baris selesai yang dibiarkan hanya
+// menggelembungkan tabel dan memperlambat index-nya.
+//
+// HANYA baris dengan done_at yang dihapus. Baris yang belum selesai adalah
+// pekerjaan yang belum dilakukan — menghapusnya berarti menghilangkan
+// pengingat user.
+func (db *DBQueue) PurgeDoneBumps(ctx context.Context, q Querier, olderThan time.Duration) (int64, error) {
+	tag, err := q.Exec(ctx, `
+        DELETE FROM bump_queue
+         WHERE done_at IS NOT NULL
+           AND done_at < now() - $1::interval`,
+		fmt.Sprintf("%d seconds", int64(olderThan.Seconds())))
+	if err != nil {
+		return 0, fmt.Errorf("membersihkan antrean usang: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // Querier adalah irisan yang dipenuhi pool maupun transaksi.
 type Querier = postgres.Querier
 

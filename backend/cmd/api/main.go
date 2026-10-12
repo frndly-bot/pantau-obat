@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -33,10 +34,188 @@ import (
 var version = "dev"
 
 func main() {
+	// Subcommand untuk lingkungan container.
+	//
+	// Image runtime memakai scratch: TIDAK ada shell, curl, maupun wget.
+	// Healthcheck dan pekerjaan pemeliharaan karena itu dibawa oleh binary
+	// aplikasi sendiri — satu-satunya alat yang dijamin ada.
+	//
+	//   healthz    LIVENESS untuk HEALTHCHECK Docker. Sengaja BUKAN readiness:
+	//              database yang sedang bermasalah tidak boleh me-restart
+	//              container — restart tidak menyembuhkan database, dan justru
+	//              mematikan worker yang sedang berjalan. Kesehatan database
+	//              diperiksa /readyz oleh reverse proxy, bukan oleh Docker.
+	//   migrate    Naikkan migrasi goose lalu keluar. Dipisah dari start server
+	//              supaya rollback aplikasi tidak ikut menurunkan skema, dan
+	//              dua instance yang start bersamaan tidak balapan (lihat
+	//              deploy/docker-compose.yml service `migrate`).
+	//   retention  Bersihkan tabel append-only yang usang (bump_queue,
+	//              notification_jobs, user_token_revocations) lalu keluar.
+	//              Dipanggil berkala oleh service `retention`.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "healthz":
+			os.Exit(healthz())
+		case "migrate":
+			os.Exit(migrateCmd())
+		case "retention":
+			os.Exit(retentionCmd())
+		}
+		// Subcommand yang tidak dikenal dibiarkan jatuh ke jalur server:
+		// salah ketik tidak boleh berubah menjadi server yang "jalan" dengan
+		// perintah yang diabaikan diam-diam.
+		slog.Default().Error("subcommand tidak dikenal", slog.String("subcommand", os.Args[1]))
+		os.Exit(2)
+	}
+
 	if err := run(); err != nil {
 		slog.Default().Error("startup gagal", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+}
+
+// healthz memeriksa apakah server melayani /healthz pada APP_PORT.
+//
+// Return value dipakai langsung sebagai exit code: 0 sehat, 1 tidak.
+func healthz() int {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "konfigurasi tidak valid:", err)
+		return 1
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	port := cfg.Port
+	if port == "" {
+		port = "8080"
+	}
+	resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthz tidak terjangkau:", err)
+		return 1
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "healthz membalas %s\n", resp.Status)
+		return 1
+	}
+	return 0
+}
+
+// migrateCmd menjalankan migrasi goose lalu keluar.
+//
+// Taxa exit: 0 berhasil (atau memang sudah di versi terakhir), 1 gagal.
+// Kegagalan TIDAK boleh dianggap halus: container yang menjalankannya harus
+// mati supaya orkestrator tahu migrasinya gagal dan api tidak boleh naik.
+func migrateCmd() int {
+	logger := slog.Default()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "konfigurasi tidak valid:", err)
+		return 1
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if err := postgres.Migrate(ctx, cfg.DB, logger); err != nil {
+		logger.Error("migrasi gagal", slog.String("error", err.Error()))
+		return 1
+	}
+
+	ver, err := postgres.MigrateStatus(ctx, cfg.DB)
+	if err != nil {
+		// Migrasinya sudah sukses; gagal membaca versi hanya melemahkan
+		// laporannya, bukan hasilnya.
+		logger.Warn("migrasi selesai, versi tidak terbaca", slog.String("error", err.Error()))
+		return 0
+	}
+	logger.Info("migrasi selesai", slog.Int64("versi", ver))
+	return 0
+}
+
+// retentionCmd membersihkan tabel append-only yang usang lalu keluar.
+//
+// Dipanggil berkala oleh service `retention` di compose. Aturan umurnya di
+// sini — SATU tempat di kode — supaya tidak ada SQL berserakan yang nilainya
+// berbeda antar tempat.
+func retentionCmd() int {
+	logger := slog.Default()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "konfigurasi tidak valid:", err)
+		return 1
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	db, err := postgres.NewDB(ctx, cfg.DB)
+	if err != nil {
+		logger.Error("database tidak terjangkau", slog.String("error", err.Error()))
+		return 1
+	}
+	defer db.Close()
+
+	queue := worker.NewDBQueue(db)
+	total := 0
+
+	// bump_queue: 7 hari. Antrean pengingat; umurnya pendek. Riwayatnya tidak
+	// punya pembaca — hasil kirim tercatat di notification_jobs.
+	if n, err := queue.PurgeDoneBumps(ctx, db.Pool(), 7*24*time.Hour); err != nil {
+		logger.Error("gagal membersihkan bump_queue", slog.String("error", err.Error()))
+		return 1
+	} else if n > 0 {
+		logger.Info("bump_queue dibersihkan", slog.Int64("jumlah", n))
+		total += int(n)
+	}
+
+	// notification_jobs: 30 hari. Riwayat pengiriman; jawaban "kenapa tidak
+	// sampai" harus masih bisa dicari selama itu. Hanya job selesai yang
+	// dihapus — job failed tetap ada untuk diperiksa operator.
+	if n, err := db.PurgeDoneJobs(ctx, db.Pool(), 30*24*time.Hour); err != nil {
+		logger.Error("gagal membersihkan notification_jobs", slog.String("error", err.Error()))
+		return 1
+	} else if n > 0 {
+		logger.Info("notification_jobs dibersihkan", slog.Int64("jumlah", n))
+		total += int(n)
+	}
+
+	// user_token_revocations: 35 hari. Garis potong access token 24 jam.
+	// Setelah 35 hari tidak ada lagi token lama yang bisa dipotong, sehingga
+	// barisnya aman dihapus — termasuk ketika user yang bersangkutan sudah
+	// tidak ada (DELETE di sini tidak memicu FK apa pun).
+	if n, err := db.PurgeOldRevocations(ctx, 35*24*time.Hour); err != nil {
+		logger.Error("gagal membersihkan user_token_revocations", slog.String("error", err.Error()))
+		return 1
+	} else if n > 0 {
+		logger.Info("user_token_revocations dibersihkan", slog.Int64("jumlah", n))
+		total += int(n)
+	}
+
+	// refresh_sessions kedaluwarsa: sesi yang lewat 30 hari dari exp-nya.
+	// Sesi aktif TIDAK disentuh — yang dihapus hanya jejak sesi yang sudah
+	// mati sendiri dan tidak mungkin dipakai lagi.
+	if n, err := db.PurgeExpiredSessions(ctx, 30*24*time.Hour); err != nil {
+		logger.Error("gagal membersihkan refresh_sessions", slog.String("error", err.Error()))
+		return 1
+	} else if n > 0 {
+		logger.Info("refresh_sessions dibersihkan", slog.Int64("jumlah", n))
+		total += int(n)
+	}
+
+	// device_tokens yang dicabut: 30 hari. Token aktif tidak disentuh.
+	if n, err := db.PurgeRevokedTokens(ctx, 30*24*time.Hour); err != nil {
+		logger.Error("gagal membersihkan device_tokens", slog.String("error", err.Error()))
+		return 1
+	} else if n > 0 {
+		logger.Info("device_tokens dibersihkan", slog.Int64("jumlah", n))
+		total += int(n)
+	}
+
+	logger.Info("retensi selesai", slog.Int("total_baris", total))
+	return 0
 }
 
 func run() error {

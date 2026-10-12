@@ -1,9 +1,76 @@
 ---
 # Compose membaca variabel dari file .env yang sejajar dengan file ini.
 # Simpan secret di .env (tidak masuk git). Lihat .env.example.
+#
+# =============================================================================
+# ARSITEKTUR
+# =============================================================================
+#
+#   postgres          DB tunggal. Satu-satunya state.
+#   api               HTTP server + 3 worker (scheduler, dispatcher,
+#                     missed_pass) dalam SATU binary — sesuai
+#                     architecture-v2 bagian 2 (Opsi A).
+#   migrate           job sekali jalan: goose up. `docker compose run migrate`
+#   admin-bootstrap   job sekali jalan: buat admin pertama.
+#   db-backup         cron harian: pg_dump ke volume pgbackup.
+#   retension         cron harian: bersihkan tabel append-only yang usang.
+#
+# KENAPA WORKER TIDAK DIPISAH JADI SERVICE TERSEDIRI:
+#
+#   Ketiganya hidup di dalam binary `api` (lihat cmd/api/main.go bagian
+#   Worker). Pemisahan service di compose berarti dua proses memakai dua
+#   salinan scheduler — pengingat terkirim dua kali, dan dedup_key hanya
+#   mencegah duplikasi per proses, bukan antar proses. Selama aplikasi masih
+#   satu VPS, satu proses adalah keputusan yang benar.
+#
+#   Pemisahan benar-benar diperlukan saat: (1) beban kirim menuntut
+#   penambahan proses, atau (2) deploy ingin nol-downtime. Keduanya memakai
+#   binary `api` yang sama dengan env WORKER_ENABLED=false di HTTP, atau
+#   sebaliknya. Batas modulnya sudah dijaga: worker tidak mengimpor transport.
+#
+# =============================================================================
 name: pantau-obat
 
+x-app-environment: &app-environment
+  APP_ENV: ${APP_ENV:-production}
+  APP_PORT: 8080
+  APP_PUBLIC_URL: ${APP_PUBLIC_URL:?APP_PUBLIC_URL wajib diisi di deploy/.env}
+  DB_URL: postgres://${POSTGRES_USER:-pantau_obat}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pantau_obat}?sslmode=disable
+  DB_MAX_CONNS: ${DB_MAX_CONNS:-10}
+  DB_MIN_CONNS: ${DB_MIN_CONNS:-2}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi (min 32 byte) di deploy/.env}
+  JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-1440}
+  REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+  WEBHOOK_EMAIL_SECRET: ${WEBHOOK_EMAIL_SECRET:-}
+  RATE_LIMIT_IP_PER_MIN: ${RATE_LIMIT_IP_PER_MIN:-60}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+# Batas resource yang dipakai bersama oleh service aplikasi.
+# VPS kecil: sisanya disisakan untuk Postgres dan OS.
+x-app-limits: &app-limits
+  mem_limit: 256m
+  memswap_limit: 320m
+  cpus: "0.5"
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  networks:
+    - internal
+
 services:
+  # ===========================================================================
+  # DATABASE
+  # ===========================================================================
   postgres:
     image: postgres:18-alpine
     container_name: po-postgres
@@ -38,6 +105,210 @@ services:
     memswap_limit: 384m
     cpus: "1.0"
     shm_size: 128mb
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  # ===========================================================================
+  # MIGRASI — job sekali jalan, BUKAN service yang hidup
+  # ===========================================================================
+  #
+  # Dipisah dari `api` karena DUA alasan, dan keduanya bukan formalitas:
+  #
+  #  1. Rollback aplikasi tidak boleh menurunkan skema. Kalau migrasi jalan
+  #     otomatis saat start, `docker compose down` lalu naikkan versi lama
+  #     berarti menurunkan skema di bawah data yang sudah ada.
+  #  2. Dua instance api yang start bersamaan bisa balapan menjalankan
+  #     migrasi yang sama. Job terpisah punya urutan yang jelas: migrasi
+  #     dulu, baru api.
+  #
+  # MIGRATE_ON_START di `api` sengaja false di produksi: migrasi TIDAK
+  # dijalankan ulang oleh server. Pengembangan lokal boleh true.
+  #
+  # Dipakai:  docker compose run --rm migrate
+  migrate:
+    image: pantau-obat-api:latest
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    # `up` adalah flag goose lewat variabel; binary api tanpa subcommand
+    # tetap menjalankan server, jadi MIGRASI dipanggil lewat entrypoint yang
+    # menjalankan migrasi langsung lalu keluar. Lihat cmd/api/main.go:
+    # binary ini mem-bypass server bila MIGRATE_ONLY=true.
+    entrypoint: ["/api", "migrate"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    # Job sekali jalan TIDAK memakai restart, TIDAK memakai limits bersama.
+    profiles: ["tools"]
+
+  # ===========================================================================
+  # ADMIN BOOTSTRAP — job sekali jalan: buat admin pertama
+  # ===========================================================================
+  #
+  # Peran admin tidak pernah bisa diberikan lewat API (api-v2 bagian 4).
+  # Jalur satu-satunya adalah perintah ini, dan ia menolak berjalan di
+  # APP_ENV=production tanpa flag eksplisit. Baca: backend/cmd/admin-bootstrap.
+  #
+  # Dipakai:  docker compose run --rm --remove-orphans admin-bootstrap \
+  #             --email admin@example.com --password 'Rahasia123!' \
+  #             --name "Admin Aplikasi"
+  admin-bootstrap:
+    image: pantau-obat-api:latest
+    entrypoint: ["/admin-bootstrap"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    profiles: ["tools"]
+
+  # ===========================================================================
+  # API — HTTP server + worker scheduler/dispatcher/missed_pass
+  # ===========================================================================
+  #
+  # Satu container. MIGRATE_ON_START=false: migrasi TIDAK dijalankan di sini.
+  # Kalau container restart tanpa sengaja, ia TIDAK mengubah skema — cukup
+  # menyambung ke skema yang sudah ada. Migrasi lewat service `migrate`.
+  api:
+    image: pantau-obat-api:latest
+    container_name: po-api
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    environment:
+      <<: *app-environment
+      MIGRATE_ON_START: "false"
+    ports:
+      # HTTP server. Di produksi ditaruh di belakang Caddy/Nginx reverse
+      # proxy, sehingga cukup 127.0.0.1.
+      - "${APP_PORT_HOST:-127.0.0.1:8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Subcommand healthz memakai binary api sendiri: image scratch TIDAK
+      # punya shell, curl, maupun wget, jadi healthcheck bawaan mustahil.
+      # Yang diperiksa LIVENESS saja (bukan readiness): database yang sedang
+      # bermasalah tidak boleh me-restart container, karena restart tidak
+      # menyembuhkan database dan hanya mematikan worker.
+      test: ["CMD", "/api", "healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    <<: *app-limits
+
+  # ===========================================================================
+  # DB BACKUP — cron harian: pg_dump ke volume pgbackup
+  # ===========================================================================
+  #
+  # Backup DIPISAH dari postgres karena postgres bisa di-`down` tanpa
+  # mematikan backup, dan sebaliknya. Backup berhenti saat DB mati itu
+  # normal — yang tidak boleh adalah keduanya mati bersamaan.
+  #
+  # Jadwal 02:30 UTC. VPS kecil: postgres.conf memakai timezone UTC, jadi
+  # 02:30 UTC = 09:30 WIB — di luar jam sunyi user (22:00–06:00 lokal).
+  #
+  # Retensi: simpan 14 hari. Lebih dari itu, cadangan jadi rutinitas tanpa
+  # nilai; lebih sedikit dari itu, satu kerusakan yang lambat disadari bisa
+  # menghabiskan seluruh riwayat.
+  #
+  # Restore: docker compose run --rm db-restore
+  db-backup:
+    image: postgres:18-alpine
+    container_name: po-db-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-pantau_obat}
+      PGUSER: ${POSTGRES_USER:-pantau_obat}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di deploy/.env}
+    volumes:
+      - pgbackup:/backup
+      - ./backup/backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        # Cari detik epoch jam 02:30 UTC BERIKUTNYA, tanpa `date -d` GNU-style
+        # (alpine memakai busybox yang tidak mendukungnya — terbukti:
+        # `date: invalid date 'tomorrow 02:30'`).
+        next_run() {
+          now=$$(date -u +%s)
+          # kandidat: hari ini 02:30 UTC dan besok 02:30 UTC
+          today=$$(date -u -d "@$${now}" +%Y-%m-%d)
+          for d in "$$today" "$$(date -u -d "@$$((now + 86400))" +%Y-%m-%d)"; do
+            t=$$(date -u -j -f "%Y-%m-%d %H:%M" "$$d 02:30" +%s 2>/dev/null || \
+                date -u -d "$$d 02:30" +%s 2>/dev/null || echo 0)
+            [ "$$t" -gt "$$now" ] 2>/dev/null && { echo "$$t"; return; }
+          done
+          echo $$((now + 3600))
+        }
+        while true; do
+          now=$$(date -u +%s)
+          target=$$(next_run)
+          sleep $$((target - now))
+          /usr/local/bin/backup.sh || echo "backup gagal, dicoba lagi besok"
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 128m
+    memswap_limit: 160m
+    cpus: "0.2"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  # ===========================================================================
+  # RETENSI — bersihkan tabel append-only yang usang
+  # ===========================================================================
+  #
+  # Tiga tabel tumbuh tanpa batas kalau tidak dibersihkan:
+  #
+  #   bump_queue            7 hari   — antrean pengingat, umurnya pendek
+  #   notification_jobs     30 hari  — riwayat pengiriman, jawaban "kenapa
+  #                                    tidak sampai" harus masih bisa dicari
+  #   user_token_revocations      35 hari — garis potong token; setelah lewat
+  #                                    umur access token (24 jam), tidak ada
+  #                                    lagi token lama yang bisa dipotong
+  #
+  # Dipanggil lewat subcommand `retention` binary, bukan SQL langsung,
+  # supaya aturan retensinya di SATU tempat di kode.
+  retention:
+    image: pantau-obat-api:latest
+    container_name: po-retention
+    # Image api memakai scratch: TIDAK ada shell. Loop "tidur sampai jam 03:00"
+    # karena itu tidak bisa dipakai di sini; penjadwalannya memakai HEALTHCHECK
+    # Docker dengan interval panjang, dan pekerjaan dijalankan lewat
+    # `docker compose restart retention` oleh cron host — atau cukup dibiarkan:
+    # Docker menjalankan container sekali, binary selesai, lalu restart-poliisi
+    # memulainya lagi dengan jeda bawaan Docker (default 100ms, dinaikkan di
+    # bawah lewat restart delay yang ditangani host cron bila ada).
+    #
+    # Praktisnya: container ini berjalan SEKALI per start compose. Untuk
+    # jadwal harian, pasang cron di host:
+    #   docker compose run --rm retention
+    entrypoint: ["/api", "retention"]
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 128m
+    memswap_limit: 160m
+    cpus: "0.2"
     security_opt:
       - no-new-privileges:true
     networks:

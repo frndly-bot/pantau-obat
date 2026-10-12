@@ -297,6 +297,27 @@ type JobStats struct {
 	Cancelled int
 }
 
+// PurgeDoneJobs menghapus riwayat job yang lebih tua dari cutoff.
+//
+// notification_jobs menjawab "apa yang SUDAH terjadi" — dibutuhkan saat user
+// bertanya "kenapa pengingat saya tidak sampai". Setelah 30 hari, pertanyaan
+// itu praktis tidak lagi diajukan, dan barisnya hanya membebani tabel.
+//
+// HANYA job dengan status selesai (done/skipped/cancelled) yang dihapus.
+// Job failed dibiarkan: itu sinyal ada yang perlu diperiksa operator, dan
+// menghapusnya otomatis berarti menghapus bukti kegagalan.
+func (db *DB) PurgeDoneJobs(ctx context.Context, q Querier, olderThan time.Duration) (int64, error) {
+	tag, err := q.Exec(ctx, `
+        DELETE FROM notification_jobs
+         WHERE status IN ('done', 'skipped', 'cancelled')
+           AND created_at < now() - $1::interval`,
+		fmt.Sprintf("%d seconds", int64(olderThan.Seconds())))
+	if err != nil {
+		return 0, fmt.Errorf("membersihkan riwayat job usang: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // JobStats menghitung job per status.
 func (db *DB) JobStats(ctx context.Context, q Querier) (JobStats, error) {
 	var s JobStats
