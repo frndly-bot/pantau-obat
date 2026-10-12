@@ -16,7 +16,7 @@
     pattern: { daily: "Sekian kali sehari", interval: "Tiap sekian jam", weekly: "Hari tertentu", monthly_cycle: "Siklus (minum–jeda)", prn: "Bila perlu (PRN)" },
     status: { taken: "Diminum", late: "Terlambat", skipped: "Dilewati", snoozed: "Ditunda", pending: "Belum", missed: "Terlewat" },
     relation: { family: "Keluarga", child: "Anak", parent: "Orang tua", spouse: "Pasangan", friend: "Sahabat", nurse: "Perawat", other: "Lainnya" },
-    care_role: { viewer: "Baca saja", helper: "Bisa edit" },
+    care_role: { viewer: "Baca saja", helper: "Bisa catat dosis", manager: "Kelola penuh" },
     care_status: { pending: "Menunggu", accepted: "Diterima", rejected: "Ditolak", revoked: "Dicabut", expired: "Kedaluwarsa" },
     curation_status: { draft: "Draf", published: "Terbit", archived: "Arsip", user_private: "Pribadi" },
     source: { kfa: "KFA Kemenkes", bpom: "BPOM", manual: "Manual", other: "Lainnya" },
@@ -570,6 +570,83 @@
       frequency: { id: "fq-07", pattern: "daily", times_per_day: 1, schedule_timezone: "Asia/Jakarta", tolerance_minutes: 60, start_time: "12:00" },
       times: [{ id: "tm-10", time_local: "12:00", label: "afternoon", weekdays: 127, is_active: false, sort_order: 0 }],
       stock: { id: "st-07", unit_code: "kapsul", initial_qty: 30, current_qty: 0, qty_per_dose: 1, refill_threshold_qty: 5, refill_reminder: false, last_restocked_at: null }
+    },
+
+    /* --- obat milik PASIEN yang dipantau (bukan milik pengguna login) ---
+       Sebelumnya carePatients mengacu ke id med-04..med-09 yang tidak ada /
+       milik u-01, sehingga panel "Kelola obat pasien" tak punya data nyata.
+       Sekarang tiap pasien punya obat sendiri dengan id unik. */
+    {
+      id: "med-10", owner_id: "u-04", catalog_id: "cat-01", name: "Amlodipine 10", dose_value: 1, dose_unit_code: "tablet",
+      strength_note: null, route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "after_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-90)), start_time: "07:00", end_date: null,
+      notes: null, notes_reminder: "Jangan lupa tensi pagi", prescription_photo_url: null,
+      color_tag: "#2dd4bf", is_active: true, deleted_at: null,
+      frequency: { id: "fq-10", pattern: "daily", times_per_day: 2, schedule_timezone: "Asia/Jakarta", tolerance_minutes: 60, start_time: "07:00" },
+      times: [
+        { id: "tm-20", time_local: "07:00", label: "morning", weekdays: 127, is_active: true, sort_order: 0 },
+        { id: "tm-21", time_local: "14:00", label: "afternoon", weekdays: 127, is_active: true, sort_order: 1 }
+      ],
+      stock: { id: "st-10", unit_code: "tablet", initial_qty: 30, current_qty: 12, qty_per_dose: 1, refill_threshold_qty: 6, refill_reminder: true, last_restocked_at: iso(shiftDays(-20, 9, 0)) }
+    },
+    {
+      id: "med-11", owner_id: "u-04", catalog_id: "cat-02", name: "Metformin 500", dose_value: 2, dose_unit_code: "tablet",
+      strength_note: null, route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "with_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-150)), start_time: "08:00", end_date: null,
+      notes: "Selalu bersama makanan", notes_reminder: null, prescription_photo_url: null,
+      color_tag: "#5aa9ff", is_active: true, deleted_at: null,
+      frequency: { id: "fq-11", pattern: "daily", times_per_day: 2, schedule_timezone: "Asia/Jakarta", tolerance_minutes: 60, start_time: "08:00" },
+      times: [
+        { id: "tm-22", time_local: "08:00", label: "morning", weekdays: 127, is_active: true, sort_order: 0 },
+        { id: "tm-23", time_local: "19:00", label: "evening", weekdays: 127, is_active: true, sort_order: 1 }
+      ],
+      stock: { id: "st-11", unit_code: "tablet", initial_qty: 90, current_qty: 45, qty_per_dose: 2, refill_threshold_qty: 20, refill_reminder: true, last_restocked_at: iso(shiftDays(-25, 10, 0)) }
+    },
+    {
+      id: "med-12", owner_id: "u-04", catalog_id: "cat-05", name: "Vitamin D3 1000", dose_value: 1, dose_unit_code: "kapsul",
+      strength_note: "1000 IU per kapsul", route_code: "O", dosage_form_code: "LOCAL-0005", meal_relation: "after_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-60)), start_time: "09:00", end_date: null,
+      notes: null, notes_reminder: null, prescription_photo_url: null,
+      color_tag: "#f7bb59", is_active: true, deleted_at: null,
+      frequency: { id: "fq-12", pattern: "daily", times_per_day: 1, schedule_timezone: "Asia/Jakarta", tolerance_minutes: 60, start_time: "09:00" },
+      times: [{ id: "tm-24", time_local: "09:00", label: "morning", weekdays: 127, is_active: true, sort_order: 0 }],
+      stock: { id: "st-12", unit_code: "kapsul", initial_qty: 30, current_qty: 8, qty_per_dose: 1, refill_threshold_qty: 10, refill_reminder: true, last_restocked_at: iso(shiftDays(-40, 11, 0)) }
+    },
+    {
+      id: "med-13", owner_id: "u-04", catalog_id: "cat-06", name: "Furosemide 40", dose_value: 1, dose_unit_code: "tablet",
+      strength_note: null, route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "before_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-45)), start_time: "20:30", end_date: null,
+      notes: "Minum pagi agar tidak sering ke toilet malam", notes_reminder: null, prescription_photo_url: null,
+      color_tag: "#c792ea", is_active: true, deleted_at: null,
+      frequency: { id: "fq-13", pattern: "daily", times_per_day: 1, schedule_timezone: "Asia/Jakarta", tolerance_minutes: 60, start_time: "20:30" },
+      times: [{ id: "tm-25", time_local: "20:30", label: "evening", weekdays: 127, is_active: true, sort_order: 0 }],
+      stock: { id: "st-13", unit_code: "tablet", initial_qty: 30, current_qty: 22, qty_per_dose: 1, refill_threshold_qty: 6, refill_reminder: false, last_restocked_at: iso(shiftDays(-30, 16, 0)) }
+    },
+    {
+      id: "med-14", owner_id: "u-05", catalog_id: "cat-01", name: "Amlodipine 5", dose_value: 1, dose_unit_code: "tablet",
+      strength_note: null, route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "after_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-200)), start_time: "06:00", end_date: null,
+      notes: null, notes_reminder: null, prescription_photo_url: null,
+      color_tag: "#2dd4bf", is_active: true, deleted_at: null,
+      frequency: { id: "fq-14", pattern: "daily", times_per_day: 2, schedule_timezone: "Asia/Jayapura", tolerance_minutes: 60, start_time: "06:00" },
+      times: [
+        { id: "tm-26", time_local: "06:00", label: "dawn", weekdays: 127, is_active: true, sort_order: 0 },
+        { id: "tm-27", time_local: "18:00", label: "evening", weekdays: 127, is_active: true, sort_order: 1 }
+      ],
+      stock: { id: "st-14", unit_code: "tablet", initial_qty: 60, current_qty: 38, qty_per_dose: 1, refill_threshold_qty: 12, refill_reminder: true, last_restocked_at: iso(shiftDays(-18, 8, 0)) }
+    },
+    {
+      id: "med-15", owner_id: "u-05", catalog_id: "cat-08", name: "Glibenclamide 5", dose_value: 1, dose_unit_code: "tablet",
+      strength_note: null, route_code: "O", dosage_form_code: "LOCAL-0001", meal_relation: "before_meal",
+      as_needed: false, must_finish: false, start_date: ymd(shiftDays(-120)), start_time: "07:00", end_date: null,
+      notes: "Minum 30 menit sebelum makan", notes_reminder: null, prescription_photo_url: null,
+      color_tag: "#f59e0b", is_active: true, deleted_at: null,
+      frequency: { id: "fq-15", pattern: "daily", times_per_day: 2, schedule_timezone: "Asia/Jayapura", tolerance_minutes: 60, start_time: "07:00" },
+      times: [
+        { id: "tm-28", time_local: "07:00", label: "morning", weekdays: 127, is_active: true, sort_order: 0 },
+        { id: "tm-29", time_local: "19:00", label: "evening", weekdays: 127, is_active: true, sort_order: 1 }
+      ],
+      stock: { id: "st-15", unit_code: "tablet", initial_qty: 60, current_qty: 31, qty_per_dose: 1, refill_threshold_qty: 12, refill_reminder: true, last_restocked_at: iso(shiftDays(-15, 7, 0)) }
     }
   ];
 
@@ -741,28 +818,34 @@
     return out;
   })();
 
-  /* ---------- caregiver view: pasien yang dipantau ---------- */
+  /* ---------- caregiver view: pasien yang dipantau ----------
+     `role` = tingkat izin pengguna login atas pasien ini:
+       viewer  → baca saja
+       helper  → boleh catat dosis (tunda/koreksi), tidak boleh kelola obat
+       kelola  → boleh catat dosis + kelola obat & stok pasien
+     Ibu Sumarni = `kelola` supaya panel kelola bisa didemokan; Pak Hendra
+     tetap `helper` sebagai pembanding. */
   var carePatients = [
     {
-      owner_id: "u-04", name: "Ibu Sumarni", relation: "parent", role: "viewer", timezone: "Asia/Jakarta",
+      owner_id: "u-04", name: "Ibu Sumarni", relation: "parent", role: "manager", timezone: "Asia/Jakarta",
       doses_total: 6, taken: 3, late: 1, skipped: 0, missed: 1, pending: 1, adherence_ratio: 0.67, adherence_7d: 0.62, streak_missed: 2,
       items: [
-        { medication_id: "med-04", name: "Amlodipine 10", color_tag: "#2dd4bf", schedule_id: "tm-01", time_local: "07:00", status: "taken", taken_at: iso(shiftDays(0, 7, 20)), recorded_by: "self" },
-        { medication_id: "med-05", name: "Metformin 500", color_tag: "#5aa9ff", schedule_id: "tm-03", time_local: "08:00", status: "late", taken_at: iso(shiftDays(0, 9, 35)), recorded_by: "caregiver" },
-        { medication_id: "med-04", name: "Amlodipine 10", color_tag: "#2dd4bf", schedule_id: "tm-02", time_local: "14:00", status: "missed", taken_at: null, recorded_by: null },
-        { medication_id: "med-05", name: "Metformin 500", color_tag: "#5aa9ff", schedule_id: "tm-04", time_local: "19:00", status: "taken", taken_at: iso(shiftDays(0, 19, 5)), recorded_by: "self" },
-        { medication_id: "med-06", name: "Vitamin D3", color_tag: "#f7bb59", schedule_id: "tm-08", time_local: "09:00", status: "taken", taken_at: iso(shiftDays(0, 9, 40)), recorded_by: "self" },
-        { medication_id: "med-07", name: "Furosemide 40", color_tag: "#c792ea", schedule_id: "tm-11", time_local: "20:30", status: "pending", taken_at: null, recorded_by: null }
+        { medication_id: "med-10", name: "Amlodipine 10", color_tag: "#2dd4bf", schedule_id: "tm-20", time_local: "07:00", status: "taken", taken_at: iso(shiftDays(0, 7, 20)), recorded_by: "self" },
+        { medication_id: "med-11", name: "Metformin 500", color_tag: "#5aa9ff", schedule_id: "tm-22", time_local: "08:00", status: "late", taken_at: iso(shiftDays(0, 9, 35)), recorded_by: "caregiver" },
+        { medication_id: "med-12", name: "Vitamin D3 1000", color_tag: "#f7bb59", schedule_id: "tm-24", time_local: "09:00", status: "taken", taken_at: iso(shiftDays(0, 9, 40)), recorded_by: "self" },
+        { medication_id: "med-10", name: "Amlodipine 10", color_tag: "#2dd4bf", schedule_id: "tm-21", time_local: "14:00", status: "missed", taken_at: null, recorded_by: null },
+        { medication_id: "med-11", name: "Metformin 500", color_tag: "#5aa9ff", schedule_id: "tm-23", time_local: "19:00", status: "taken", taken_at: iso(shiftDays(0, 19, 5)), recorded_by: "self" },
+        { medication_id: "med-13", name: "Furosemide 40", color_tag: "#c792ea", schedule_id: "tm-25", time_local: "20:30", status: "pending", taken_at: null, recorded_by: null }
       ]
     },
     {
       owner_id: "u-05", name: "Pak Hendra", relation: "nurse", role: "helper", timezone: "Asia/Jayapura",
       doses_total: 4, taken: 4, late: 0, skipped: 0, missed: 0, pending: 0, adherence_ratio: 1, adherence_7d: 0.94, streak_missed: 0,
       items: [
-        { medication_id: "med-08", name: "Amlodipine 5", color_tag: "#2dd4bf", schedule_id: "tm-12", time_local: "06:00", status: "taken", taken_at: iso(shiftDays(0, 6, 10)), recorded_by: "self" },
-        { medication_id: "med-08", name: "Amlodipine 5", color_tag: "#2dd4bf", schedule_id: "tm-13", time_local: "18:00", status: "taken", taken_at: iso(shiftDays(0, 18, 2)), recorded_by: "self" },
-        { medication_id: "med-09", name: "Glibenclamide 5", color_tag: "#f59e0b", schedule_id: "tm-14", time_local: "07:00", status: "taken", taken_at: iso(shiftDays(0, 7, 1)), recorded_by: "self" },
-        { medication_id: "med-09", name: "Glibenclamide 5", color_tag: "#f59e0b", schedule_id: "tm-15", time_local: "19:00", status: "taken", taken_at: iso(shiftDays(0, 19, 3)), recorded_by: "caregiver" }
+        { medication_id: "med-14", name: "Amlodipine 5", color_tag: "#2dd4bf", schedule_id: "tm-26", time_local: "06:00", status: "taken", taken_at: iso(shiftDays(0, 6, 10)), recorded_by: "self" },
+        { medication_id: "med-14", name: "Amlodipine 5", color_tag: "#2dd4bf", schedule_id: "tm-27", time_local: "18:00", status: "taken", taken_at: iso(shiftDays(0, 18, 2)), recorded_by: "self" },
+        { medication_id: "med-15", name: "Glibenclamide 5", color_tag: "#f59e0b", schedule_id: "tm-28", time_local: "07:00", status: "taken", taken_at: iso(shiftDays(0, 7, 1)), recorded_by: "self" },
+        { medication_id: "med-15", name: "Glibenclamide 5", color_tag: "#f59e0b", schedule_id: "tm-29", time_local: "19:00", status: "taken", taken_at: iso(shiftDays(0, 19, 3)), recorded_by: "caregiver" }
       ]
     }
   ];
@@ -1080,7 +1163,7 @@
     addMedication: function (input) {
       var id = "med-" + Math.random().toString(36).slice(2, 8);
       var m = {
-        id: id, owner_id: "u-01", catalog_id: input.catalog_id || null, name: input.name,
+        id: id, owner_id: input.owner_id || "u-01", catalog_id: input.catalog_id || null, name: input.name,
         dose_value: input.dose_value, dose_unit_code: input.dose_unit_code, strength_note: input.strength_note || null,
         route_code: input.route_code || "O", dosage_form_code: input.dosage_form_code || "LOCAL-0001",
         meal_relation: input.meal_relation || "not_related", as_needed: !!input.as_needed, must_finish: !!input.must_finish,

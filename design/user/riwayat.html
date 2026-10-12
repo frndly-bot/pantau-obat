@@ -378,9 +378,6 @@
       (list.length ? groupByDay(list) : A.empty("Tidak ada catatan di rentang ini", "Ubah filter rentang, obat, status, atau tanggal.", "activity")) +
     "</section>";
 
-    html += '<div class="xs muted-3">' + A.icon("info") +
-      " Terlewat dihitung sekali sehari (pukul 00:05 waktu lokal) dan disimpan di <span class=\"mono\">medication_dose_events</span> — bukan sebagai status log.</div>";
-
     document.getElementById("main").innerHTML = html;
     document.getElementById("e-x").innerHTML = A.icon("x");
     document.getElementById("e-ic").innerHTML = A.icon("info");

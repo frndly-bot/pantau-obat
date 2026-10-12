@@ -437,7 +437,6 @@
     var c = s.c;
     var low = PO.lowStock();
     var refillOn = PO.needsRefill();
-    var myPatients = PO.carePatients;
 
     var html = "";
 
@@ -499,53 +498,9 @@
     }
     html += "</section>";
 
-    /* caregiver ringkas */
-    html += '<section class="card">' +
-      '<div class="card-head"><div><h3>' + A.icon("users") + " Pemantau</h3>" +
-      '<div class="sub">Siapa yang menerima ringkasan dan eskalasi Anda</div></div>' +
-      '<a class="btn btn-outline btn-sm" href="caregiver.html">Kelola</a></div>' +
-      '<div class="card-pad stack-8">';
-    var watchers = PO.careLinks.filter(function (l) { return l.owner_id === PO.session.user.id; });
-    if (!watchers.length) {
-      html += A.empty("Belum ada pemantau", "Undang keluarga agar mereka tahu kalau dosis terlewat.", "users");
-    } else {
-      html += watchers.map(function (l) {
-        var live = l.status === "accepted";
-        return '<div class="list-card">' +
-          '<span class="avatar sm">' + A.esc((l.caregiver_name || "?").slice(0, 2).toUpperCase()) + "</span>" +
-          '<div class="grow"><div class="sm"><b>' + A.esc(l.caregiver_name || l.invite_email) + "</b></div>" +
-            '<div class="xs muted-3">' + A.esc(PO.t("relation", l.relation)) + " · " + A.esc(PO.t("care_role", l.role)) + "</div></div>" +
-          A.badge(PO.t("care_status", l.status), live ? "badge-ok" : "badge-info", live) +
-        "</div>";
-      }).join("");
-    }
-    html += "</div></section>";
-
-    /* pasien yang saya pantau (kalau jadi caregiver) */
-    if (myPatients.length) {
-      html += '<section class="card">' +
-        '<div class="card-head"><div><h3>' + A.icon("heart") + " Saya memantau</h3>" +
-        '<div class="sub">Ringkasan orang yang mengundang Anda</div></div></div>' +
-        '<div class="card-pad stack-8">' +
-        myPatients.map(function (p) {
-          var tone = p.adherence_ratio >= 0.8 ? "ok" : p.adherence_ratio >= 0.6 ? "warn" : "err";
-          return '<a class="list-card hoverable" href="caregiver.html#p-' + p.owner_id + '">' +
-            '<span class="avatar">' + A.esc(p.name.slice(0, 1)) + "</span>" +
-            '<div class="grow"><div class="sm"><b>' + A.esc(p.name) + "</b></div>" +
-              '<div class="xs muted-3">' + A.esc(PO.t("relation", p.relation)) + " · " + A.esc(PO.t("care_role", p.role)) + " · hari ini " + p.taken + "/" + p.doses_total + "</div>" +
-              '<div class="mt-8">' + A.meter(p.adherence_ratio, { tone: tone, thin: true }) + "</div>" +
-            "</div>" +
-            '<span class="badge badge-' + (tone === "ok" ? "ok" : tone === "warn" ? "late" : "miss") + '">' + A.pct(p.adherence_ratio) + "</span>" +
-          "</a>";
-        }).join("") + "</div></section>";
-    }
-
-    /* catatan kaki: apa yang dihitung & tidak */
-    html += '<div class="divider dashed"></div>' +
-      '<div class="xs muted-3" style="line-height:1.6">' +
-      A.icon("info") + " Hari dalam masa jeda siklus, tanggal di luar rentang terapi, dan dosis PRN " +
-      "<b>tidak</b> dihitung sebagai terlewat. Nama obat tidak pernah masuk log aplikasi — hanya id." +
-      "</div>";
+    /* Pemantau & "Saya memantau" sengaja TIDAK ditampilkan di halaman ini agar
+       Hari Ini tetap ringkas dan tidak panjang. Keduanya ada di halaman
+       Caregiver (tab "Caregiver"). */
 
     document.getElementById("main").innerHTML = html;
 

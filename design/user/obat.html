@@ -244,9 +244,6 @@
       }).join("") : A.empty("Belum ada entri pribadi", "Dibuat otomatis saat Anda menambah obat manual.", "tag")) +
       "</div></section>";
 
-    html += '<div class="xs muted-3">' + A.icon("info") +
-      " Nama obat dan dosis disimpan per pengguna; keunikan dijaga <span class=\"mono\">uq_meds_owner_name</span>, jadi obat yang sudah dihapus boleh didaftarkan ulang.</div>";
-
     document.getElementById("main").innerHTML = html;
     document.getElementById("fab").innerHTML = A.icon("plus");
     document.getElementById("w-x").innerHTML = A.icon("x");
