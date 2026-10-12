@@ -1,0 +1,68 @@
+info:
+  name: Tabel Referensi
+  type: http
+  seq: 1
+  tags:
+    - refs
+
+http:
+  method: GET
+  url: "{{base_url}}/api/v1/refs"
+  auth:
+    type: bearer
+    token: "{{access_token}}"
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.data.units
+      operator: isArray
+    - expression: res.body.data.routes
+      operator: isArray
+    - expression: res.body.data.dosage_forms
+      operator: isArray
+
+docs: |-
+  # Tabel Referensi
+
+  Satuan, rute, dan bentuk sediaan dalam satu balasan — cukup sekali panggil
+  untuk mengisi formulir obat.
+
+  ## Kenapa dari server, bukan daftar di klien
+
+  Ketiga kolom ini (`dose_unit_code`, `route_code`, `dosage_form_code`) punya
+  **foreign key** ke tabel referensinya. Formulir yang menawarkan pilihan dari
+  daftar yang ditulis di klien bisa mengirim kode yang tidak ada di database —
+  dan pelanggaran foreign key sampai ke pengguna sebagai **500**, padahal itu
+  kesalahan pilihan, bukan kerusakan server.
+
+  Dengan membaca daftarnya dari sumbernya, pilihan yang ditawarkan selalu sah.
+
+  ## Urutan mengikuti `sort_order`
+
+  Bukan alfabetis. Tabel referensi punya `sort_order` justru supaya
+  tampilannya masuk akal: **Oral** di atas, bukan **B** (Buccal). Urut
+  alfabetis akan menaruh kode berhuruf awal B di puncak daftar, dan itu tidak
+  membantu siapa pun yang sedang mengisi resep.
+
+  ## Contoh response — 200
+
+  ```json
+  {
+    "data": {
+      "units": [
+        { "code": "mg", "name": "Milligram" },
+        { "code": "tablet", "name": "Tablet" }
+      ],
+      "routes": [
+        { "code": "O", "name": "Oral" },
+        { "code": "SL", "name": "Sublingual" }
+      ],
+      "dosage_forms": [
+        { "code": "LOCAL-TAB", "name": "Tablet" }
+      ]
+    }
+  }
+  ```

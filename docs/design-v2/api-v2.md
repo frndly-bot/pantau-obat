@@ -297,6 +297,15 @@ tercatat dipertahankan apa adanya. Perubahan pola dicatat sebagai
 | GET | `/logs/today` | bearer | owner | ringkasan hari ini (hanya yang SUDAH dicatat) |
 | GET | `/logs/export` | bearer | owner | ekspor CSV `?from=&to=` (maks 366 hari) |
 | GET | `/schedule` | bearer | owner | **jadwal dosis satu hari, termasuk yang belum dicatat** (`?date=YYYY-MM-DD`) |
+| GET | `/refs` | bearer | semua | satuan, rute, bentuk sediaan — satu panggilan untuk formulir obat |
+
+`/refs` penting bagi klien: `dose_unit_code`, `route_code`, dan
+`dosage_form_code` punya **foreign key** ke tabel referensinya. Formulir yang
+menawarkan pilihan dari daftar yang ditulis di klien bisa mengirim kode yang
+tidak ada di database, dan pelanggaran foreign key sampai ke pengguna sebagai
+**500** — padahal itu kesalahan pilihan, bukan kerusakan server. Urutannya
+mengikuti `sort_order` (bukan alfabetis) supaya tampilannya masuk akal:
+Oral sebelum Sublingual, bukan "B" (Buccal) di puncak.
 
 `GET /logs/today` dan `GET /schedule` menjawab pertanyaan yang berbeda dan
 keduanya diperlukan:

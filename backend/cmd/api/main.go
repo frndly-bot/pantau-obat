@@ -287,6 +287,7 @@ func run() error {
 	stockSvc := service.NewStock(db, logger)
 	adherenceSvc := service.NewAdherence(db, logger)
 	scheduleSvc := service.NewSchedule(db, logger)
+	refsSvc := service.NewRefs(db, logger)
 	notifSvc := service.NewNotifications(db, logger)
 	careSvc := service.NewCareLinks(db, logger)
 	catalogSvc := service.NewCatalog(db, logger)
@@ -338,6 +339,7 @@ func run() error {
 	stockHandler := handlers.NewStock(stockSvc, logger)
 	adherenceHandler := handlers.NewAdherence(adherenceSvc, usersSvc, logger)
 	scheduleHandler := handlers.NewSchedule(scheduleSvc, usersSvc, logger)
+	refsHandler := handlers.NewRefs(refsSvc, logger)
 	notifHandler := handlers.NewNotifications(notifSvc, logger)
 	careHandler := handlers.NewCareLinks(careSvc, logsSvc, medsSvc, stockSvc,
 		adherenceSvc, usersSvc, logger)
@@ -364,6 +366,7 @@ func run() error {
 		StockHandler:        stockHandler,
 		AdherenceHandler:    adherenceHandler,
 		ScheduleHandler:     scheduleHandler,
+		RefsHandler:         refsHandler,
 		NotificationHandler: notifHandler,
 		CareHandler:         careHandler,
 		CatalogHandler:      catalogHandler,

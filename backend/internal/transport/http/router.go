@@ -38,6 +38,7 @@ type Deps struct {
 	CareHandler         RouteMount
 	AdherenceHandler    RouteMount
 	ScheduleHandler     RouteMount
+	RefsHandler         RouteMount
 	NotificationHandler RouteMount
 	AdminHandler        RouteMount
 	WebhookHandler      RouteMount
@@ -187,6 +188,7 @@ func mountAuthenticatedRoutes(r chi.Router, d Deps) {
 		mount(MountCare, r, d.CareHandler)
 		mount(MountAdherence, r, d.AdherenceHandler)
 		mount(MountSchedule, r, d.ScheduleHandler)
+		mount(MountRefs, r, d.RefsHandler)
 		mount(MountNotification, r, d.NotificationHandler)
 	})
 }
@@ -234,6 +236,7 @@ const (
 	MountCare         = "care"
 	MountAdherence    = "adherence"
 	MountSchedule     = "schedule"
+	MountRefs         = "refs"
 	MountNotification = "notification"
 )
 
