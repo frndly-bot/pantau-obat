@@ -258,6 +258,79 @@ Aturan umur data ada di `backend/cmd/api/main.go` (`runRetentionOnce`) — satu
 tempat, supaya tidak ada SQL berserakan dengan nilai berbeda antar tempat.
 Logikanya diuji di `backend/cmd/api/retention_test.go`.
 
+## Mengekspos ke internet lewat Cloudflare Tunnel
+
+Cara tercepat mencoba aplikasi dari perangkat lain (mis. ponsel) tanpa
+membuka port di router dan tanpa sertifikat TLS sendiri:
+
+```bash
+cd deploy
+docker compose up -d postgres api web
+
+docker run --rm -it --network po-internal cloudflare/cloudflared:latest \
+  tunnel --url http://web:80
+```
+
+Perintah itu mencetak URL acak seperti
+`https://kata-acak-1234.trycloudflare.com`. Buka URL itu dari mana saja.
+
+### Kenapa menunjuk ke `web`, bukan langsung ke `api`
+
+Halaman dan API **harus** berada di satu origin. Cookie refresh memakai
+`SameSite=Strict` (peramban menolak cookie antar-situs), dan CSP aplikasi
+memakai `connect-src 'self'` (permintaan ke origin lain diblokir). Caddy
+memenuhi keduanya: ia menyajikan berkas statis dan mem-proxy `/api` di
+origin yang sama. Karena itu **tidak ada CORS yang perlu diatur**.
+
+### Setelah URL tunnel diketahui, perbarui `APP_PUBLIC_URL`
+
+Tautan undangan caregiver disusun dari nilai ini. Bila tidak diperbarui,
+undangan menunjuk alamat lama dan penerimanya mendapat 404.
+
+```bash
+# deploy/.env
+APP_PUBLIC_URL=https://kata-acak-1234.trycloudflare.com
+
+docker compose up -d --force-recreate api
+```
+
+### Tunnel dengan URL tetap
+
+Untuk domain sendiri, pakai named tunnel — contoh konfigurasi lengkap ada di
+`cloudflared/config.yml.example`.
+
+### Menguji dari luar
+
+```bash
+cd frontend/apps/web
+TUNNEL_URL=https://kata-acak-1234.trycloudflare.com \
+  CHROME_PATH=/usr/bin/google-chrome \
+  node scripts/e2e-tunnel.mjs
+```
+
+Uji ini memeriksa hal yang **tidak bisa dibuktikan dari localhost**: cookie
+refresh benar-benar tersimpan sebagai `HttpOnly` + `Secure` +
+`SameSite=Strict`, sesi bertahan setelah muat ulang, dan data bertahan antar
+halaman — semuanya lewat HTTPS publik.
+
+**Jalankan uji ini setiap kali menyentuh `Caddyfile`, `svelte.config.js`,
+atau berkas rute.** Tiga bug produksi pernah lolos ke sini karena seluruh
+pengujian lain berjalan lewat Vite dev server, yang tidak mengirim header
+CSP dan selalu menyediakan server load:
+
+1. **CSP memblokir seluruh JavaScript.** `script-src 'self'` menolak skrip
+   inline yang dipakai SvelteKit untuk hidrasi — form terkunci, aplikasi
+   tidak bisa dipakai sama sekali. Diperbaiki dengan `csp: { mode: 'hash' }`
+   di `svelte.config.js`; header CSP di Caddy dihapus karena dua kebijakan
+   CSP diterapkan bersamaan (irisan) dan yang tanpa hash akan memblokir lagi.
+2. **`+layout.server.ts` tingkat akar merusak rute ber-guard.** Keberadaannya
+   membuat SvelteKit meminta `<rute>/__data.json` untuk semua rute, termasuk
+   yang `ssr = false` dan tidak punya berkas itu. Dihilangkan seluruhnya —
+   server load itu memang tidak berguna untuk halaman yang di-prerender.
+3. **`data.locale` pada rute CSR melempar `TypeError`**, sehingga penjaga
+   rute tidak pernah selesai berjalan dan tamu melihat halaman error alih-alih
+   dialihkan ke `/login`.
+
 ## Catatan keamanan
 
 - `POSTGRES_PASSWORD` di `.env.example` hanya placeholder.
