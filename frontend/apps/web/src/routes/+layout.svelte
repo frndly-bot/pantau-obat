@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import { session } from '$lib/session.svelte';
 	import { i18n } from '$lib/i18n.svelte';
+	import { theme } from '$lib/theme.svelte';
 	import { resolveLocale, LOCALE_COOKIE, DEFAULT_LOCALE, type Locale } from '@pantau-obat/i18n';
 
 	/**
@@ -51,9 +52,10 @@
 		};
 		window.addEventListener('po:session-expired', onExpired);
 
-		// Transisi halaman halus (View Transitions API) — tanpa pustaka.
-		document.documentElement.dataset.theme =
-			document.documentElement.dataset.theme ?? 'light';
+		// Tema: baca pilihan tersimpan atau preferensi sistem. Logikanya
+		// dipusatkan di `$lib/theme.svelte` supaya halaman Pengaturan bisa
+		// mengubahnya lewat jalur yang sama.
+		theme.init();
 
 		// Daftarkan service worker (PWA). Hanya di produksi: di dev, cache
 		// akan menyajikan berkas lama dan membuat perubahan tidak terlihat.
@@ -65,17 +67,6 @@
 		}
 
 		return () => window.removeEventListener('po:session-expired', onExpired);
-	});
-
-	// Tema awal dari preferensi sistem (dihormati, bukan dipaksa).
-	$effect(() => {
-		if (!browser) return;
-		const stored = localStorage.getItem('po_theme');
-		if (stored === 'dark' || stored === 'light') {
-			document.documentElement.dataset.theme = stored;
-		} else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-			document.documentElement.dataset.theme = 'dark';
-		}
 	});
 </script>
 

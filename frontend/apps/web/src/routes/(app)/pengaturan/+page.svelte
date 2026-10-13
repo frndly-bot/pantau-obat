@@ -28,6 +28,9 @@
 	} from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
+	import { theme } from '$lib/theme.svelte';
+	import type { Locale } from '@pantau-obat/i18n';
 
 	let prefs = $state<NotificationPrefs[]>([]);
 	let devices = $state<DeviceToken[]>([]);
@@ -206,6 +209,66 @@
 		{actionError}
 	</div>
 {/if}
+
+<!-- ============ Tampilan ============ -->
+<!-- Prototipe design menempatkan pemilih tema HANYA di halaman ini, dan
+     menyediakan pemilih bahasa di sebelahnya. Sebelumnya keduanya tidak ada:
+     infrastruktur tema hidup di dalam layout tanpa cara mengubahnya, dan
+     kamus i18n (1041 kunci, id + en) sama sekali tidak dipakai. -->
+<Card class="mb-4">
+	<CardContent class="space-y-4 py-5">
+		<p class="text-sm font-medium">{i18n.t('settings.appearance.theme')}</p>
+
+		<div class="space-y-2">
+			<div class="flex gap-2" role="group" aria-label={i18n.t('settings.appearance.theme')}>
+				<button
+					type="button"
+					class="flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors {theme.current ===
+					'light'
+						? 'border-primary bg-primary text-primary-foreground'
+						: 'border-border hover:bg-accent'}"
+					aria-pressed={theme.current === 'light'}
+					onclick={() => theme.set('light')}
+				>
+					<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+						<circle cx="12" cy="12" r="4" />
+						<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+					</svg>
+					{i18n.t('settings.appearance.light')}
+				</button>
+				<button
+					type="button"
+					class="flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors {theme.current ===
+					'dark'
+						? 'border-primary bg-primary text-primary-foreground'
+						: 'border-border hover:bg-accent'}"
+					aria-pressed={theme.current === 'dark'}
+					onclick={() => theme.set('dark')}
+				>
+					<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+						<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+					</svg>
+					{i18n.t('settings.appearance.dark')}
+				</button>
+			</div>
+			<p class="text-xs text-muted-foreground">{i18n.t('settings.appearance.theme_hint')}</p>
+		</div>
+
+		<div class="space-y-2 border-t border-border pt-4">
+			<Label for="set-locale">{i18n.t('settings.appearance.language')}</Label>
+			<select
+				id="set-locale"
+				class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+				value={i18n.current}
+				onchange={(e) => void i18n.setLocale(e.currentTarget.value as Locale)}
+			>
+				<option value="id">Bahasa Indonesia</option>
+				<option value="en">English</option>
+			</select>
+			<p class="text-xs text-muted-foreground">{i18n.t('settings.appearance.language_hint')}</p>
+		</div>
+	</CardContent>
+</Card>
 
 <!-- ============ Profil ============ -->
 <Card>

@@ -47,15 +47,34 @@ export function translate(
 	return interpolate(value, vars);
 }
 
+/**
+ * Menelusuri kunci bertitik, mis. `settings.appearance.theme`.
+ *
+ * Menelusuri SATU TINGKAT PER SATU, bukan mencocokkan sisa jalur sebagai
+ * satu nama kunci. Perbedaan itu penting: kamus berisi kunci bersarang
+ * (`settings.appearance` adalah objek berisi `theme`, `light`, `dark`, …),
+ * sehingga `bucket['appearance.theme']` tidak pernah ada — yang ada adalah
+ * `bucket['appearance']['theme']`.
+ *
+ * Kesalahan itu sempat terjadi dan gejalanya menyesatkan: halaman
+ * menampilkan `settings.appearance.theme` alih-alih "Tema", yang terlihat
+ * seperti terjemahan yang belum ditambahkan, padahal terjemahannya ADA.
+ */
 function lookup(dict: Dictionary, key: string): string | undefined {
-	const dot = key.indexOf('.');
-	if (dot === -1) return undefined;
-	const domain = key.slice(0, dot);
-	const rest = key.slice(dot + 1);
-	const bucket = dict[domain];
+	const parts = key.split('.');
+	if (parts.length < 2) return undefined;
+
+	const bucket = dict[parts[0]];
 	if (!bucket || typeof bucket !== 'object') return undefined;
-	const value = bucket[rest];
-	return typeof value === 'string' ? value : undefined;
+
+	// Mulai dari elemen kedua, turun satu tingkat per satu.
+	let nilai: unknown = bucket;
+	for (const bagian of parts.slice(1)) {
+		if (typeof nilai !== 'object' || nilai === null) return undefined;
+		nilai = (nilai as Record<string, unknown>)[bagian];
+	}
+
+	return typeof nilai === 'string' ? nilai : undefined;
 }
 
 /** Mengganti `{nama}` dengan nilai dari `vars`. */

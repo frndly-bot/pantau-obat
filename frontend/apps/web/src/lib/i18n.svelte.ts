@@ -9,6 +9,7 @@
 import {
 	createTranslator,
 	loadDictionary,
+	DEFAULT_LOCALE,
 	FALLBACK_LOCALE,
 	isLocale,
 	LOCALE_COOKIE,
@@ -16,18 +17,36 @@ import {
 	type Locale,
 } from '@pantau-obat/i18n';
 import { browser } from '$app/environment';
+// Kamus cadangan dimuat SEKARANG, bukan lewat `await`.
+//
+// `createTranslator` mengembalikan NAMA KUNCI bila kunci tidak ditemukan.
+// Sebelumnya kamus diisi lewat `await loadDictionary(...)` di dalam
+// `init()`, sehingga pada render pertama `dict` masih kosong dan halaman
+// sempat menampilkan `settings.appearance.theme` alih-alih "Tema".
+//
+// Impor statis ini membuat kamus cadangan sudah tersedia sejak render
+// pertama, jadi kunci selalu punya terjemahan. Bundelnya tidak membengkak
+// berarti: `id.json` toh selalu ikut sebagai cadangan.
+import idDict from '@pantau-obat/i18n/locales/id.json';
 
 class I18nState {
-	locale = $state<Locale>('id');
-	private dict = $state<Dictionary>({});
-	private fallback = $state<Dictionary>({});
+	locale = $state<Locale>(DEFAULT_LOCALE);
+	private dict = $state<Dictionary>(idDict as Dictionary);
+	private fallback = $state<Dictionary>(idDict as Dictionary);
 
-	/** Dipanggil dari +layout.ts saat load. */
+	/**
+	 * Menetapkan locale aktif dan memuat kamusnya.
+	 *
+	 * Bila locale sama dengan cadangan, tidak ada permintaan tambahan —
+	 * kamus yang sudah diimpor statis itu yang dipakai.
+	 */
 	async init(locale: Locale) {
 		this.locale = locale;
-		const fallback = await loadDictionary(FALLBACK_LOCALE);
-		this.fallback = fallback;
-		this.dict = locale === FALLBACK_LOCALE ? fallback : await loadDictionary(locale);
+		if (locale === FALLBACK_LOCALE) {
+			this.dict = this.fallback;
+			return;
+		}
+		this.dict = await loadDictionary(locale);
 	}
 
 	/** Terjemahkan satu kunci. */

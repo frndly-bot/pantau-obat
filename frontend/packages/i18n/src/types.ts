@@ -13,8 +13,16 @@ import id from '../locales/id.json';
 
 export type Locale = 'id' | 'en';
 
-/** Kamus bertipe: `{ [domain]: { [key]: string } }`. */
-export type Dictionary = Record<string, Record<string, string>>;
+/**
+ * Kamus bertipe: `{ [domain]: { [key]: string } }`.
+ *
+ * Nilai boleh bersarang satu tingkat lagi (`{ domain: { grup: { key: string } } }`),
+ * karena kamus memang memakainya — mis. `settings.appearance.theme`. Tanpa
+ * kedalaman tambahan ini, `lookup` tidak akan pernah bisa menemukan kunci
+ * ber-titik-tiga dan selalu mengembalikan nama kuncinya.
+ */
+export type DictionaryValue = string | Record<string, string>;
+export type Dictionary = Record<string, Record<string, DictionaryValue>>;
 
 /** Kode locale bawaan bila preferensi pengguna tidak diketahui. */
 export const DEFAULT_LOCALE: Locale = 'id';
