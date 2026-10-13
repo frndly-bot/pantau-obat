@@ -29,14 +29,34 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "geolocation=(), camera=(), microphone=()"
-		# Service worker dan kamera tidak dibutuhkan; sisanya dibatasi ke asal
-		# sendiri supaya XSS tidak bisa memuat skrip pihak ketiga.
-		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		# HSTS hanya bermakna di HTTPS. Aman dikirim selalu: peramban
 		# mengabaikannya pada http://.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
 	}
+
+	# ------------------------------------------------------------------------
+	# Content-Security-Policy — DIPASANG OLEH APLIKASI, BUKAN DI SINI
+	# ------------------------------------------------------------------------
+	# CSP tidak diatur di Caddy karena SvelteKit menyisipkan skrip inline
+	# kecil di setiap halaman (bootstrap `__sveltekit_*`) yang harus
+	# diizinkan lewat HASH, dan hash itu berubah setiap kali kode berubah.
+	# SvelteKit menghitungnya saat build dan menuliskan hasilnya ke meta tag
+	# `content-security-policy` di tiap berkas HTML (lihat `csp` di
+	# `svelte.config.js`).
+	#
+	# JANGAN menambahkan header CSP di sini. Bila ada DUA kebijakan CSP,
+	# peramban menerapkan KEDUANYA (irisan), sehingga header statis tanpa
+	# hash akan memblokir skrip inline itu kembali — dan gejalanya
+	# menyesatkan: HTML tampil normal, tetapi seluruh JavaScript tidak jalan
+	# sehingga form terkunci dan aplikasi tidak bisa dipakai. Ini pernah
+	# terjadi dan hanya terlihat saat diuji lewat HTTPS publik, karena Vite
+	# dev server tidak mengirim header CSP sama sekali.
+	#
+	# Yang perlu dipastikan bila mengubah ini: `curl -sI <halaman>` harus
+	# TIDAK menampilkan header Content-Security-Policy, sedangkan
+	# `curl -s <halaman> | grep -i content-security` harus menampilkan meta
+	# tag berisi hash.
 
 	# ------------------------------------------------------------------------
 	# API — SELALU ke backend, tidak pernah di-cache

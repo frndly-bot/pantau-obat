@@ -5,13 +5,38 @@
 	import { page } from '$app/state';
 	import { session } from '$lib/session.svelte';
 	import { i18n } from '$lib/i18n.svelte';
+	import { resolveLocale, LOCALE_COOKIE, DEFAULT_LOCALE, type Locale } from '@pantau-obat/i18n';
 
-	let { children, data } = $props();
+	/**
+	 * Menentukan bahasa di peramban: cookie pilihan pengguna lebih dulu,
+	 * lalu preferensi peramban, lalu bawaan.
+	 *
+	 * Aman dipanggil saat SSR/prerender: di sana `document` tidak ada,
+	 * sehingga langsung memakai `DEFAULT_LOCALE` dan HTML hasil build tetap
+	 * bisa dibuat. Nilai sebenarnya dipasang begitu halaman jalan di klien.
+	 */
+	function detectClientLocale(): Locale {
+		if (typeof document === 'undefined') return DEFAULT_LOCALE;
 
-	// Kamus dimuat saat load (lihat +layout.ts), sehingga HTML pertama sudah
-	// berbahasa benar — tidak ada kedipan teks.
+		const cookie = document.cookie
+			.split('; ')
+			.find((c) => c.startsWith(`${LOCALE_COOKIE}=`))
+			?.split('=')[1];
+
+		return resolveLocale({
+			cookie: cookie ?? null,
+			acceptLanguage: navigator.language ?? null
+		});
+	}
+
+	let { children } = $props();
+
+	// Locale ditentukan di klien: cookie pilihan pengguna, lalu preferensi
+	// peramban, lalu bawaan. Tidak lewat server load karena halaman publik
+	// di-prerender saat build — `Accept-Language` yang terbaca di sana milik
+	// mesin build, bukan pengunjung. Lihat penjelasan lengkap di `+layout.ts`.
 	$effect(() => {
-		void i18n.init(data.locale);
+		void i18n.init(detectClientLocale());
 	});
 
 	onMount(() => {

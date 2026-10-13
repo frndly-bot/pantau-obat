@@ -1,0 +1,90 @@
+# ============================================================================
+# Cloudflare Tunnel — mengekspos Pantau Obat ke internet
+# ============================================================================
+#
+# KENAPA TUNNEL MENUNJUK KE `web` (Caddy), BUKAN LANGSUNG KE BACKEND
+#
+# Halaman dan API HARUS berada di satu origin. Alasannya bukan preferensi,
+# melainkan cara kerja peramban:
+#
+#   - Cookie refresh (`po_refresh`) memakai `SameSite=Strict`. Bila halaman
+#     dan API berbeda situs, peramban menolak menyimpan cookie itu dan sesi
+#     hilang setiap halaman dimuat ulang.
+#   - CSP aplikasi memakai `connect-src 'self'`, sehingga permintaan ke
+#     origin lain diblokir oleh peramban.
+#
+# Caddy menyelesaikan keduanya: ia menyajikan berkas statis DAN mem-proxy
+# `/api` di origin yang sama. Karena itu tunnel cukup menunjuk ke satu
+# service, dan tidak ada CORS yang perlu diatur.
+#
+# ============================================================================
+# CARA PAKAI
+# ============================================================================
+#
+# A. Quick tunnel (paling cepat, tanpa akun Cloudflare)
+#
+#    docker run --rm -it --network po-internal cloudflare/cloudflared:latest \
+#      tunnel --url http://web:80
+#
+#    Perintah itu mencetak URL acak seperti
+#    `https://kata-acak-1234.trycloudflare.com`. Buka URL itu — selesai.
+#
+#    DUA BATASAN yang harus disadari:
+#      1. URL berganti setiap kali tunnel dijalankan ulang.
+#      2. `APP_PUBLIC_URL` di `deploy/.env` TIDAK otomatis ikut berubah,
+#         sehingga tautan undangan caregiver masih menunjuk alamat lama.
+#         Setelah tahu URL-nya, perbarui `APP_PUBLIC_URL` lalu jalankan
+#         `docker compose up -d --force-recreate api`.
+#
+# B. Named tunnel (URL tetap, butuh domain di Cloudflare)
+#
+#    1. cloudflared tunnel login
+#    2. cloudflared tunnel create pantau-obat
+#    3. Isi berkas ini: ganti `tunnel:` dan `credentials-file:`, lalu isi
+#       hostname di bawah.
+#    4. cloudflared tunnel route dns pantau-obat obat.contoh.com
+#    5. Jalankan:
+#
+#       docker run --rm --network po-internal \
+#         -v "$PWD/cloudflared:/etc/cloudflared:ro" \
+#         cloudflare/cloudflared:latest \
+#         tunnel --config /etc/cloudflared/config.yml run
+#
+#    6. Set `APP_PUBLIC_URL=https://obat.contoh.com` di `deploy/.env`, lalu
+#       `docker compose up -d --force-recreate api`.
+#
+#    Dengan named tunnel, `SITE_ADDRESS` TIDAK perlu diubah: Caddy tetap
+#    melayani HTTP polos di dalam jaringan Docker, dan TLS ditangani
+#    Cloudflare di ujungnya. Mengubahnya menjadi domain akan membuat Caddy
+#    mencoba menerbitkan sertifikat sendiri untuk domain yang tidak
+#    mengarah ke mesin ini — dan itu gagal.
+#
+# ============================================================================
+# YANG PERLU DIPERHATIKAN SAAT EKSPOS PUBLIK
+# ============================================================================
+#
+# - `APP_ENV` harus tetap `production` (bawaan compose). Pada mode itu cookie
+#   refresh memakai atribut `Secure`, sehingga hanya dikirim lewat HTTPS —
+#   dan tunnel Cloudflare memang HTTPS.
+# - Backend sudah membatasi laju permintaan per IP (`RATE_LIMIT_IP_PER_MIN`,
+#   bawaan 60). Di belakang Cloudflare, semua permintaan datang dari IP
+#   tunnel, jadi batas itu berlaku untuk SEMUA pengunjung gabungan. Untuk
+#   pemakaian pribadi ini memadai; untuk banyak pengguna, naikkan nilainya
+#   atau aktifkan `trusted_proxies` di Caddy supaya IP asli yang dipakai.
+# - Tunnel ini membuka data kesehatan ke internet. Pastikan akun yang dipakai
+#   kuat, dan cabut tunnel (Ctrl-C / `docker stop`) saat tidak diperlukan.
+
+tunnel: GANTI-DENGAN-ID-TUNNEL
+credentials-file: /etc/cloudflared/GANTI-DENGAN-ID-TUNNEL.json
+
+# Tidak ada `originRequest.originServerName` atau TLS khusus: Caddy di
+# dalam jaringan Docker melayani HTTP polos, dan itu memang yang diharapkan.
+
+ingress:
+  # Ganti dengan hostname Anda (hasil `cloudflared tunnel route dns`).
+  - hostname: obat.contoh.com
+    service: http://web:80
+
+  # Wajib ada dan harus paling akhir: menolak permintaan yang tidak cocok
+  # dengan aturan di atas, bukan meneruskannya ke sembarang tempat.
+  - service: http_status:404

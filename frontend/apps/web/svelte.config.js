@@ -16,6 +16,36 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
+		/**
+		 * CSP dengan HASH OTOMATIS.
+		 *
+		 * SvelteKit menyisipkan satu skrip inline kecil di setiap halaman
+		 * (bootstrap `__sveltekit_*`) untuk menghidrasi halaman. Tanpa
+		 * pengecualian, `script-src 'self'` memblokirnya — dan yang terjadi
+		 * bukan sekadar peringatan di konsol: SELURUH JavaScript aplikasi
+		 * tidak pernah dimuat, sehingga form terkunci dan aplikasi tidak bisa
+		 * dipakai sama sekali.
+		 *
+		 * Ini pernah lolos ke produksi karena seluruh pengujian sebelumnya
+		 * berjalan lewat Vite dev server, yang tidak mengirim header CSP.
+		 * Header CSP hanya ada di Caddy.
+		 *
+		 * `mode: 'hash'` membuat SvelteKit menghitung hash skrip inline itu
+		 * saat build dan menyisipkannya ke header `Content-Security-Policy`
+		 * pada HTML hasil prerender. Karena yang diizinkan adalah hash isi
+		 * skrip (bukan `'unsafe-inline'`), skrip yang disisipkan penyerang
+		 * tetap diblokir — perlindungan XSS tidak berkurang.
+		 *
+		 * `directives` sengaja hanya mendefinisikan `script-src`; sisanya
+		 * tetap diatur Caddy (lihat `deploy/caddy/Caddyfile`). SvelteKit
+		 * menggabungkan keduanya, dan header dari Caddy tidak ditimpa.
+		 */
+		csp: {
+			mode: 'hash',
+			directives: {
+				'script-src': ['self'],
+			},
+		},
 		adapter: adapter({
 			pages: 'build',
 			assets: 'build',
