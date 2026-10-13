@@ -44,9 +44,20 @@ check('landing: FAQ bisa dibuka', (await page.locator('#faq [role], #faq div[id^
 
 // 3. Register
 await page.goto(BASE + '/register', { waitUntil: 'networkidle' });
+await page.waitForFunction(
+	() => {
+		const i = document.querySelector('#full_name');
+		return !!i && !i.disabled;
+	},
+	null,
+	{ timeout: 20000 }
+);
 await page.fill('#full_name', 'Uji Browser');
 await page.fill('#email', email);
 await page.fill('#password', password);
+
+// Persetujuan medis wajib: tombol daftar terkunci sampai dicentang.
+await page.locator('input[type="checkbox"]').first().check();
 await page.click('button[type="submit"]');
 await page.waitForURL(/hari-ini/, { timeout: 15000 }).catch(() => {});
 check('register: berpindah ke /hari-ini', page.url().includes('hari-ini'), page.url());

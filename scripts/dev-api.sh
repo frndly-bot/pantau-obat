@@ -56,7 +56,18 @@ export APP_ENV="${APP_ENV:-development}"
 # Di dev, aplikasi disajikan Vite di :5173 sedangkan backend di :8081 —
 # menunjuk ke port backend membuat tautan undangan menuju 404, dan alur
 # caregiver tidak bisa diuji sama sekali.
-export APP_PUBLIC_URL="${APP_PUBLIC_URL:-http://127.0.0.1:5173}"
+#
+# PENTING: nilai ini DIPAKSA, bukan memakai `${VAR:-default}`.
+#
+# `deploy/.env` ikut dimuat di atas, dan setelah Cloudflare Tunnel dipakai
+# berkas itu berisi `APP_PUBLIC_URL=https://….trycloudflare.com`. Dengan
+# `${VAR:-default}` nilai itu MENANG, sehingga tautan undangan di dev
+# menunjuk ke tunnel — uji lokal lalu membuka halaman publik dan gagal
+# dengan gejala yang membingungkan (elemen tidak ditemukan, padahal
+# halamannya memang halaman lain).
+#
+# Bila memang perlu menimpa, pakai variabel terpisah `DEV_PUBLIC_URL`.
+export APP_PUBLIC_URL="${DEV_PUBLIC_URL:-http://127.0.0.1:5173}"
 export APP_PORT="${APP_PORT:-8080}"
 export MIGRATE_ON_START="${MIGRATE_ON_START:-false}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"

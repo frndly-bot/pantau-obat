@@ -306,6 +306,16 @@ func (s LogStatus) Valid() bool {
 	return false
 }
 
+// Valid memeriksa apakah sumber catatan dikenal.
+//
+// Dipakai untuk memvalidasi parameter filter `?source=` pada daftar catatan.
+// Tanpa ini, nilai yang salah ketik akan diteruskan ke query dan menghasilkan
+// daftar kosong — pengguna mengira tidak ada data, padahal filternya yang
+// tidak dikenal.
+func (s LogSource) Valid() bool {
+	return s == SourceSelf || s == SourceCaregiver || s == SourceSystem
+}
+
 // Valid memeriksa apakah tingkat izin caregiver dikenal.
 func (r CareRole) Valid() bool {
 	return r == CareViewer || r == CareHelper || r == CareManager

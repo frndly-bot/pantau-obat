@@ -381,6 +381,7 @@ func (h *Logs) parseListFilter(r *http.Request) (service.LogListFilter, error) {
 	q := r.URL.Query()
 	f := service.LogListFilter{
 		Status: q.Get("status"),
+		Source: q.Get("source"),
 		Limit:  parsePositiveInt(q.Get("limit"), 50),
 	}
 
@@ -388,6 +389,13 @@ func (h *Logs) parseListFilter(r *http.Request) (service.LogListFilter, error) {
 		s := domain.LogStatus(f.Status)
 		if !s.Valid() {
 			return f, errInvalidField("status", "status tidak dikenal")
+		}
+	}
+
+	if f.Source != "" {
+		s := domain.LogSource(f.Source)
+		if !s.Valid() {
+			return f, errInvalidField("source", "sumber tidak dikenal")
 		}
 	}
 

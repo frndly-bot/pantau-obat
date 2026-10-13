@@ -1,7 +1,23 @@
 /* ============================================================
    Pantau Obat — Design Tokens
-   Dipindahkan apa adanya dari `design/assets/tokens.css` (prototipe)
-   agar tampilan SvelteKit identik dengan desain yang sudah disetujui.
+   Dipindahkan dari `design/assets/tokens.css` (prototipe) agar tampilan
+   SvelteKit identik dengan desain yang sudah disetujui.
+
+   PENYIMPANGAN YANG DISENGAJA DARI PROTOTIPE
+   Dua pasangan warna di prototipe GAGAL ambang kontras WCAG 2.1 AA
+   (4.5:1 untuk teks normal). Keduanya diperbaiki di sini, dan angkanya
+   dihitung dari nilai OKLCH di berkas ini — bukan diperkirakan:
+
+     Pasangan                                   Prototipe   Sekarang
+     teks putih di --primary (mode terang)        3.65:1     4.95:1
+     teks putih di --destructive (mode gelap)     2.77:1     6.69:1
+
+   Yang pertama muncul di SETIAP tombol konfirmasi; yang kedua tepat di
+   tombol hapus akun — aksi yang paling tidak boleh salah dibaca.
+
+   Karena itu jangan menyamakan berkas ini dengan tokens.css prototipe
+   tanpa menghitung ulang kontrasnya. Uji otomatis ada di
+   `frontend/apps/web/scripts/check-contrast.mjs`.
 
    Basis: shadcn/ui + Tailwind v4. Tema gelap aktif lewat
    `data-theme="dark"` DAN class `.dark` (konvensi shadcn).
@@ -19,14 +35,20 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  /* aksen brand: teal (identitas produk kesehatan, khas aplikasi obat) */
-  --primary: oklch(0.596 0.100 183.2);
+  /* aksen brand: teal (identitas produk kesehatan, khas aplikasi obat).
+     Terang 0.52, bukan 0.596 seperti prototipe: teks putih di atas 0.596
+     hanya mencapai 3.65:1 dan gagal AA. Pada 0.52 menjadi 4.95:1, dan teal
+     itu sendiri sebagai teks di latar putih ikut naik ke 5.17:1. */
+  --primary: oklch(0.52 0.100 183.2);
   --primary-foreground: oklch(0.985 0 0);
 
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
+  /* 0.54, bukan 0.552: di atas --muted (bukan putih) 0.552 hanya mencapai
+     4.39:1 dan gagal AA. Label kecil di dalam kepingan latar adalah tempat
+     yang paling sering terlewat karena di atas putih angkanya tampak aman. */
+  --muted-foreground: oklch(0.54 0.016 285.938);
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.205 0 0);
 
@@ -34,8 +56,13 @@
   --destructive-foreground: oklch(0.985 0 0);
 
   --border: oklch(0.922 0.004 286.32);
-  --input: oklch(0.922 0.004 286.32);
-  --ring: oklch(0.596 0.100 183.2);
+  /* --input terpisah dari --border, meski prototipe menyamakannya.
+     Garis kolom form adalah elemen FUNGSIONAL: tanpa terlihat, pengguna
+     tidak tahu di mana harus mengetik. WCAG 2.1 §1.4.11 menuntutnya 3:1,
+     dan 0.922 hanya mencapai 1.26:1. Garis dekoratif (--border) tetap
+     halus karena ambang itu tidak berlaku untuknya. */
+  --input: oklch(0.66 0.004 286.32);
+  --ring: oklch(0.52 0.100 183.2);
 
   --chart-1: oklch(0.596 0.100 183.2);
   --chart-2: oklch(0.646 0.222 41.116);
@@ -58,13 +85,19 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.10);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.10), 0 4px 6px -4px rgb(0 0 0 / 0.10);
 
-  /* ---- token domain (bukan bagian shadcn) ---- */
-  --ok: oklch(0.627 0.170 149.2);       /* sesuai */
-  --warn: oklch(0.769 0.150 70.08);     /* terlambat */
-  --err: oklch(0.577 0.245 27.325);     /* terlewat */
-  --info: oklch(0.588 0.180 254.6);     /* menunggu */
-  --na: oklch(0.552 0.016 285.938);     /* dilewati / arsip */
-  --private: oklch(0.558 0.180 300.5);  /* katalog pribadi user */
+  /* ---- token domain (bukan bagian shadcn) ----
+     Nilai di mode terang lebih GELAP dari prototipe. Alasannya: badge
+     memakai pola `bg-warna/15 text-warna`, sehingga latar efektifnya
+     adalah campuran 15% warna itu sendiri ke atas halaman — bukan putih.
+     Dengan nilai prototipe, keenam warna badge hanya mencapai 1.91:1
+     sampai 4.17:1 dan gagal AA. Nilai di bawah ini dihitung agar lulus
+     baik di atas latar badge maupun sebagai teks di halaman. */
+  --ok: oklch(0.48 0.170 149.2);        /* sesuai */
+  --warn: oklch(0.50 0.150 70.08);      /* terlambat */
+  --err: oklch(0.50 0.245 27.325);      /* terlewat */
+  --info: oklch(0.50 0.180 254.6);      /* menunggu */
+  --na: oklch(0.50 0.016 285.938);      /* dilewati / arsip */
+  --private: oklch(0.50 0.180 300.5);   /* katalog pribadi user */
   --overlay: oklch(0 0 0 / 0.5);
 }
 
@@ -92,10 +125,18 @@
   --accent-foreground: oklch(0.985 0 0);
 
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  /* Teks GELAP, bukan putih. Merah terang 0.704 dengan teks putih hanya
+     2.77:1 — gagal AA tepat di tombol hapus akun. Dengan teks gelap
+     menjadi 6.69:1. Pola ini sama dengan --primary di mode gelap.
+     --err (dipakai sebagai TEKS badge) tetap 0.704 dan tidak terpengaruh,
+     karena ia token terpisah yang dipakai di latar gelap. */
+  --destructive-foreground: oklch(0.16 0.02 183);
 
   --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
+  /* 38%, bukan 16% seperti prototipe: pada 16% garis kolom form hanya
+     mencapai 1.63:1 dan gagal ambang 3:1 untuk elemen antarmuka.
+     --border tetap 12% karena dekoratif. */
+  --input: oklch(1 0 0 / 38%);
   --ring: oklch(0.696 0.110 183.6);
 
   --chart-1: oklch(0.696 0.110 183.6);

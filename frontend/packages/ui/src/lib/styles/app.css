@@ -133,38 +133,46 @@
 }
 
 /* ============================================================
-   Target sentuh di layar kecil (TRD §7.4: minimal 44×44 px).
+   Target sentuh minimal 44×44 px (TRD §7.4).
 
    Skala bawaan shadcn (h-8/h-9/h-10 = 32/36/40 px) dirancang untuk
    desktop dengan kursor. Di layar sentuh ukuran itu terlalu kecil untuk
    jari, dan salah tekan pada aplikasi ini berarti mencatat dosis yang
    keliru — bukan sekadar klik yang gagal.
 
-   Prototipe desain sudah menerapkan ini (`design/assets/app.css`, aturan
-   `@media (max-width: 720px)`), tetapi belum ikut dipindahkan saat
-   komponen dibuat. Akibatnya ukuran kontrol di aplikasi Svelte lebih
-   kecil daripada rancangannya.
+   MENGAPA TANPA SYARAT LEBAR LAYAR
 
-   Tombol ikon diperlakukan sama: 36px (h-9 w-9) terlalu kecil, dan
-   justru tombol ikon yang paling sering salah tekan karena tidak ada
-   teks yang menuntun mata.
+   Versi sebelumnya meletakkan aturan ini di dalam `@media (max-width:
+   720px)`, meniru prototipe design. Itu justru MENGULANG kesalahan yang
+   dikritik review UX design: di layar lebih besar dari 720px ukurannya
+   kembali mengecil. Tablet yang dipegang satu tangan — perangkat yang
+   paling mungkin dipakai membuka aplikasi ini sambil beraktivitas —
+   persis ada di rentang itu, jadi target sentuhnya justru mengecil di
+   perangkat yang paling membutuhkannya.
+
+   AMAN UNTUK TAUTAN TEKS
+
+   Aturan ini menyertakan `a[href]`, dan itu disengaja: elemen dengan
+   `display: inline` MENGHIRAKAN `min-height` menurut spesifikasi CSS.
+   Jadi tautan di tengah kalimat tidak berubah sama sekali, sementara
+   tautan yang tampil sebagai blok/flex (menu, kartu yang bisa diklik)
+   ikut membesar. Tidak perlu selektor rumit untuk membedakan keduanya.
+
+   Tombol ikon perlu lebar juga, bukan hanya tinggi, supaya area sentuhnya
+   benar-benar 44×44 dan bukan 44px kali beberapa piksel.
    ============================================================ */
-@media (max-width: 720px) {
-  button,
-  [role="button"],
-  a[href],
-  input,
-  select,
-  textarea {
-    /* Hanya menaikkan yang memang lebih pendek; kontrol yang sudah besar
-       (mis. kartu yang bisa diklik) tidak ikut membesar. */
-    min-height: var(--touch);
-  }
+button,
+[role="button"],
+a[href],
+input,
+select,
+textarea {
+  /* Hanya menaikkan yang memang lebih pendek; kontrol yang sudah besar
+     (mis. kartu yang bisa diklik) tidak ikut membesar. */
+  min-height: var(--touch);
+}
 
-  /* Tombol ikon perlu lebar juga, bukan hanya tinggi, supaya area
-     sentuhnya benar-benar 44×44 dan bukan 44px kali beberapa piksel. */
-  button:has(> svg:only-child),
-  a[href]:has(> svg:only-child) {
-    min-width: var(--touch);
-  }
+button:has(> svg:only-child),
+a[href]:has(> svg:only-child) {
+  min-width: var(--touch);
 }

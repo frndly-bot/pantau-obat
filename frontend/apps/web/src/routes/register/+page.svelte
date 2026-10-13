@@ -25,6 +25,20 @@ let fieldIssues = $state<Record<string, string>>({});
 let submitting = $state(false);
 
 /**
+ * Persetujuan bahwa aplikasi ini alat bantu, bukan pengganti nasihat dokter.
+ *
+ * Prototipe design mewajibkan centang ini sebelum tombol daftar aktif, dan
+ * kamus i18n sudah memuat teksnya. Tanpa ini, pengguna bisa mendaftar tanpa
+ * pernah diberi tahu batas kemampuan aplikasi — padahal isinya menyangkut
+ * keputusan pengobatan, dan aplikasi ini memang tidak memberi saran dosis
+ * maupun memeriksa interaksi obat.
+ *
+ * Bobotnya kepatuhan, bukan kosmetik: persetujuan yang tidak pernah
+ * ditampilkan tidak bisa disebut persetujuan.
+ */
+let agreed = $state(false);
+
+/**
  * Benar setelah JavaScript selesai memuat (hidrasi).
  *
  * Halaman ini di-PRERENDER, jadi form tampil sebelum JS siap. Selama itu
@@ -166,7 +180,25 @@ async function onSubmit(event: SubmitEvent) {
 					</p>
 				{/if}
 
-				<Button type="submit" class="w-full" disabled={submitting || !hydrated}>
+				<!-- Persetujuan medis. Tombol daftar dikunci sampai dicentang,
+				     karena isinya menyangkut keputusan pengobatan. -->
+				<label class="flex cursor-pointer items-start gap-2.5 text-xs text-muted-foreground">
+					<input
+						type="checkbox"
+						class="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+						disabled={!hydrated}
+						bind:checked={agreed}
+					/>
+					<span>
+						Saya mengerti aplikasi ini <b class="font-semibold text-foreground">alat bantu</b>, bukan pengganti
+						nasihat dokter.
+						<span class="mt-0.5 block text-[11px]">
+							Tidak ada saran dosis maupun pemeriksaan interaksi obat di dalamnya.
+						</span>
+					</span>
+				</label>
+
+				<Button type="submit" class="w-full" disabled={submitting || !hydrated || !agreed}>
 					{submitting ? 'Membuat akun…' : 'Daftar'}
 				</Button>
 			</form>

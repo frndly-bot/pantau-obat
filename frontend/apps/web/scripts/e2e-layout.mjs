@@ -90,23 +90,45 @@ async function periksa(page, jalur, lebar) {
 		}
 
 		// Target sentuh terlalu kecil (hanya elemen yang bisa ditekan).
+		//
+		// Tautan DI DALAM KALIMAT dikecualikan, sesuai WCAG 2.5.8 yang
+		// menyatakan "inline" sebagai pengecualian: ukurannya dibatasi tinggi
+		// baris teks di sekitarnya, dan memaksanya 44px akan merusak paragraf.
+		// Yang benar-benar diuji adalah kontrol yang berdiri sendiri —
+		// tombol, input, dan tautan bergaya blok.
 		const kecil = [];
 		for (const el of document.querySelectorAll('button, a[href], input, select')) {
 			const r = el.getBoundingClientRect();
 			if (r.width === 0 || r.height === 0) continue;
+			const gaya = getComputedStyle(el);
+			const inlineDalamTeks = gaya.display === 'inline' && el.tagName === 'A';
+			if (inlineDalamTeks) continue;
 			if (r.height < 44) {
 				const label = (el.textContent ?? '').trim().slice(0, 24) || el.tagName.toLowerCase();
-				kecil.push(`${label} (${Math.round(r.height)}px)`);
+				// Sertakan URL: kegagalan di sini sering berarti halaman
+				// ber-guard sedang dialihkan ke /login, sehingga yang diukur
+				// sebenarnya halaman lain. Tanpa URL, gejalanya menyesatkan.
+				kecil.push(`${label} (${Math.round(r.height)}px, ${gaya.display}, di ${location.pathname})`);
 			}
 		}
 
-		return { overflow, melar: melar.slice(0, 3), kecil: kecil.slice(0, 4), jumlahKecil: kecil.length };
+		return {
+			overflow,
+			melar: melar.slice(0, 3),
+			kecil: kecil.slice(0, 4),
+			jumlahKecil: kecil.length,
+			url: location.pathname
+		};
 	});
 
 	return hasil;
 }
 
-for (const lebar of [360, 1440]) {
+// 768 dan 1024 = tablet. Ini yang paling penting untuk uji target sentuh:
+// aturan 44px dulu hanya berlaku di dalam `@media (max-width: 720px)`,
+// sehingga di rentang inilah target sentuh justru mengecil — tepat pada
+// perangkat yang paling mungkin dipegang satu tangan sambil beraktivitas.
+for (const lebar of [360, 768, 1024, 1440]) {
 	const ctx = await browser.newContext({ viewport: { width: lebar, height: 800 } });
 	const page = await ctx.newPage();
 
@@ -133,9 +155,12 @@ for (const lebar of [360, 1440]) {
 		if (h.melar.length) {
 			check(`${jalur} tidak ada elemen lebih lebar dari layar`, false, h.melar.join(', '));
 		}
-		if (lebar === 360) {
-			// Target sentuh 44px adalah syarat aksesibilitas untuk jari; pada
-			// desktop ukuran ini tidak relevan.
+		if (lebar <= 1024) {
+			// Target sentuh 44px diperiksa sampai lebar tablet, BUKAN hanya
+			// di 360px. Aturan ini dulu berada di dalam `@media (max-width:
+			// 720px)`, sehingga bug-nya justru muncul di rentang yang tadinya
+			// dilewati uji ini: tablet. Di desktop dengan kursor ukurannya
+			// tidak relevan, jadi 1440 dikecualikan.
 			check(
 				`${jalur} target sentuh ≥44px`,
 				h.jumlahKecil === 0,

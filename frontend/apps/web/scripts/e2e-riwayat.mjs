@@ -56,9 +56,26 @@ await p.locator('button:has-text("Dilewati")').click(); await p.waitForTimeout(1
 const listArea = await p.locator('main section').count();
 const hasMed = (await p.textContent('main'))?.includes('Amlodipine 10mg');
 check('filter Dilewati menyaring catatan (nama obat hilang)', !hasMed, `${listArea} bagian`);
-// Kembali ke Semua harus memunculkan lagi
-await p.locator('button:has-text("Semua")').click(); await p.waitForTimeout(1800);
+// Kembali ke Semua harus memunculkan lagi.
+// Pencocokan HARUS persis: label "Semua sumber" juga mengandung "Semua",
+// sehingga `has-text` biasa akan cocok dengan dua tombol sekaligus.
+await p.getByRole('button', { name: 'Semua', exact: true }).click(); await p.waitForTimeout(1800);
 check('filter Semua memunculkan catatan lagi', (await p.textContent('main'))?.includes('Amlodipine 10mg'), '');
+
+// ── Filter sumber ──
+// Sumber yang tersedia ada TIGA (self, caregiver, system), bukan dua seperti
+// di prototipe design. Catatan yang baru dibuat lewat API bersumber `self`.
+check('tombol filter sumber "Sistem" ada', (await p.getByRole('button', { name: 'Sistem', exact: true }).count()) === 1, '');
+check('tombol filter sumber "Caregiver" ada', (await p.getByRole('button', { name: 'Caregiver', exact: true }).count()) === 1, '');
+
+await p.getByRole('button', { name: 'Saya sendiri', exact: true }).click(); await p.waitForTimeout(1800);
+check('filter sumber "Saya sendiri" tetap menampilkan catatan', (await p.textContent('main'))?.includes('Amlodipine 10mg'), '');
+
+await p.getByRole('button', { name: 'Sistem', exact: true }).click(); await p.waitForTimeout(1800);
+check('filter sumber "Sistem" menyaring catatan buatan manusia', !(await p.textContent('main'))?.includes('Amlodipine 10mg'), '');
+
+await p.getByRole('button', { name: 'Semua sumber', exact: true }).click(); await p.waitForTimeout(1800);
+check('kembali ke "Semua sumber" memunculkan catatan lagi', (await p.textContent('main'))?.includes('Amlodipine 10mg'), '');
 
 await p.screenshot({path:'/tmp/po-riwayat.png'});
 console.log('\n=== error ==='); console.log(errs.length?errs.join('\n'):'(tidak ada)');

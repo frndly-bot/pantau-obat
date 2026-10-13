@@ -91,19 +91,35 @@ async function loginOn(page, email) {
  * Menunggu sampai form siap dipakai.
  *
  * Tanda yang dipakai adalah input email tidak lagi disabled — atribut yang
- * memang dipasang aplikasi untuk menandai hidrasi selesai. Menunggu tombol
- * saja tidak cukup: tombol bisa aktif lebih dulu daripada input.
+ * memang dipasang aplikasi untuk menandai hidrasi selesai.
+ *
+ * CATATAN: di halaman DAFTAR, tombol submit sengaja tetap terkunci sampai
+ * checkbox persetujuan medis dicentang. Jadi di sana tanda "siap" adalah
+ * input yang tidak disabled, BUKAN tombol yang aktif — lihat
+ * `setujuiDanDaftar`.
  */
 async function waitForHydration(page, timeout = 15000) {
 	await page.waitForFunction(
 		() => {
 			const input = document.querySelector('#email');
-			const btn = document.querySelector('button[type="submit"]');
-			return !!input && !input.disabled && !!btn && !btn.disabled;
+			return !!input && !input.disabled;
 		},
 		null,
 		{ timeout }
 	);
+}
+
+/**
+ * Mencentang persetujuan medis di halaman daftar, lalu mengirim form.
+ *
+ * Halaman daftar mengunci tombolnya sampai pengguna menyatakan mengerti
+ * bahwa aplikasi ini alat bantu, bukan pengganti nasihat dokter. Uji yang
+ * menekan tombol tanpa mencentang akan menunggu selamanya.
+ */
+async function setujuiDanDaftar(page) {
+	const kotak = page.locator('input[type="checkbox"]').first();
+	if ((await kotak.count()) > 0) await kotak.check();
+	await page.click('button[type="submit"]');
 }
 
 /** Menunggu sampai PATHNAME cocok. */

@@ -30,6 +30,7 @@
 	let to = $state('');
 	let from = $state('');
 	let statusFilter = $state('');
+	let sourceFilter = $state('');
 
 	const statusLabel: Record<string, string> = {
 		taken: 'Diminum',
@@ -43,6 +44,27 @@
 		late: 'warn',
 		skipped: 'na',
 		snoozed: 'info'
+	};
+
+	/**
+	 * Sumber catatan. `system` ada di sini karena server punya TIGA nilai
+	 * (self, caregiver, system) sedangkan prototipe design hanya menawarkan
+	 * dua. Akibatnya catatan yang lahir otomatis — mis. dari alur koreksi
+	 * atau penandaan pekerja latar — tidak bisa disaring dan tidak bisa
+	 * dibedakan dari catatan yang dibuat manusia: pengguna melihat baris tak
+	 * dikenal tanpa penjelasan siapa pembuatnya.
+	 */
+	const SOURCE_OPTIONS: ReadonlyArray<readonly [string, string]> = [
+		['', 'Semua sumber'],
+		['self', 'Saya sendiri'],
+		['caregiver', 'Caregiver'],
+		['system', 'Sistem']
+	];
+
+	const sourceLabel: Record<string, string> = {
+		self: 'saya sendiri',
+		caregiver: 'dicatat caregiver',
+		system: 'diperbarui otomatis'
 	};
 
 	/** Tanggal hari ini menurut zona waktu pengguna, bukan UTC. */
@@ -87,6 +109,7 @@
 					from: from || undefined,
 					to: to || undefined,
 					status: statusFilter || undefined,
+					source: sourceFilter || undefined,
 					limit: 100
 				}),
 				api.medications.list({ limit: 100 })
@@ -166,7 +189,7 @@
 		</div>
 
 		<div class="flex flex-wrap gap-1.5">
-			{#each [['', 'Semua'], ['taken', 'Diminum'], ['late', 'Terlambat'], ['skipped', 'Dilewati']] as [val, label] (val)}
+			{#each [['', 'Semua'], ['taken', 'Diminum'], ['late', 'Terlambat'], ['skipped', 'Dilewati'], ['snoozed', 'Ditunda']] as [val, label] (val)}
 				<button
 					type="button"
 					class="rounded-md border px-2.5 py-1 text-xs font-medium transition-colors {statusFilter === val
@@ -175,6 +198,28 @@
 					aria-pressed={statusFilter === val}
 					onclick={() => {
 						statusFilter = val;
+						void load();
+					}}
+				>
+					{label}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Filter sumber. Dipisah dari filter status karena keduanya menjawab
+		     pertanyaan berbeda: "apa yang tercatat" vs "siapa yang mencatat".
+		     Tanpa filter sumber, catatan otomatis tidak bisa dipisahkan dari
+		     catatan yang dibuat manusia. -->
+		<div class="flex flex-wrap gap-1.5">
+			{#each SOURCE_OPTIONS as [val, label] (val)}
+				<button
+					type="button"
+					class="rounded-md border px-2.5 py-1 text-xs font-medium transition-colors {sourceFilter === val
+						? 'border-primary bg-primary text-primary-foreground'
+						: 'border-border hover:bg-accent'}"
+					aria-pressed={sourceFilter === val}
+					onclick={() => {
+						sourceFilter = val;
 						void load();
 					}}
 				>
@@ -237,7 +282,7 @@
 										</p>
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{log.scheduled_time ?? 'tanpa jam'}
-											{#if log.source === 'caregiver'}· dicatat caregiver{/if}
+											{#if log.source && log.source !== 'self'}· {sourceLabel[log.source]}{/if}
 											{#if log.note}· {log.note}{/if}
 										</p>
 									</div>

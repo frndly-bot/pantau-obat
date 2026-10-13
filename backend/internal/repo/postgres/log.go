@@ -132,7 +132,13 @@ type ListLogsFilter struct {
 	From         *time.Time
 	To           *time.Time
 	Status       string
-	Limit        int
+	// Source menyaring asal catatan: self, caregiver, atau system.
+	//
+	// Tanpa ini, catatan yang lahir otomatis (mis. dari alur koreksi atau
+	// penandaan pekerja latar) tidak bisa dibedakan dari catatan yang dibuat
+	// manusia — pengguna melihat baris tak dikenal tanpa cara memfilternya.
+	Source string
+	Limit  int
 }
 
 // ListLogs mengambil daftar catatan dosis.
@@ -159,6 +165,10 @@ func (db *DB) ListLogs(ctx context.Context, q Querier, f ListLogsFilter) ([]*dom
 	if f.Status != "" {
 		args = append(args, f.Status)
 		where = append(where, fmt.Sprintf("status = $%d", len(args)))
+	}
+	if f.Source != "" {
+		args = append(args, f.Source)
+		where = append(where, fmt.Sprintf("source = $%d", len(args)))
 	}
 
 	args = append(args, f.Limit)

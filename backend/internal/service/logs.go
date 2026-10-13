@@ -555,6 +555,7 @@ func (s *Logs) List(ctx context.Context, ownerID string, f LogListFilter) ([]*do
 		From:         f.From,
 		To:           f.To,
 		Status:       f.Status,
+		Source:       f.Source,
 		Limit:        f.Limit,
 	})
 }
@@ -565,7 +566,9 @@ type LogListFilter struct {
 	From         *time.Time
 	To           *time.Time
 	Status       string
-	Limit        int
+	// Source menyaring asal catatan: self, caregiver, atau system.
+	Source string
+	Limit  int
 }
 
 // Today mengambil ringkasan catatan dosis hari ini.
