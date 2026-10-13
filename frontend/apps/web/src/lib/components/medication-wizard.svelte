@@ -190,7 +190,12 @@
 	}
 </script>
 
-<Dialog bind:open title="Tambah obat" onclose={close}>
+<!-- `scrollResetKey={step}`: setiap kali langkah berganti, isi dialog
+     digulir kembali ke atas. Tanpa ini posisi gulir dari langkah sebelumnya
+     terbawa ke langkah berikutnya — dan karena isinya lebih pendek, posisi
+     itu terpotong ke batas bawah sehingga pengguna mendarat di DASAR form
+     langkah baru, bukan di awalnya. -->
+<Dialog bind:open title="Tambah obat" onclose={close} scrollResetKey={step}>
 	<!-- Penunjuk langkah -->
 	<div class="mb-5 flex items-center gap-1.5">
 		{#each STEP_TITLES as title, i (title)}

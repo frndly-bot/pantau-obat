@@ -56,6 +56,7 @@ SUITES=(
 	e2e-browser
 	e2e-hariini
 	e2e-wizard
+	e2e-wizard-scroll
 	e2e-detail
 	e2e-riwayat
 	e2e-caregiver

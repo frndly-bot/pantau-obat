@@ -10,10 +10,48 @@
 		footer?: Snippet;
 		/** Dipanggil saat backdrop atau tombol tutup ditekan. */
 		onclose?: () => void;
+		/**
+		 * Bila nilainya berubah, isi dialog digulir kembali ke ATAS.
+		 *
+		 * Dipakai wizard bertahap: setiap langkah punya isi yang sama sekali
+		 * berbeda, dan tanpa pengaturan ulang posisi gulir lama ikut terbawa
+		 * lalu terpotong ke batas konten baru — pengguna mendarat di tengah
+		 * atau di dasar form langkah berikutnya, bukan di awalnya.
+		 *
+		 * Sengaja berupa prop, bukan perilaku otomatis: dialog yang isinya
+		 * diperbarui berkala (mis. daftar yang memuat ulang) justru harus
+		 * MEMPERTAHANKAN posisi gulir, dan meresetnya di sana akan terasa
+		 * seperti halaman yang melompat sendiri.
+		 */
+		scrollResetKey?: unknown;
 	};
 
-	let { open = $bindable(false), title, class: className, children, footer, onclose }: Props =
-		$props();
+	let {
+		open = $bindable(false),
+		title,
+		class: className,
+		children,
+		footer,
+		onclose,
+		scrollResetKey
+	}: Props = $props();
+
+	/** Wadah gulir dialog; dipakai untuk mengatur ulang posisi. */
+	let scrollEl = $state<HTMLDivElement | null>(null);
+
+	/**
+	 * Mengembalikan posisi gulir ke atas saat kunci berubah.
+	 *
+	 * `$effect` berjalan SETELAH DOM diperbarui, jadi konten langkah baru
+	 * sudah terpasang ketika posisi direset. Fokus tidak perlu dipindah:
+	 * tombol navigasi ada di footer, di luar wadah gulir, sehingga peramban
+	 * tidak menggulir balik untuk mengikuti fokus.
+	 */
+	$effect(() => {
+		// Dibaca supaya effect ikut berjalan ketika nilainya berubah.
+		void scrollResetKey;
+		if (scrollEl) scrollEl.scrollTop = 0;
+	});
 
 	/** Menutup lewat tombol Esc. */
 	function onKeydown(event: KeyboardEvent) {
@@ -64,7 +102,7 @@
 			</div>
 		{/if}
 
-		<div class={cn('min-h-0 flex-1 overflow-y-auto px-4 py-4', className)}>
+		<div bind:this={scrollEl} class={cn('min-h-0 flex-1 overflow-y-auto px-4 py-4', className)}>
 			{@render children()}
 		</div>
 
