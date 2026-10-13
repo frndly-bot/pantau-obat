@@ -265,6 +265,42 @@ export interface CreateMedicationInput {
 	frequency: FrequencyInput;
 }
 
+/**
+ * Perubahan obat lewat `PATCH /medications/{id}`.
+ *
+ * SENGAJA BUKAN `Partial<CreateMedicationInput>` — dan perbedaan itu penting.
+ *
+ * `PATCH` menerima `is_active` (untuk menghentikan atau mengaktifkan kembali
+ * obat) yang TIDAK ada di input pembuatan. Sebaliknya ia TIDAK menerima
+ * `frequency`, karena mengubah jadwal adalah operasi tersendiri
+ * (`POST/PATCH/DELETE /medications/{id}/times`).
+ *
+ * Memakai `Partial<CreateMedicationInput>` membuat dua kesalahan sekaligus:
+ * `is_active` ditolak pemeriksaan tipe padahal server menerimanya, dan
+ * `frequency` DIIZINKAN padahal server mengabaikannya diam-diam — pengguna
+ * mengira jadwalnya berubah padahal tidak.
+ */
+export interface UpdateMedicationInput {
+	name?: string;
+	dose_value?: number;
+	dose_unit_code?: string;
+	route_code?: string;
+	dosage_form_code?: string | null;
+	strength_note?: string | null;
+	meal_relation?: MealRelation;
+	as_needed?: boolean;
+	must_finish?: boolean;
+	start_date?: string;
+	start_time?: string;
+	/** String kosong mengosongkan tanggal selesai (terapi tanpa batas). */
+	end_date?: string | null;
+	notes?: string | null;
+	notes_reminder?: string | null;
+	color_tag?: string | null;
+	/** `false` = hentikan sementara; `true` = aktifkan kembali. */
+	is_active?: boolean;
+}
+
 export interface FrequencyInput {
 	pattern: FrequencyPattern;
 	times_per_day?: number;

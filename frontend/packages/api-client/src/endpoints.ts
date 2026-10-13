@@ -39,6 +39,7 @@ import type {
 	StockTransaction,
 	UpdateCareLinkInput,
 	UpdateLogInput,
+	UpdateMedicationInput,
 	UpdateNotificationPrefsInput,
 	UpdateUserInput,
 	User,
@@ -70,7 +71,11 @@ export function createApi(client: ApiClient) {
 			list: (query?: Query) => client.get<Medication[]>('/medications', query),
 			create: (input: CreateMedicationInput) => client.post<Medication>('/medications', input),
 			get: (id: string) => client.get<Medication>(`/medications/${id}`),
-			update: (id: string, input: Partial<CreateMedicationInput>) =>
+			/**
+			 * Mengubah data obat. Memakai `UpdateMedicationInput`, bukan
+			 * `Partial<CreateMedicationInput>` — lihat alasannya di tipe itu.
+			 */
+			update: (id: string, input: UpdateMedicationInput) =>
 				client.patch<Medication>(`/medications/${id}`, input),
 			remove: (id: string) => client.delete<void>(`/medications/${id}`),
 			times: (id: string) => client.get<MedicationTime[]>(`/medications/${id}/times`),

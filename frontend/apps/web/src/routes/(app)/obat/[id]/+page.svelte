@@ -31,6 +31,8 @@
 		Skeleton
 	} from '@pantau-obat/ui';
 	import { api } from '$lib/api';
+	import { i18n } from '$lib/i18n.svelte';
+	import MedicationEdit from '$lib/components/medication-edit.svelte';
 
 	let med = $state<Medication | null>(null);
 	let stock = $state<MedicationStock | null>(null);
@@ -41,6 +43,10 @@
 	let busy = $state(false);
 
 	// Dialog restock
+	/** Dialog ubah data obat. Sebelumnya tidak ada sama sekali. */
+	let editOpen = $state(false);
+	/** Dialog hentikan / arsipkan obat. */
+	let stopOpen = $state(false);
 	let restockOpen = $state(false);
 	let restockQty = $state(30);
 	let restockNote = $state('');
@@ -141,6 +147,57 @@
 		}
 	}
 
+	/**
+	 * Menghentikan sementara atau mengarsipkan obat.
+	 *
+	 * Dua tindakan berbeda, dan bedanya penting bagi pengguna:
+	 *
+	 *   nonaktifkan (`is_active = false`) — obat berhenti muncul di jadwal,
+	 *   tapi datanya utuh dan bisa diaktifkan lagi kapan saja.
+	 *
+	 *   arsipkan (`DELETE`) — soft delete. Riwayat TETAP ADA; yang berubah
+	 *   hanya bahwa obat tidak lagi dianggap aktif. Server membalas
+	 *   `logs_preserved: true` untuk menegaskan itu.
+	 *
+	 * Keduanya sengaja tidak menghapus riwayat: pada aplikasi kesehatan,
+	 * menghapus catatan dosis berarti menghapus bukti kepatuhan yang mungkin
+	 * dibutuhkan saat kontrol ke dokter.
+	 */
+	async function stopOrArchive(mode: 'deactivate' | 'archive') {
+		if (busy || !med) return;
+		busy = true;
+		actionError = null;
+		try {
+			if (mode === 'archive') {
+				await api.medications.remove(med.id);
+				await goto('/obat');
+				return;
+			}
+			await api.medications.update(med.id, { is_active: false });
+			stopOpen = false;
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal mengubah status obat.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** Mengaktifkan kembali obat yang sebelumnya dihentikan. */
+	async function reactivate() {
+		if (busy || !med) return;
+		busy = true;
+		actionError = null;
+		try {
+			await api.medications.update(med.id, { is_active: true });
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal mengaktifkan obat.';
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function doAdjust() {
 		if (busy) return;
 		busy = true;
@@ -208,7 +265,27 @@
 						{med.dose_value} {med.dose_unit_code} · {mealLabel[med.meal_relation] ?? med.meal_relation}
 					</p>
 				</div>
-				<Badge variant={med.is_active ? 'ok' : 'na'}>{med.is_active ? 'Aktif' : 'Arsip'}</Badge>
+				<Badge variant={med.is_active ? 'ok' : 'na'}>
+					{med.is_active ? i18n.t('common.active') : i18n.t('meds.archive')}
+				</Badge>
+			</div>
+
+			<!-- Aksi atas obat. Sebelumnya halaman ini TIDAK punya cara apa pun
+			     untuk mengubah data obat setelah dibuat: wizard hanya bisa
+			     menambah. -->
+			<div class="flex flex-wrap gap-2">
+				<Button size="sm" variant="outline" onclick={() => (editOpen = true)}>
+					{i18n.t('common.edit')}
+				</Button>
+				{#if med.is_active}
+					<Button size="sm" variant="outline" onclick={() => (stopOpen = true)}>
+						{i18n.t('medDetail.stop_archive')}
+					</Button>
+				{:else}
+					<Button size="sm" variant="outline" onclick={reactivate} disabled={busy}>
+						{i18n.t('medDetail.reactivate')}
+					</Button>
+				{/if}
 			</div>
 
 			<dl class="space-y-2 text-sm">
@@ -427,3 +504,72 @@
 		{/snippet}
 	</Dialog>
 {/if}
+
+<!-- ============ Dialog: ubah data obat ============ -->
+<MedicationEdit
+	bind:open={editOpen}
+	{med}
+	onsaved={load}
+	onopenchange={(v) => (editOpen = v)}
+/>
+
+<!-- ============ Dialog: hentikan / arsipkan ============ -->
+<Dialog open={stopOpen} title={i18n.t('medDetail.stop_remove_medication')} onopenchange={(v) => !v && (stopOpen = false)}>
+	<div class="space-y-4">
+		<p class="text-sm text-muted-foreground">
+			{med?.name}
+		</p>
+
+		<!-- Dua pilihan dengan akibat berbeda, dan bedanya disebutkan apa
+		     adanya. Pengguna harus tahu bahwa riwayatnya TIDAK hilang —
+		     itu justru alasan keduanya aman dipakai. -->
+		<div class="space-y-3">
+			<button
+				type="button"
+				class="w-full rounded-lg border border-border px-3.5 py-3 text-left transition-colors hover:bg-accent"
+				disabled={busy}
+				onclick={() => stopOrArchive('deactivate')}
+			>
+				<p class="text-sm font-medium">{i18n.t('medDetail.pause_now_deactivate')}</p>
+				<p class="mt-0.5 text-xs text-muted-foreground">
+					Obat berhenti muncul di jadwal. Data dan riwayatnya tetap utuh, dan bisa
+					diaktifkan lagi kapan saja.
+				</p>
+			</button>
+
+			<button
+				type="button"
+				class="w-full rounded-lg border border-border px-3.5 py-3 text-left transition-colors hover:bg-accent"
+				disabled={busy}
+				onclick={() => stopOrArchive('archive')}
+			>
+				<p class="text-sm font-medium">{i18n.t('medDetail.archive_medication_soft_delete')}</p>
+				<p class="mt-0.5 text-xs text-muted-foreground">
+					Obat dikeluarkan dari daftar. <b>Riwayat dosis tidak dihapus</b> — catatan
+					yang sudah ada tetap bisa dilihat di halaman Riwayat.
+				</p>
+			</button>
+		</div>
+
+		<div class="rounded-lg border border-ok/40 bg-ok/10 px-3.5 py-3 text-xs">
+			<b>{i18n.t('medDetail.history_must_never_lost')}</b>
+			<p class="mt-0.5 text-muted-foreground">
+				Pada aplikasi kesehatan, catatan dosis adalah bukti kepatuhan yang mungkin
+				dibutuhkan saat kontrol. Karena itu tidak ada cara menghapusnya dari sini.
+			</p>
+		</div>
+
+		{#if actionError}
+			<p class="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive" role="alert">
+				{actionError}
+			</p>
+		{/if}
+	</div>
+	{#snippet footer()}
+		<div class="flex justify-end">
+			<Button variant="outline" onclick={() => (stopOpen = false)} disabled={busy}>
+				{i18n.t('common.cancel')}
+			</Button>
+		</div>
+	{/snippet}
+</Dialog>

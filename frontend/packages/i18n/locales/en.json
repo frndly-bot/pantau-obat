@@ -29,7 +29,8 @@
     "notifications": "Notifications",
     "add_medication": "Add medication",
     "main_navigation": "Main navigation",
-    "admin_navigation": "Admin navigation"
+    "admin_navigation": "Admin navigation",
+    "activate": "Activate"
   },
   "hub": {
     "pantau_obat_ui_ux_prototype": "Pantau Obat — UI/UX Prototype",
@@ -451,7 +452,8 @@
     "medication_archived": "Medication archived",
     "medication_not_found": "Medication not found",
     "link_may_stale_medication_was_archived": "The link may be stale or the medication was archived.",
-    "back_medication_list": "Back to the medication list"
+    "back_medication_list": "Back to the medication list",
+    "reactivate": "Reactivate"
   },
   "history": {
     "adherence": "Adherence",

@@ -29,7 +29,8 @@
     "notifications": "Notifikasi",
     "add_medication": "Tambah obat",
     "main_navigation": "Navigasi utama",
-    "admin_navigation": "Navigasi admin"
+    "admin_navigation": "Navigasi admin",
+    "activate": "Aktifkan"
   },
   "hub": {
     "pantau_obat_ui_ux_prototype": "Pantau Obat — Prototipe UI/UX",
@@ -451,7 +452,8 @@
     "medication_archived": "Obat diarsipkan",
     "medication_not_found": "Obat tidak ditemukan",
     "link_may_stale_medication_was_archived": "Tautan mungkin sudah kedaluwarsa atau obat telah diarsipkan.",
-    "back_medication_list": "Kembali ke daftar obat"
+    "back_medication_list": "Kembali ke daftar obat",
+    "reactivate": "Aktifkan kembali"
   },
   "history": {
     "adherence": "Kepatuhan",

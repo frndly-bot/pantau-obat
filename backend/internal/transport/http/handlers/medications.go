@@ -143,7 +143,17 @@ func (h *Medications) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createMedicationRequest
-	if err := decodeAuthBody(w, r, &req); err != nil {
+	// Endpoint obat memakai aturan field yang NETRAL (nil), bukan aturan akun.
+	//
+	// `decodeAuthBody` membawa daftar field terlarang milik AKUN — termasuk
+	// `is_active`, yang di sana berarti "status aktif akun" dan hanya boleh
+	// diubah operator lewat database. Pada obat, `is_active` justru field
+	// yang SAH: itulah cara pengguna menghentikan obatnya sendiri.
+	//
+	// Memakai decoder akun di sini membuat "Hentikan sementara" selalu gagal
+	// dengan pesan yang membingungkan ("status aktif akun hanya bisa diubah
+	// lewat endpoint admin") padahal yang diubah adalah obat.
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
 		writeAuthDecodeError(w, r, err)
 		return
 	}
@@ -225,7 +235,7 @@ func (h *Medications) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req updateMedicationRequest
-	if err := decodeAuthBody(w, r, &req); err != nil {
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
 		writeAuthDecodeError(w, r, err)
 		return
 	}
@@ -302,7 +312,7 @@ func (h *Medications) CreateTime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req timeRequest
-	if err := decodeAuthBody(w, r, &req); err != nil {
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
 		writeAuthDecodeError(w, r, err)
 		return
 	}
@@ -331,7 +341,7 @@ func (h *Medications) UpdateTime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req timeRequest
-	if err := decodeAuthBody(w, r, &req); err != nil {
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
 		writeAuthDecodeError(w, r, err)
 		return
 	}

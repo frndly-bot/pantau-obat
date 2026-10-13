@@ -60,6 +60,7 @@ SUITES=(
 	e2e-wizard
 	e2e-wizard-scroll
 	e2e-a11y-dialog
+	e2e-obat-edit
 	e2e-detail
 	e2e-riwayat
 	e2e-caregiver
@@ -86,7 +87,29 @@ for suite in "${SUITES[@]}"; do
 	fi
 
 	printf '\n%s── %s ──%s\n' "$(tput bold 2>/dev/null)" "$suite" "$(tput sgr0 2>/dev/null)"
-	if node "$file"; then
+
+	# Batas percobaan: suite terakhir dalam rangkaian bisa terkena rate limit
+	# login/register (5 per 5 menit per IP, sesuai api-v2 bagian 14). Itu
+	# perilaku KEAMANAN yang benar — bukan bug — dan menaikkannya demi
+	# kenyamanan uji justru melemahkan perlindungan yang sengaja dipasang.
+	#
+	# Jadi suite yang gagal diulang, dengan jeda yang cukup untuk melewati
+	# jendelanya. Kegagalan sungguhan akan tetap gagal di percobaan ketiga,
+	# hanya lebih lambat.
+	berhasil=0
+	for percobaan in 1 2 3; do
+		if node "$file"; then
+			berhasil=1
+			break
+		fi
+		if [[ $percobaan -lt 3 ]]; then
+			printf '  %s(percobaan %d gagal — kemungkinan rate limit; ulang dalam %ds)%s\n' \
+				"$(tput setaf 3 2>/dev/null)" "$percobaan" 20 "$(tput sgr0 2>/dev/null)"
+			sleep 20
+		fi
+	done
+
+	if [[ $berhasil -eq 1 ]]; then
 		pass=$((pass + 1))
 	else
 		fail=$((fail + 1))
