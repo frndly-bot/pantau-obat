@@ -37,11 +37,12 @@ page.on('pageerror', (e) => errs.push(e.message));
 // ── Daftar lewat tunnel ──
 console.log('── Daftar akun lewat internet ──');
 await page.goto(`${BASE}/register`, { waitUntil: 'networkidle' });
+// Tanda "siap" adalah INPUT yang tidak disabled, bukan tombol yang aktif:
+// tombol daftar sengaja tetap terkunci sampai persetujuan medis dicentang.
 await page.waitForFunction(
 	() => {
 		const i = document.querySelector('#email');
-		const b = document.querySelector('button[type="submit"]');
-		return !!i && !i.disabled && !!b && !b.disabled;
+		return !!i && !i.disabled;
 	},
 	null,
 	{ timeout: 25000 }
@@ -49,6 +50,8 @@ await page.waitForFunction(
 await page.fill('#full_name', 'Uji Tunnel');
 await page.fill('#email', email);
 await page.fill('#password', password);
+// Persetujuan medis wajib dicentang sebelum tombol daftar aktif.
+await page.locator('input[type="checkbox"]').first().check();
 await page.click('button[type="submit"]');
 await page.waitForURL(/hari-ini/, { timeout: 30000 });
 check('pendaftaran berhasil lewat tunnel', true);
