@@ -28,7 +28,9 @@ await fetch(`${API}/medications`,{method:'POST',headers:H,body:JSON.stringify({
 console.log(`     (data siap: jam ${past} = due, ${future} = pending; sekarang ${nowWib} WIB)`);
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2});
+// `locale: 'id-ID'` — aplikasi menghormati bahasa peramban, sedangkan bawaan
+// Playwright `en-US`. Tanpa ini halaman tampil Inggris dan uji teks Indonesia gagal.
+const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,locale:'id-ID'});
 const p=await ctx.newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 

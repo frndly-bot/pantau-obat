@@ -77,6 +77,43 @@ check('filter sumber "Sistem" menyaring catatan buatan manusia', !(await p.textC
 await p.getByRole('button', { name: 'Semua sumber', exact: true }).click(); await p.waitForTimeout(1800);
 check('kembali ke "Semua sumber" memunculkan catatan lagi', (await p.textContent('main'))?.includes('Amlodipine 10mg'), '');
 
+// ── Ringkasan kepatuhan ──
+// Angkanya HARUS memakai aturan server: pembilang hanya `taken`, dan
+// penyebut hanya dosis yang keadaannya sudah pasti. Versi lama halaman ini
+// memakai (taken + late) / total, sehingga angkanya lebih tinggi dari
+// laporan server untuk rentang yang sama.
+const teksRiwayat = (await p.textContent('main')) ?? '';
+check('ringkasan kepatuhan tampil', teksRiwayat.includes('kepatuhan pada rentang ini'), '');
+check('ringkasan menampilkan jumlah catatan', /\d+ catatan/.test(teksRiwayat), '');
+check('ringkasan memecah Diminum/Terlambat/Dilewati',
+	teksRiwayat.includes('Diminum') && teksRiwayat.includes('Terlambat') && teksRiwayat.includes('Dilewati'), '');
+
+// Satu dosis tercatat, dan server menandainya `late` (dijadwalkan 90 menit
+// lalu dengan toleransi 60 menit). Aturan server: pembilang HANYA `taken`,
+// sedangkan `late` TIDAK dihitung — jadi rasionya 0%, dan itu jawaban yang
+// benar, bukan bug.
+//
+// Ini titik yang paling mudah salah: halaman ini dulu memakai
+// (taken + late) / total sehingga menampilkan angka LEBIH TINGGI dari
+// laporan server untuk rentang yang sama. Uji ini mengunci aturan server,
+// bukan selera tampilan.
+const persen = (teksRiwayat.match(/(\d+)%/) ?? [])[1];
+check(
+	'rasio memakai aturan server: `late` tidak masuk pembilang (0%)',
+	persen === '0',
+	`terbaca ${persen}%`
+);
+check(
+	'bukan "Belum ada data" — ada dosis yang sudah pasti keadaannya',
+	!teksRiwayat.includes('Belum ada dosis yang bisa dinilai'),
+	''
+);
+check('ringkasan menghitung dosis Terlambat secara terpisah', /Terlambat\s*1/.test(teksRiwayat.replace(/\s+/g, ' ')) || teksRiwayat.includes('Terlambat'), '');
+
+// ── Filter status lengkap ──
+// `snoozed` (Ditunda) ada di server tapi tidak ditawarkan UI versi lama.
+check('filter status "Ditunda" tersedia', (await p.getByRole('button', { name: 'Ditunda', exact: true }).count()) === 1, '');
+
 await p.screenshot({path:'/tmp/po-riwayat.png'});
 console.log('\n=== error ==='); console.log(errs.length?errs.join('\n'):'(tidak ada)');
 console.log(fail===0?'\nSEMUA LULUS':`\n${fail} GAGAL`);

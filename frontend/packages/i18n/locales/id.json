@@ -165,7 +165,28 @@
     "additional_note": "Catatan tambahan",
     "skip_dose": "Lewati dosis",
     "dose_skipped": "Dosis dilewati",
-    "no_reason_given_stock_not_deducted": "Tanpa alasan. Stok tidak dipotong."
+    "no_reason_given_stock_not_deducted": "Tanpa alasan. Stok tidak dipotong.",
+    "due": "Belum dicatat",
+    "status": "Status",
+    "note": "Catatan",
+    "correct_note": "Koreksi catatan",
+    "correct_status": "Status yang benar",
+    "taken_at_time": "Jam diminum",
+    "save_correction": "Simpan koreksi",
+    "how_long": "Berapa lama",
+    "minutes": "menit",
+    "snooze_note": "Pengingat akan dikirim ulang setelah waktu tersebut. Dosis tetap terlihat di daftar sampai dicatat atau dilewati.",
+    "skip_note": "Dosis yang dilewati tidak mengurangi stok dan tetap tercatat di riwayat.",
+    "correct_note_body": "Mengubah catatan akan menyesuaikan kembali saldo stok, karena setiap perubahan saldo lewat satu transaksi yang sama.",
+    "prn_hint": "Log PRN dibuat tanpa jadwal, jadi boleh dicatat berkali-kali dalam sehari.",
+    "prn_unscheduled_hint": "Tidak dijadwalkan — dicatat hanya saat benar-benar dipakai.",
+    "no_doses_title": "Tidak ada dosis terjadwal hari ini",
+    "no_doses_hint": "Tambahkan obat beserta jadwalnya untuk mulai memantau dosis harian.",
+    "no_data_today": "Belum ada dosis yang bisa dinilai hari ini.",
+    "adherence": "kepatuhan",
+    "reason_example": "Misalnya: lupa, muntah, obat tidak tersedia",
+    "prn_reason_example": "Misalnya: demam, nyeri",
+    "hello": "Halo"
   },
   "meds": {
     "active_medications": "Obat aktif",
@@ -340,7 +361,8 @@
     "archived_2": "Arsip",
     "private": "Pribadi",
     "publish_unpublish_presets": "Terbitkan/arsipkan preset",
-    "list_presets_publish_unpublish_archive": "Daftar preset, terbitkan/tarik/arsipkan"
+    "list_presets_publish_unpublish_archive": "Daftar preset, terbitkan/tarik/arsipkan",
+    "manage_medications": "Kelola obat"
   },
   "medDetail": {
     "recorded_adherence": "Kepatuhan tercatat",
@@ -472,7 +494,10 @@
     "change_range_medication_status_filter": "Ubah filter rentang, obat, atau status.",
     "scheduled": "jadwal",
     "recorded": "dicatat",
-    "recorded_by_caregiver": "dicatat oleh caregiver"
+    "recorded_by_caregiver": "dicatat oleh caregiver",
+    "adherence_range": "kepatuhan pada rentang ini",
+    "records_count": "catatan",
+    "no_data_range": "Belum ada dosis yang bisa dinilai pada rentang ini."
   },
   "caregiver": {
     "two_way_monitoring_who_watches_me_whom_i_watch": "Pemantauan dua arah: siapa memantau saya, siapa saya pantau",

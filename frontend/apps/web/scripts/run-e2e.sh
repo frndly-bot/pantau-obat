@@ -56,6 +56,7 @@ SUITES=(
 	e2e-schedule
 	e2e-browser
 	e2e-hariini
+	e2e-aksi-dosis
 	e2e-wizard
 	e2e-wizard-scroll
 	e2e-a11y-dialog
@@ -65,6 +66,7 @@ SUITES=(
 	e2e-pengaturan
 	e2e-terima-undangan
 	e2e-tampilan
+	e2e-i18n-halaman
 	e2e-layout
 )
 

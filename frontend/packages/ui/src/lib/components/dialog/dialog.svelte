@@ -24,6 +24,17 @@
 		 * seperti halaman yang melompat sendiri.
 		 */
 		scrollResetKey?: unknown;
+		/**
+		 * Dipanggil ketika dialog meminta dibuka atau ditutup.
+		 *
+		 * Dipakai saat pemanggil mengendalikan `open` lewat ekspresi
+		 * (`open={dialog === 'snooze'}`) sehingga tidak bisa memakai
+		 * `bind:open`. Tanpa ini, menutup lewat Escape atau backdrop tidak
+		 * sampai ke state pemanggil: dialognya tertutup di DOM tapi
+		 * variabelnya masih menunjuk dialog itu, sehingga membuka dialog
+		 * berikutnya bisa terlihat "tidak terjadi apa-apa".
+		 */
+		onopenchange?: (open: boolean) => void;
 	};
 
 	let {
@@ -33,8 +44,16 @@
 		children,
 		footer,
 		onclose,
-		scrollResetKey
+		scrollResetKey,
+		onopenchange
 	}: Props = $props();
+
+	/** Menutup dialog dari dalam: perbarui state lalu beri tahu pemanggil. */
+	function requestClose() {
+		open = false;
+		onopenchange?.(false);
+		onclose?.();
+	}
 
 	/** Wadah gulir dialog; dipakai untuk mengatur ulang posisi. */
 	let scrollEl = $state<HTMLDivElement | null>(null);
@@ -120,8 +139,7 @@
 		if (!open) return;
 
 		if (event.key === 'Escape') {
-			open = false;
-			onclose?.();
+			requestClose();
 			return;
 		}
 
@@ -155,10 +173,7 @@
 	<div
 		class="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px]"
 		role="presentation"
-		onclick={() => {
-			open = false;
-			onclose?.();
-		}}
+		onclick={requestClose}
 	></div>
 
 	<!-- Panel: di layar kecil menempel ke bawah seperti sheet; di layar besar
@@ -179,10 +194,7 @@
 					type="button"
 					class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					aria-label="Tutup"
-					onclick={() => {
-						open = false;
-						onclose?.();
-					}}
+					onclick={requestClose}
 				>
 					<svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
 						<path d="M18 6 6 18M6 6l12 12" />

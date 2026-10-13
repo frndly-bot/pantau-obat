@@ -109,8 +109,22 @@ export function createApi(client: ApiClient) {
 				client.post<MedicationLog>(`/medications/${medicationId}/logs/prn`, input),
 			update: (logId: string, input: UpdateLogInput) =>
 				client.patch<MedicationLog>(`/logs/${logId}`, input),
-			snooze: (logId: string, input: SnoozeLogInput) =>
-				client.post<MedicationLog>(`/logs/${logId}/snooze`, input),
+			/**
+			 * Menunda pengingat dosis.
+			 *
+			 * `scheduleId` — bukan id catatan — karena yang digeser adalah
+			 * pengingat milik JAM jadwal; catatan dosisnya belum ada saat
+			 * dosis ditunda.
+			 *
+			 * `medicationId` wajib disertakan: server memakainya untuk
+			 * mencari obat, dan tanpa itu server membalas 400. Sebelumnya
+			 * parameter ini tidak ada di klien, sehingga pemanggil tidak
+			 * punya cara mengirimnya.
+			 */
+			snooze: (scheduleId: string, input: SnoozeLogInput, medicationId: string) =>
+				client.post<MedicationLog>(`/logs/${scheduleId}/snooze`, input, {
+					medication_id: medicationId
+				}),
 			/** Ekspor CSV (RFC 4180 + BOM) — dibalas sebagai berkas. */
 			exportCsv: (query?: Query) => client.requestBlob('/logs/export', query),
 		},

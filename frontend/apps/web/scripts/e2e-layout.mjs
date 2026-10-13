@@ -129,7 +129,9 @@ async function periksa(page, jalur, lebar) {
 // sehingga di rentang inilah target sentuh justru mengecil — tepat pada
 // perangkat yang paling mungkin dipegang satu tangan sambil beraktivitas.
 for (const lebar of [360, 768, 1024, 1440]) {
-	const ctx = await browser.newContext({ viewport: { width: lebar, height: 800 } });
+	// `locale: 'id-ID'`: uji ini mencari teks Indonesia, sedangkan bawaan
+	// Playwright adalah `en-US` sehingga halaman tampil berbahasa Inggris.
+	const ctx = await browser.newContext({ viewport: { width: lebar, height: 800 }, locale: 'id-ID' });
 	const page = await ctx.newPage();
 
 	// Masuk sekali per konteks; sesi dipulihkan dari cookie refresh.
@@ -146,7 +148,12 @@ for (const lebar of [360, 768, 1024, 1440]) {
 	await page.fill('#email', email);
 	await page.fill('#password', password);
 	await page.click('button[type="submit"]');
-	await page.waitForURL(/hari-ini/, { timeout: 20000 });
+	// Batas waktu lebih longgar dari suite lain: uji ini dijalankan terakhir
+	// dalam rangkaian, saat server sudah melayani belasan suite sebelumnya.
+	// Halaman Hari Ini juga memuat dua permintaan (jadwal + daftar obat),
+	// sehingga lebih lambat daripada halaman lain. Batas 20 detik terbukti
+	// kurang pada beban itu, dan kegagalannya bukan bug aplikasi.
+	await page.waitForURL(/hari-ini/, { timeout: 45000 });
 
 	console.log(`\n──────── ${lebar}px ────────`);
 	for (const jalur of HALAMAN) {
@@ -175,7 +182,7 @@ for (const lebar of [360, 768, 1024, 1440]) {
 // Halaman publik juga diperiksa — landing adalah yang paling mungkin melar.
 console.log(`\n──────── halaman publik (360px) ────────`);
 {
-	const ctx = await browser.newContext({ viewport: { width: 360, height: 800 } });
+	const ctx = await browser.newContext({ viewport: { width: 360, height: 800 }, locale: 'id-ID' });
 	const page = await ctx.newPage();
 	for (const jalur of ['/', '/login', '/register']) {
 		await page.goto(`${BASE}${jalur}`, { waitUntil: 'networkidle' });

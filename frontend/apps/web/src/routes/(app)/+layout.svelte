@@ -8,16 +8,25 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
 	import { APP_NAME } from '$lib/config';
 
 	let { children } = $props();
 
+	/**
+	 * Item navigasi bawah.
+	 *
+	 * Labelnya memakai KUNCI kamus, bukan teks jadi — supaya bahasa berganti
+	 * seketika saat pengguna memilih bahasa lain. Nav bawah ada di semua
+	 * halaman, jadi teks hardcoded di sini akan tetap berbahasa Indonesia
+	 * walau seluruh halaman lain sudah diterjemahkan.
+	 */
 	const navItems = [
-		{ href: '/hari-ini', label: 'Hari Ini', icon: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z' },
-		{ href: '/obat', label: 'Obat', icon: 'M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7ZM8.5 8.5l7 7' },
-		{ href: '/riwayat', label: 'Riwayat', icon: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2' },
-		{ href: '/caregiver', label: 'Caregiver', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
-		{ href: '/pengaturan', label: 'Atur', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z' }
+		{ href: '/hari-ini', key: 'nav.hari_ini', icon: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z' },
+		{ href: '/obat', key: 'nav.obat', icon: 'M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7ZM8.5 8.5l7 7' },
+		{ href: '/riwayat', key: 'nav.riwayat', icon: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2' },
+		{ href: '/caregiver', key: 'nav.caregiver', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+		{ href: '/pengaturan', key: 'nav.pengaturan', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z' }
 	];
 
 	let current = $derived(page.url.pathname);
@@ -50,7 +59,7 @@
 					class="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					onclick={signOut}
 				>
-					Keluar
+					{i18n.t('common.sign_out')}
 				</button>
 			</div>
 		</div>
@@ -79,7 +88,7 @@
 						<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 							<path d={item.icon} />
 						</svg>
-						{item.label}
+						{i18n.t(item.key)}
 					</a>
 				</li>
 			{/each}

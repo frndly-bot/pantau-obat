@@ -18,6 +18,7 @@
 	import { Badge, Button, Card, CardContent, Input, Label, Skeleton } from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
+	import { computeRatio, formatRatio } from '$lib/dose-logic';
 
 	let logs = $state<MedicationLog[]>([]);
 	let medNames = $state<Record<string, string>>({});
@@ -25,6 +26,23 @@
 	let error = $state<string | null>(null);
 	let exporting = $state(false);
 	let exportError = $state<string | null>(null);
+
+	/**
+	 * Ringkasan kepatuhan rentang terpilih.
+	 *
+	 * Memakai `computeRatio` yang SAMA seperti halaman Hari Ini dan server,
+	 * supaya dua layar tidak pernah menampilkan angka berbeda untuk hari yang
+	 * sama. Versi lama halaman ini menghitung `(taken + late) / total`,
+	 * sementara server hanya memasukkan `taken` — jadi angkanya selalu lebih
+	 * tinggi dari laporan server.
+	 */
+	let ringkasan = $derived.by(() => {
+		const ratio = computeRatio(logs);
+		const taken = logs.filter((l) => l.status === 'taken').length;
+		const late = logs.filter((l) => l.status === 'late').length;
+		const skipped = logs.filter((l) => l.status === 'skipped').length;
+		return { ratio, taken, late, skipped, total: logs.length, teks: formatRatio(ratio) };
+	});
 
 	/** Rentang bawaan: 30 hari terakhir. */
 	let to = $state('');
@@ -167,6 +185,41 @@
 	<h1 class="text-2xl font-semibold tracking-tight">Riwayat</h1>
 	<p class="mt-1 text-sm text-muted-foreground">Catatan dosis Anda.</p>
 </div>
+
+<!-- Ringkasan kepatuhan. Angkanya memakai aturan yang sama dengan server,
+     sehingga tidak mungkin berbeda dari laporan di tempat lain. -->
+{#if !loading && !error && logs.length > 0}
+	<Card class="mb-4">
+		<CardContent class="py-4">
+			<div class="flex items-baseline justify-between gap-3">
+				<div>
+					<p class="text-2xl font-semibold tabular-nums">{ringkasan.teks}</p>
+					<p class="mt-0.5 text-xs text-muted-foreground">kepatuhan pada rentang ini</p>
+				</div>
+				<p class="text-xs text-muted-foreground tabular-nums">{ringkasan.total} catatan</p>
+			</div>
+			<dl class="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3 text-center">
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Diminum</dt>
+					<dd class="text-sm font-semibold tabular-nums">{ringkasan.taken}</dd>
+				</div>
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Terlambat</dt>
+					<dd class="text-sm font-semibold tabular-nums">{ringkasan.late}</dd>
+				</div>
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Dilewati</dt>
+					<dd class="text-sm font-semibold tabular-nums">{ringkasan.skipped}</dd>
+				</div>
+			</dl>
+			{#if ringkasan.ratio === null}
+				<p class="mt-2 text-center text-[11px] text-muted-foreground">
+					Belum ada dosis yang bisa dinilai pada rentang ini.
+				</p>
+			{/if}
+		</CardContent>
+	</Card>
+{/if}
 
 <!-- ============ Filter ============ -->
 <Card>

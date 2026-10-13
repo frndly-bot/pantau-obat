@@ -112,7 +112,7 @@
   },
   "today": {
     "today_s_adherence": "Today's adherence",
-    "recorded": "recorded",
+    "recorded": "logged",
     "doses_recorded_out": "doses recorded out of",
     "scheduled_today": "scheduled today",
     "waiting": "waiting",
@@ -165,7 +165,28 @@
     "additional_note": "Additional note",
     "skip_dose": "Skip dose",
     "dose_skipped": "Dose skipped",
-    "no_reason_given_stock_not_deducted": "No reason given. Stock is not deducted."
+    "no_reason_given_stock_not_deducted": "No reason given. Stock is not deducted.",
+    "due": "Not logged yet",
+    "status": "Status",
+    "note": "Note",
+    "correct_note": "Correct the record",
+    "correct_status": "Correct status",
+    "taken_at_time": "Time taken",
+    "save_correction": "Save correction",
+    "how_long": "How long",
+    "minutes": "minutes",
+    "snooze_note": "The reminder will be sent again after that time. The dose stays in the list until logged or skipped.",
+    "skip_note": "A skipped dose does not reduce stock and is still recorded in history.",
+    "correct_note_body": "Changing a record also adjusts the stock balance, because every balance change goes through the same transaction.",
+    "prn_hint": "PRN logs are created without a schedule, so they may be logged several times a day.",
+    "prn_unscheduled_hint": "Not scheduled — logged only when actually taken.",
+    "no_doses_title": "No doses scheduled today",
+    "no_doses_hint": "Add a medication with its schedule to start tracking daily doses.",
+    "no_data_today": "No doses can be assessed yet today.",
+    "adherence": "adherence",
+    "reason_example": "e.g. forgot, vomited, medication unavailable",
+    "prn_reason_example": "e.g. fever, pain",
+    "hello": "Hello"
   },
   "meds": {
     "active_medications": "Active medications",
@@ -340,7 +361,8 @@
     "archived_2": "Archived",
     "private": "Private",
     "publish_unpublish_presets": "Publish/unpublish presets",
-    "list_presets_publish_unpublish_archive": "List presets; publish/unpublish/archive"
+    "list_presets_publish_unpublish_archive": "List presets; publish/unpublish/archive",
+    "manage_medications": "Manage medications"
   },
   "medDetail": {
     "recorded_adherence": "Recorded adherence",
@@ -472,7 +494,10 @@
     "change_range_medication_status_filter": "Change the range, medication, or status filter.",
     "scheduled": "scheduled",
     "recorded": "recorded",
-    "recorded_by_caregiver": "recorded by a caregiver"
+    "recorded_by_caregiver": "recorded by a caregiver",
+    "adherence_range": "adherence in this range",
+    "records_count": "records",
+    "no_data_range": "No doses can be assessed in this range."
   },
   "caregiver": {
     "two_way_monitoring_who_watches_me_whom_i_watch": "Two-way monitoring: who watches me, whom I watch",
