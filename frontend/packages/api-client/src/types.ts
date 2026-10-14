@@ -120,6 +120,16 @@ export interface LoginInput {
 	password: string;
 }
 
+export interface ForgotPasswordInput {
+	email: string;
+}
+
+export interface ResetPasswordInput {
+	/** Token dari tautan yang dikirim lewat email. */
+	token: string;
+	password: string;
+}
+
 export interface ChangePasswordInput {
 	current_password: string;
 	new_password: string;

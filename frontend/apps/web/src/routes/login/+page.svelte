@@ -141,6 +141,12 @@ async function onSubmit(event: SubmitEvent) {
 					/>
 				</div>
 
+				<div class="text-right">
+					<a href="/lupa-sandi" class="text-sm font-medium text-primary underline-offset-4 hover:underline">
+						{i18n.t('auth.forgot_link')}
+					</a>
+				</div>
+
 				{#if error}
 					<p class="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive" role="alert">
 						{error}

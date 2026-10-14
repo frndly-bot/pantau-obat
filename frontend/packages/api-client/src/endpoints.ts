@@ -22,6 +22,7 @@ import type {
 	CreatePrnLogInput,
 	DaySlot,
 	DeviceToken,
+	ForgotPasswordInput,
 	InAppNotification,
 	LoginInput,
 	Medication,
@@ -31,6 +32,7 @@ import type {
 	NotificationPrefs,
 	RegisterDeviceInput,
 	RegisterInput,
+	ResetPasswordInput,
 	Refs,
 	RestockInput,
 	SetStockInput,
@@ -57,6 +59,19 @@ export function createApi(client: ApiClient) {
 			me: () => client.get<User>('/auth/me'),
 			changePassword: (input: ChangePasswordInput) =>
 				client.post<void>('/auth/change-password', input),
+
+			// Pemulihan sandi. Keduanya endpoint PUBLIK: pemanggilnya justru
+			// orang yang tidak bisa masuk.
+			//
+			// `forgotPassword` SELALU berhasil bila alamatnya berbentuk sah,
+			// termasuk untuk email yang tidak terdaftar. Itu disengaja di
+			// backend: kalau endpoint ini membedakan keduanya, siapa pun bisa
+			// memakainya untuk memeriksa apakah seseorang punya akun di sini.
+			// Karena itu UI TIDAK BOLEH menyimpulkan apa pun dari balasannya.
+			forgotPassword: (input: ForgotPasswordInput) =>
+				client.post<{ sent: boolean; note: string }>('/auth/forgot-password', input),
+			resetPassword: (input: ResetPasswordInput) =>
+				client.post<{ reset: boolean; note: string }>('/auth/reset-password', input),
 		},
 
 		/* ---------------- Profil ---------------- */
