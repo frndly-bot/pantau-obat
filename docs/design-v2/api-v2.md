@@ -61,7 +61,14 @@ ke user. `details` = array opsional.
 | `STOCK_INSUFFICIENT` | 409 | pengurangan stok melebihi saldo |
 | `CATALOG_IMMUTABLE` | 409 | mencoba mengubah preset publik |
 | `RATE_LIMITED` | 429 | kuota terlampaui |
+| `SNOOZE_LIMIT` | 429 | dosis ini sudah ditunda 3×; kini dianggap terlewat |
+| `NOT_AVAILABLE` | 503 | fitur opsional belum dikonfigurasi operator (mis. penyimpanan foto) |
 | `INTERNAL` | 500 | bug server |
+
+`SNOOZE_LIMIT` sengaja dipisah dari `RATE_LIMITED`: yang satu soal kuota
+permintaan, yang lain soal aturan dosis. Klien menampilkan pesan berbeda
+untuk keduanya — pengguna yang membaca "terlalu banyak permintaan" akan
+mencoba lagi nanti, padahal mencoba lagi tidak akan berhasil sampai besok.
 
 ### Aturan lain
 
@@ -95,6 +102,22 @@ ke user. `details` = array opsional.
 | POST | `/auth/logout` | cookie | cabut sesi ini, atau semua dengan `all_devices=true` |
 | GET | `/auth/me` | bearer | profil + `role` + `admin_scope` |
 | POST | `/auth/change-password` | bearer | cabut seluruh sesi lain |
+| POST | `/auth/forgot-password` | — | kirim tautan pemulihan; **selalu** balas sukses |
+| POST | `/auth/reset-password` | — | tukar token jadi sandi baru; cabut semua sesi |
+
+**Lupa sandi.** `POST /auth/forgot-password` menerima `{"email"}` dan
+SELALU membalas `200 {"sent": true}`, termasuk untuk alamat yang tidak
+terdaftar. Ini disengaja: bila endpoint membedakan keduanya, siapa pun bisa
+memakainya untuk memeriksa apakah seseorang punya akun di sini — dan pada
+aplikasi kesehatan, keanggotaan itu sendiri sudah informasi pribadi.
+Batasnya: satu permintaan per alamat per menit (dijawab `429
+RATE_LIMITED`), dan token berumur 15 menit serta sekali pakai.
+
+`POST /auth/reset-password` menerima `{"token", "password"}`. Berbeda dari
+endpoint di atas, endpoint ini MEMBERI TAHU bila tokennya tidak sah — di
+sini pengguna sudah memegang tokennya, jadi tidak ada informasi baru yang
+bocor, dan menyembunyikannya hanya membuat pengguna menunggu surat yang
+tidak akan datang. Sukses berarti seluruh sesi lain dicabut.
 
 ```json
 // POST /api/v1/auth/register
@@ -182,6 +205,22 @@ nama dagang, nama generik, `rxterm`, nama ATC level 5, dan bentuk sediaan.
 | PATCH | `/medications/{id}` | bearer | owner, caregiver manager | ubah data obat; jadwal terpisah |
 | DELETE | `/medications/{id}` | bearer | owner, caregiver manager | soft-delete obat + jam, log dipertahankan |
 | GET | `/medications/{id}/adherence` | bearer | owner, caregiver viewer/helper/manager | `?from=&to=` |
+| POST | `/medications/{id}/photo` | bearer | owner | unggah foto resep (`multipart`, field `file`) |
+| GET | `/medications/{id}/photo` | bearer | owner | sajikan foto resep |
+| DELETE | `/medications/{id}/photo` | bearer | owner | hapus foto resep |
+
+**Foto resep.** Hanya pemilik yang boleh mengaksesnya — berbeda dari
+`GET /medications/{id}` yang juga terbuka untuk caregiver, karena foto
+resep memuat identitas pasien. Foto disajikan lewat server ini, bukan
+dialihkan ke object storage: CSP aplikasi menetapkan `connect-src 'self'`,
+dan URL penyimpanan tidak perlu dibuka ke publik.
+
+Yang disimpan di kolom `prescription_photo_url` adalah KUNCI OBJEK
+(`photos/<owner>/<medication>/<waktu>.jpg`), bukan URL. Tautan ke bucket
+privat adalah tautan bertanda tangan yang berlaku terbatas, sehingga URL
+yang disimpan akan menjadi tautan mati dalam hitungan menit. Nama kolomnya
+dipertahankan demi kompatibilitas klien. Batas 8 MiB; jenis berkas
+diperiksa dari isinya, bukan dari header yang dikirim klien.
 
 Field input lengkap (semua sesuai kolom schema):
 
@@ -203,7 +242,7 @@ Field input lengkap (semua sesuai kolom schema):
   "end_date": null,
   "notes": "Minum setelah sarapan",
   "notes_reminder": "Jangan lupa tensi pagi",
-  "prescription_photo_url": "https://cdn.example.com/rx/abc123.jpg",
+  "prescription_photo_url": "photos/019ccc.../019ddd.../1730000000000000000.jpg",
   "color_tag": "#4F46E5",
   "frequency": {
     "pattern": "daily",
