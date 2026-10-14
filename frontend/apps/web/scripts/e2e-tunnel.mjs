@@ -133,7 +133,10 @@ if (token) {
 
 // ── Halaman publik tetap bisa diakses tanpa sesi ──
 console.log('\n── Halaman publik ──');
-const ctxAnon = await browser.newContext({ viewport: { width: 390, height: 844 } });
+// `locale: 'id-ID'` — aplikasi menghormati bahasa peramban, sedangkan bawaan
+// Playwright adalah `en-US`. Tanpa ini halaman tampil berbahasa Inggris dan
+// pola teks Indonesia di bawah gagal karena alasan yang salah.
+const ctxAnon = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'id-ID' });
 const anon = await ctxAnon.newPage();
 for (const [jalur, harapan] of [
 	['/', /pantau obat/i],
