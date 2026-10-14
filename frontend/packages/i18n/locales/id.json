@@ -199,7 +199,7 @@
     "save_correction": "Simpan koreksi",
     "how_long": "Berapa lama",
     "minutes": "menit",
-    "snooze_note": "Pengingat akan dikirim ulang setelah waktu tersebut. Dosis tetap terlihat di daftar sampai dicatat atau dilewati.",
+    "snooze_note": "Pengingat akan dikirim ulang setelah waktu tersebut. Dosis tetap terlihat di daftar sampai dicatat atau dilewati. Bisa ditunda paling banyak tiga kali — setelah itu dosis dianggap terlewat.",
     "skip_note": "Dosis yang dilewati tidak mengurangi stok dan tetap tercatat di riwayat.",
     "correct_note_body": "Mengubah catatan akan menyesuaikan kembali saldo stok, karena setiap perubahan saldo lewat satu transaksi yang sama.",
     "prn_hint": "Log PRN dibuat tanpa jadwal, jadi boleh dicatat berkali-kali dalam sehari.",

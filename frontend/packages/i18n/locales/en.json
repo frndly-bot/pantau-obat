@@ -199,7 +199,7 @@
     "save_correction": "Save correction",
     "how_long": "How long",
     "minutes": "minutes",
-    "snooze_note": "The reminder will be sent again after that time. The dose stays in the list until logged or skipped.",
+    "snooze_note": "The reminder will be sent again after that time. The dose stays in the list until logged or skipped. It can be postponed at most three times — after that the dose counts as missed.",
     "skip_note": "A skipped dose does not reduce stock and is still recorded in history.",
     "correct_note_body": "Changing a record also adjusts the stock balance, because every balance change goes through the same transaction.",
     "prn_hint": "PRN logs are created without a schedule, so they may be logged several times a day.",

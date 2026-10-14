@@ -519,9 +519,13 @@
 				{/each}
 			</div>
 		</div>
-		<!-- Naskah ini sengaja TIDAK menjanjikan eskalasi: batas tiga kali
-		     tunda belum ditegakkan di server, dan mengumumkan aturan yang
-		     tidak berjalan lebih merusak daripada tidak menjanjikannya. -->
+		<!-- Naskah ini MENYEBUT batas tiga kali tunda, dan itu baru benar
+		     sekarang: sebelumnya kalimatnya sengaja dihilangkan karena
+		     batasnya hanya didefinisikan di kode tanpa pernah diperiksa,
+		     sehingga mengumumkannya akan menjadi janji kosong. Server kini
+		     menegakkannya, jadi pengguna justru perlu tahu lebih dulu —
+		     penolakan pada percobaan keempat akan membingungkan bila
+		     aturannya baru muncul saat itu. -->
 		<div class="rounded-lg border border-border bg-muted/40 px-3.5 py-3 text-xs text-muted-foreground">
 			{i18n.t('today.snooze_note')}
 		</div>

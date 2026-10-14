@@ -68,6 +68,7 @@ SUITES=(
 	e2e-caregiver
 	e2e-caregiver-pasien
 	e2e-lupa-sandi
+	e2e-batas-tunda
 	e2e-pengaturan
 	e2e-pengaturan-form
 	e2e-terima-undangan
