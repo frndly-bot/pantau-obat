@@ -65,4 +65,13 @@ var (
 
 	// ErrRateLimited = kuota permintaan terlampaui.
 	ErrRateLimited = errors.New("terlalu banyak permintaan")
+
+	// ErrSnoozeLimit = batas penundaan beruntun untuk satu dosis tercapai.
+	//
+	// Dipisah dari ErrValidation karena akibatnya berbeda bagi pengguna:
+	// ini bukan "input salah", melainkan aturan yang sengaja menahan
+	// penundaan tanpa akhir. Klien perlu membedakannya supaya bisa
+	// menjelaskan bahwa dosisnya kini dianggap terlewat, bukan menyuruh
+	// pengguna memperbaiki isian.
+	ErrSnoozeLimit = errors.New("batas penundaan untuk dosis ini sudah tercapai")
 )

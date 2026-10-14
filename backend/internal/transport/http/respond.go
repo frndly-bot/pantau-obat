@@ -70,7 +70,16 @@ const (
 	CodeCatalogImmutable   = "CATALOG_IMMUTABLE"
 	CodeCatalogDuplicate   = "CATALOG_DUPLICATE_NAME"
 	CodeRateLimited        = "RATE_LIMITED"
-	CodeInternal           = "INTERNAL"
+	// CodeSnoozeLimit dipisah dari RATE_LIMITED: yang satu soal kuota
+	// permintaan, yang lain soal aturan penundaan dosis. Klien menampilkan
+	// pesan berbeda untuk keduanya.
+	CodeSnoozeLimit = "SNOOZE_LIMIT"
+	// CodeNotAvailable: fitur opsional yang belum dikonfigurasi operator
+	// (mis. penyimpanan foto). Berbeda dari INTERNAL karena tidak ada yang
+	// rusak — hanya belum dinyalakan — dan berbeda dari VALIDATION_FAILED
+	// karena pengguna tidak bisa memperbaikinya sendiri.
+	CodeNotAvailable = "NOT_AVAILABLE"
+	CodeInternal     = "INTERNAL"
 )
 
 // FieldIssue menjelaskan satu masalah pada satu field.
@@ -154,6 +163,12 @@ func MapDomainError(err error) (status int, code, message string) {
 		return http.StatusConflict, CodeCatalogDuplicate, "nama katalog itu sudah dipakai"
 	case errors.Is(err, domain.ErrRateLimited):
 		return http.StatusTooManyRequests, CodeRateLimited, "terlalu banyak permintaan"
+	case errors.Is(err, domain.ErrSnoozeLimit):
+		// 429, bukan 400: permintaannya sah, hanya ditolak karena batas
+		// percobaan. Klien memakai status ini untuk menjelaskan bahwa
+		// dosisnya kini dianggap terlewat — bukan menyuruh memperbaiki isian.
+		return http.StatusTooManyRequests, CodeSnoozeLimit,
+			"dosis ini sudah ditunda tiga kali; sekarang dianggap terlewat"
 	default:
 		return http.StatusInternalServerError, CodeInternal, "terjadi kesalahan pada server"
 	}

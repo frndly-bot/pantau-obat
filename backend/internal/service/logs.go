@@ -528,8 +528,42 @@ func (s *Logs) Snooze(ctx context.Context, ownerID, medicationID, scheduleID str
 		}
 
 		// Batas tiga snooze beruntun per dosis, sesuai TRD bagian D2.
-		// Lewat batas itu, dosis dianggap terlewat dan tidak boleh terus
-		// ditunda — kalau tidak, pengingatnya berputar tanpa akhir.
+		//
+		// Sebelumnya konstanta `MaxConsecutiveSnoozes` hanya DIDEFINISIKAN
+		// dan tidak pernah diperiksa, sehingga pengingat bisa ditunda tanpa
+		// batas. Pada aplikasi kesehatan, aturan yang diumumkan tapi tidak
+		// dijalankan lebih merusak daripada fitur yang tidak pernah
+		// dijanjikan: pengguna mengandalkannya untuk mengambil keputusan.
+		//
+		// Dihitung dari jejak audit, bukan dari kolom baru: snooze memang
+		// tidak punya baris tersendiri (ia tidak membuat catatan dosis),
+		// jadi audit adalah satu-satunya tempat jejaknya tersimpan.
+		dipakai, err := s.db.CountSnoozesForOccurrence(ctx, tx, ownerID, scheduleID)
+		if err != nil {
+			return err
+		}
+		if dipakai >= domain.MaxConsecutiveSnoozes {
+			// Dicatat juga supaya penolakan terlihat di jejak — pengguna
+			// yang bertanya "kenapa tidak bisa ditunda lagi" punya
+			// jawaban yang bisa diperiksa, bukan hanya pesan sesaat.
+			_ = s.db.WriteAudit(ctx, tx, postgres.AuditEntry{
+				ActorID:      &ownerID,
+				OwnerID:      &ownerID,
+				ActorRole:    string(domain.ActorUser),
+				Action:       postgres.ActionUpdate,
+				ResourceType: postgres.ResourceLog,
+				ResourceID:   &scheduleID,
+				IP:           meta.IP,
+				UserAgent:    meta.UserAgent,
+				Meta: map[string]any{
+					"snooze_rejected": "limit_reached",
+					"limit":           domain.MaxConsecutiveSnoozes,
+					"medication_id":   medicationID,
+				},
+			})
+			return domain.ErrSnoozeLimit
+		}
+
 		return s.db.WriteAudit(ctx, tx, postgres.AuditEntry{
 			ActorID:      &ownerID,
 			OwnerID:      &ownerID,
@@ -541,6 +575,7 @@ func (s *Logs) Snooze(ctx context.Context, ownerID, medicationID, scheduleID str
 			UserAgent:    meta.UserAgent,
 			Meta: map[string]any{
 				"snooze_minutes": minutes,
+				"snooze_number":  dipakai + 1,
 				"medication_id":  medicationID,
 			},
 		})

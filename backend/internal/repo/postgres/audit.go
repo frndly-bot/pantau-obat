@@ -150,3 +150,35 @@ const (
 	ResourceAdmin  = "admin"
 	ResourceRetain = "retention"
 )
+
+// CountSnoozesForOccurrence menghitung berapa kali satu jam jadwal sudah
+// ditunda pada hari ini.
+//
+// KENAPA DARI JEJAK AUDIT, BUKAN KOLOM TERSENDIRI
+//
+// Snooze sengaja TIDAK membuat catatan dosis: yang digeser adalah waktu
+// pengingat, bukan keadaan dosisnya. Karena itu tidak ada baris di
+// `medication_logs` yang bisa dihitung. Jejak audit adalah satu-satunya
+// tempat penundaan tercatat, dan setiap snooze memang menulis satu baris ke
+// sana — termasuk penolakan karena batas tercapai.
+//
+// Batas harinya memakai tanggal WIB sebagai acuan karena `slot_date` dosis
+// disimpan dalam zona pemilik, dan hari itulah yang dimaksud pengguna saat
+// ia menunda "dosis pagi ini".
+func (db *DB) CountSnoozesForOccurrence(ctx context.Context, q Querier, ownerID, scheduleID string) (int, error) {
+	var n int
+	err := q.QueryRow(ctx, `
+        SELECT count(*)
+          FROM audit_log
+         WHERE owner_id = $1
+           AND resource_type = $2
+           AND resource_id = $3
+           AND meta ? 'snooze_minutes'
+           AND (created_at AT TIME ZONE 'Asia/Jakarta')::date
+               = (now() AT TIME ZONE 'Asia/Jakarta')::date`,
+		ownerID, ResourceLog, scheduleID).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("menghitung penundaan dosis: %w", err)
+	}
+	return n, nil
+}
