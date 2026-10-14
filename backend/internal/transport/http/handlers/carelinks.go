@@ -22,6 +22,10 @@ type CareLinks struct {
 	Stock  *service.Stock
 	Adh    *service.Adherence
 	Users  *service.Users
+	// Sched dipakai untuk menampilkan JADWAL pasien, bukan hanya catatan
+	// yang sudah ada. Tanpa ini caregiver tidak bisa melihat dosis yang
+	// belum dicatat — dan justru itulah yang paling perlu ditindak.
+	Sched  *service.Schedule
 	Logger *slog.Logger
 
 	// PublicURL dipakai untuk menyusun tautan undangan. Nilainya dari
@@ -33,11 +37,11 @@ type CareLinks struct {
 func NewCareLinks(
 	svc *service.CareLinks, logSvc *service.Logs, meds *service.Medications,
 	stock *service.Stock, adh *service.Adherence, users *service.Users,
-	logger *slog.Logger,
+	sched *service.Schedule, logger *slog.Logger,
 ) *CareLinks {
 	return &CareLinks{
 		Svc: svc, LogSvc: logSvc, Meds: meds, Stock: stock,
-		Adh: adh, Users: users, Logger: logger,
+		Adh: adh, Users: users, Sched: sched, Logger: logger,
 	}
 }
 
@@ -52,6 +56,7 @@ func (h *CareLinks) Routes(r chi.Router) {
 
 	// Dashboard caregiver: seluruh jalur di bawah /care/{ownerId}
 	r.Get("/care/{ownerId}/overview", h.Overview)
+	r.Get("/care/{ownerId}/schedule", h.Schedule)
 	r.Get("/care/{ownerId}/medications", h.Medications)
 	r.Get("/care/{ownerId}/adherence", h.Adherence)
 	r.Get("/care/{ownerId}/logs", h.ListLogs)
@@ -348,9 +353,20 @@ func (h *CareLinks) Overview(w http.ResponseWriter, r *http.Request) {
 		},
 		"medications": items,
 		"permissions": map[string]any{
-			"can_read":        acc.CanRead,
-			"can_write_log":   acc.CanWrite,
-			"can_manage_meds": false, // caregiver tidak pernah boleh kelola obat
+			"can_read":      acc.CanRead,
+			"can_write_log": acc.CanWrite,
+			// Dihitung dari peran, BUKAN dipatok false.
+			//
+			// Sebelumnya baris ini menulis `false` dengan komentar "caregiver
+			// tidak pernah boleh kelola obat". Itu tidak lagi benar: peran
+			// `manager` sudah ada sejak migrasi 00026, dan endpoint kelola
+			// obat untuk manager sudah terpasang. Nilai yang dipatok membuat
+			// UI menyembunyikan tombol yang seharusnya ada — pengguna tidak
+			// bisa mengelola obat pasien meski perannya mengizinkan.
+			//
+			// `acc.Link` bisa nil (mis. pemilik melihat datanya sendiri),
+			// jadi diperiksa dulu seperti di `careRoleOf`.
+			"can_manage_meds": acc.Link != nil && acc.Link.Role.CanManageMedications(),
 			"role":            careRoleOf(acc),
 		},
 	})
@@ -490,6 +506,60 @@ func (h *CareLinks) ListLogs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Schedule menangani GET /api/v1/care/{ownerId}/schedule.
+//
+// KENAPA ENDPOINT INI ADA
+//
+// `GET /care/{ownerId}/logs` hanya mengembalikan dosis yang SUDAH dicatat.
+// Tanpa jadwal, caregiver tidak bisa melihat dosis yang belum dicatat —
+// padahal justru itulah yang perlu ditindak: pasien lupa minum, dan
+// pendampingnya tidak punya cara mengetahuinya.
+//
+// Endpoint `POST /care/{ownerId}/logs` juga butuh `schedule_id`, yang hanya
+// bisa didapat dari sini. Jadi tanpa endpoint ini, mencatat atas nama pasien
+// tidak mungkin dilakukan sama sekali.
+//
+// Perhitungannya memakai service Schedule yang sama dengan jadwal milik
+// pengguna sendiri, dengan `OwnerID` = pasien. Bentuk responsnya identik
+// (`slotResponse`), sehingga klien bisa memakai tipe `DaySlot` yang sama.
+func (h *CareLinks) Schedule(w http.ResponseWriter, r *http.Request) {
+	acc, owner, ok := h.requireAccess(w, r)
+	if !ok {
+		return
+	}
+
+	// Dosis terlewat TIDAK dihitung ulang di sini: penandaan itu tugas
+	// worker, dan melakukannya saat membaca akan mengubah data pada operasi
+	// GET. Yang ditampilkan adalah keadaan apa adanya.
+	in := service.DayInput{OwnerID: acc.OwnerID, Timezone: owner.Timezone}
+
+	if raw := r.URL.Query().Get("date"); raw != "" {
+		d, err := time.Parse(time.DateOnly, raw)
+		if err != nil {
+			writeMedicationValidation(w, r, errInvalidField("date", "tanggal harus berbentuk YYYY-MM-DD"))
+			return
+		}
+		in.Date = d
+	}
+
+	slots, err := h.Sched.Day(r.Context(), in)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+
+	data := make([]map[string]any, 0, len(slots))
+	for i := range slots {
+		data = append(data, slotResponse(&slots[i]))
+	}
+
+	pohttp.WriteList(w, r, data, pohttp.Page{
+		NextCursor: nil,
+		HasMore:    false,
+		Limit:      len(data),
+	})
+}
+
 // CreateLog menangani POST /api/v1/care/{ownerId}/logs.
 //
 // Hanya helper yang boleh. Viewer ditolak 403 dengan pesan yang membedakan
@@ -513,6 +583,35 @@ func (h *CareLinks) CreateLog(w http.ResponseWriter, r *http.Request) {
 	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
 		writeAuthDecodeError(w, r, err)
 		return
+	}
+
+	// `medication_id` boleh tidak dikirim: ia bisa diambil dari `schedule_id`.
+	//
+	// Sebelumnya field ini WAJIB, dan klien yang hanya mengirim `schedule_id`
+	// — bentuk yang paling wajar, karena id jadwal sudah menunjuk satu obat —
+	// mendapat galat 500 yang menyalahkan server untuk parameter yang kurang.
+	// Sekarang jalur ini melengkapinya sendiri, dan hanya menolak bila
+	// KEDUANYA kosong.
+	if req.MedicationID == "" {
+		if req.ScheduleID == "" {
+			writeMedicationValidation(w, r,
+				errInvalidField("schedule_id", "schedule_id atau medication_id wajib diisi"))
+			return
+		}
+		ownerOfSlot, medOfSlot, err := h.Meds.OwnerOfSchedule(r.Context(), req.ScheduleID)
+		if err != nil {
+			h.writeErr(w, r, err)
+			return
+		}
+		if ownerOfSlot != acc.OwnerID {
+			// Jadwal milik orang lain tidak boleh dipakai, meski caregiver
+			// punya akses ke pasien lain. Tanpa pemeriksaan ini, seorang
+			// caregiver bisa mencatat dosis pada jadwal pasien yang bukan
+			// tanggung jawabnya hanya dengan menebak id.
+			h.writeErr(w, r, domain.ErrNotFound)
+			return
+		}
+		req.MedicationID = medOfSlot
 	}
 
 	in, err := toCareLogInput(req)

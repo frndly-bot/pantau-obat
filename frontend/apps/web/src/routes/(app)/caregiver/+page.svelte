@@ -254,23 +254,34 @@
 			<ul class="space-y-3">
 				{#each received as link (link.id)}
 					<li>
-						<Card>
-							<CardContent class="py-4">
-								<div class="flex items-start justify-between gap-3">
-									<div class="min-w-0">
-										<p class="truncate text-sm font-medium">
-											{relationLabel[link.relation] ?? link.relation}
-										</p>
-										<p class="mt-0.5 text-xs text-muted-foreground">
-											{roleLabel[link.role] ?? link.role}
-										</p>
+						<!-- Kartu pasien bisa DIKLIK menuju halaman detailnya.
+						     Sebelumnya daftar ini tidak bisa diklik sama sekali,
+						     sehingga caregiver hanya bisa melihat nama tanpa
+						     bisa melakukan pekerjaannya. -->
+						<a href="/caregiver/{link.owner_id}" class="block transition-opacity hover:opacity-90">
+							<Card>
+								<CardContent class="py-4">
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0">
+											<p class="truncate text-sm font-medium">
+												{relationLabel[link.relation] ?? link.relation}
+											</p>
+											<p class="mt-0.5 text-xs text-muted-foreground">
+												{roleLabel[link.role] ?? link.role}
+											</p>
+										</div>
+										<Badge variant={statusVariant[link.status] ?? 'outline'}>
+											{statusLabel[link.status] ?? link.status}
+										</Badge>
 									</div>
-									<Badge variant={statusVariant[link.status] ?? 'outline'}>
-										{statusLabel[link.status] ?? link.status}
-									</Badge>
-								</div>
-							</CardContent>
-						</Card>
+									{#if link.status === 'accepted'}
+										<p class="mt-3 text-xs font-medium text-primary">
+											Buka data pasien →
+										</p>
+									{/if}
+								</CardContent>
+							</Card>
+						</a>
 					</li>
 				{/each}
 			</ul>

@@ -578,12 +578,55 @@ export interface UpdateCareLinkInput {
 	role?: CareRole;
 }
 
+/**
+ * Ringkasan pasien yang dipantau caregiver (`GET /care/{ownerId}/overview`).
+ *
+ * Bentuk ini mengikuti respons SERVER apa adanya. Sebelumnya tipe ini
+ * mendeklarasikan `medications_count`, `adherence`, dan `low_stock` yang
+ * tidak pernah dikirim server — sehingga setiap akses ke field itu
+ * menghasilkan `undefined` tanpa peringatan tipe. Kesalahan seperti ini
+ * paling sulit dilacak karena tampilannya hanya "kosong", bukan galat.
+ */
 export interface CareOverview {
-	owner: Pick<User, 'id' | 'full_name' | 'timezone'>;
-	medications_count: number;
-	adherence: AdherenceSummary;
-	low_stock: MedicationStock[];
-	recent_logs: MedicationLog[];
+	owner_id: string;
+	owner_name: string;
+	timezone: string;
+	/** Rentang tanggal yang dihitung, `YYYY-MM-DD`. */
+	from: string;
+	to: string;
+	summary: {
+		scheduled_doses: number;
+		taken_doses: number;
+		late_doses: number;
+		skipped_doses: number;
+		missed_doses: number;
+		pending_doses: number;
+		/** `null` berarti belum ada dosis yang bisa dinilai — bukan 0%. */
+		adherence_ratio: number | null;
+	};
+	/** Kepatuhan per obat pada rentang ini. */
+	medications: Array<{
+		medication_id: string;
+		medication_name: string;
+		color_tag: string | null;
+		scheduled_doses: number;
+		taken_doses: number;
+		missed_doses: number;
+		pending_doses: number;
+		adherence_ratio: number | null;
+	}>;
+	/**
+	 * Apa yang boleh dilakukan caregiver ini — DIHITUNG SERVER dari perannya.
+	 *
+	 * UI memakai ini untuk menyembunyikan tombol, tapi menyembunyikan tombol
+	 * bukan penegakan aturan: server tetap memeriksa setiap permintaan.
+	 */
+	permissions: {
+		can_read: boolean;
+		can_write_log: boolean;
+		can_manage_meds: boolean;
+		role: string | null;
+	};
 }
 
 /* ============================================================

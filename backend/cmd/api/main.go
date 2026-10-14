@@ -442,7 +442,7 @@ func run() error {
 	refsHandler := handlers.NewRefs(refsSvc, logger)
 	notifHandler := handlers.NewNotifications(notifSvc, logger)
 	careHandler := handlers.NewCareLinks(careSvc, logsSvc, medsSvc, stockSvc,
-		adherenceSvc, usersSvc, logger)
+		adherenceSvc, usersSvc, scheduleSvc, logger)
 	// PublicURL diisi dari konfigurasi, BUKAN dari header permintaan.
 	// Tautan undangan yang disusun dari header Host bisa diarahkan penyerang
 	// ke domainnya sendiri, dan caregiver yang mengkliknya akan menyerahkan

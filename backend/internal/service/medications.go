@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -22,6 +23,31 @@ type Medications struct {
 // NewMedications membuat layanan obat.
 func NewMedications(db *postgres.DB, logger *slog.Logger) *Medications {
 	return &Medications{db: db, logger: logger}
+}
+
+// OwnerOfSchedule mengembalikan pemilik sebuah jam jadwal.
+//
+// Dipakai jalur caregiver untuk melengkapi `medication_id` ketika klien
+// hanya mengirim `schedule_id` — bentuk yang paling wajar, karena id jadwal
+// sudah menunjuk satu obat tertentu.
+//
+// Nilai baliknya adalah owner_id, supaya pemanggil bisa memastikan jadwal itu
+// memang milik pasien yang bersangkutan. Tanpa pemeriksaan itu, seorang
+// caregiver bisa mencatat dosis pada jadwal pasien yang bukan tanggung
+// jawabnya hanya dengan menebak id.
+func (s *Medications) OwnerOfSchedule(ctx context.Context, scheduleID string) (ownerID, medicationID string, err error) {
+	var owner, med string
+	err = s.db.Pool().QueryRow(ctx, `
+        SELECT owner_id, medication_id
+          FROM medication_times
+         WHERE id = $1 AND deleted_at IS NULL`, scheduleID).Scan(&owner, &med)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", domain.ErrNotFound
+		}
+		return "", "", fmt.Errorf("membaca pemilik jadwal: %w", err)
+	}
+	return owner, med, nil
 }
 
 // FrequencyInput adalah aturan frekuensi yang diminta klien.

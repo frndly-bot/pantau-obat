@@ -179,6 +179,15 @@ export function createApi(client: ApiClient) {
 			revoke: (id: string) => client.delete<void>(`/care-links/${id}`),
 
 			overview: (ownerId: string) => client.get<CareOverview>(`/care/${ownerId}/overview`),
+			/**
+			 * Jadwal dosis pasien — termasuk yang BELUM dicatat.
+			 *
+			 * `logs` hanya mengembalikan dosis yang sudah dicatat, sehingga
+			 * tanpa ini caregiver tidak bisa melihat dosis yang perlu
+			 * ditindak. `schedule_id` untuk mencatat juga berasal dari sini.
+			 */
+			schedule: (ownerId: string, query?: Query) =>
+				client.get<DaySlot[]>(`/care/${ownerId}/schedule`, query),
 			medications: (ownerId: string, query?: Query) =>
 				client.get<Medication[]>(`/care/${ownerId}/medications`, query),
 			adherence: (ownerId: string, query?: Query) =>
