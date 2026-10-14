@@ -33,6 +33,8 @@ type Config struct {
 	Auth     AuthConfig
 	Push     PushConfig
 	Email    EmailConfig
+	// Storage menampung pengaturan object storage untuk foto resep.
+	Storage  StorageConfig
 	Telegram TelegramConfig
 	Webhook  WebhookConfig
 	Runtime  RuntimeConfig
@@ -103,6 +105,21 @@ func (e EmailConfig) FromAddress() string {
 	return s
 }
 
+// StorageConfig menampung pengaturan object storage S3-compatible.
+//
+// Dipakai untuk foto resep. Bila dikosongkan, fitur foto tidak tersedia —
+// dan aplikasi HARUS tetap jalan tanpanya: mencatat obat tidak boleh
+// bergantung pada tersedianya penyimpanan berkas.
+type StorageConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	UseSSL    bool
+}
+
+// Enabled melaporkan apakah penyimpanan objek dikonfigurasi.
+func (s StorageConfig) Enabled() bool { return s.Endpoint != "" && s.Bucket != "" }
 
 // TelegramConfig menampung pengaturan bot Telegram (v0.2).
 type TelegramConfig struct {
@@ -191,6 +208,13 @@ func Load() (*Config, error) {
 			User:     getEnv("SMTP_USER", ""),
 			Password: getEnv("SMTP_PASSWORD", ""),
 			From:     getEnv("SMTP_FROM", ""),
+		},
+		Storage: StorageConfig{
+			Endpoint:  getEnv("STORAGE_ENDPOINT", ""),
+			AccessKey: getEnv("STORAGE_ACCESS_KEY", ""),
+			SecretKey: getEnv("STORAGE_SECRET_KEY", ""),
+			Bucket:    getEnv("STORAGE_BUCKET", "pantau-obat"),
+			UseSSL:    getEnvBool("STORAGE_USE_SSL", false),
 		},
 		Telegram: TelegramConfig{
 			BotToken:      getEnv("TELEGRAM_BOT_TOKEN", ""),

@@ -323,3 +323,24 @@ func (db *DB) CountActiveMedications(ctx context.Context, q Querier, ownerID str
          WHERE owner_id = $1 AND deleted_at IS NULL AND is_active = true`, ownerID).Scan(&n)
 	return n, err
 }
+
+// SetMedicationPhoto menulis kunci objek foto resep untuk satu obat.
+//
+// Nilai nil mengosongkan kolomnya. Kepemilikan TIDAK diperiksa di sini —
+// pemanggil (service) sudah melakukannya, dan klausa owner_id di bawah tetap
+// disertakan sebagai lapisan kedua supaya kesalahan pemanggil tidak berubah
+// menjadi penulisan lintas pemilik.
+func (db *DB) SetMedicationPhoto(ctx context.Context, q Querier, ownerID, medicationID string, key *string) error {
+	tag, err := q.Exec(ctx, `
+        UPDATE medications
+           SET prescription_photo_url = $3,
+               updated_at = now()
+         WHERE id = $1 AND owner_id = $2`, medicationID, ownerID, key)
+	if err != nil {
+		return fmt.Errorf("menyimpan kunci foto resep: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}

@@ -672,4 +672,58 @@ func validationText(err error) string {
 	return msg
 }
 
+// -----------------------------------------------------------------------------
+// Foto resep
+// -----------------------------------------------------------------------------
+
+// PhotoKey mengembalikan KUNCI objek foto resep obat ini.
+//
+// Yang dikembalikan adalah kunci penyimpanan, bukan URL: URL object storage
+// kedaluwarsa, sedangkan kunci bisa dipakai membuat tautan baru kapan saja.
+// String kosong berarti obat ini belum punya foto.
+//
+// Kepemilikan diperiksa di sini. Tanpa itu, siapa pun yang tahu ID obat
+// orang lain bisa membaca foto resepnya — dan resep memuat nama obat,
+// dosis, dan identitas pasien.
+func (s *Medications) PhotoKey(ctx context.Context, ownerID, medicationID string) (string, error) {
+	var key string
+	err := s.db.WithTx(ctx, func(tx pgx.Tx) error {
+		med, err := s.db.MedicationByID(ctx, tx, medicationID, ownerID)
+		if err != nil {
+			return err
+		}
+		if med.PrescriptionPhotoURL != nil {
+			key = *med.PrescriptionPhotoURL
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// SetPhoto menulis kunci objek foto resep (kosong = menghapus rujukan).
+//
+// Kolomnya bernama `prescription_photo_url` karena itulah janji kontrak di
+// api-v2, dan klien sudah membacanya dengan nama itu. Yang disimpan sekarang
+// adalah kunci objek; namanya tetap demi kompatibilitas. Perubahan makna ini
+// dicatat di sini supaya tidak jadi jebakan bagi yang membaca kode nanti.
+func (s *Medications) SetPhoto(ctx context.Context, ownerID, medicationID, key string) error {
+	if key == "" {
+		return s.db.WithTx(ctx, func(tx pgx.Tx) error {
+			if _, err := s.db.MedicationByID(ctx, tx, medicationID, ownerID); err != nil {
+				return err
+			}
+			return s.db.SetMedicationPhoto(ctx, tx, ownerID, medicationID, nil)
+		})
+	}
+	return s.db.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, err := s.db.MedicationByID(ctx, tx, medicationID, ownerID); err != nil {
+			return err
+		}
+		return s.db.SetMedicationPhoto(ctx, tx, ownerID, medicationID, &key)
+	})
+}
+
 func strPtr(s string) *string { return &s }

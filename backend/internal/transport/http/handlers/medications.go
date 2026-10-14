@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -9,18 +10,22 @@ import (
 
 	"github.com/frndly-bot/pantau-obat/backend/internal/domain"
 	"github.com/frndly-bot/pantau-obat/backend/internal/service"
+	"github.com/frndly-bot/pantau-obat/backend/internal/storage"
 	pohttp "github.com/frndly-bot/pantau-obat/backend/internal/transport/http"
 )
 
 // Medications adalah handler untuk /medications/*.
 type Medications struct {
 	Svc    *service.Medications
+	// Photos menyimpan foto resep. Boleh nil: fitur foto tidak tersedia,
+	// dan endpoint-nya menjawab dengan jelas alih-alih gagal diam-diam.
+	Photos *storage.Photos
 	Logger *slog.Logger
 }
 
 // NewMedications membuat handler obat.
-func NewMedications(svc *service.Medications, logger *slog.Logger) *Medications {
-	return &Medications{Svc: svc, Logger: logger}
+func NewMedications(svc *service.Medications, photos *storage.Photos, logger *slog.Logger) *Medications {
+	return &Medications{Svc: svc, Photos: photos, Logger: logger}
 }
 
 // Routes mendaftarkan endpoint obat beserta jam minumnya.
@@ -41,6 +46,13 @@ func (h *Medications) Routes(r chi.Router) {
 	r.Post("/medications/{id}/times", h.CreateTime)
 	r.Patch("/medications/{id}/times/{tid}", h.UpdateTime)
 	r.Delete("/medications/{id}/times/{tid}", h.DeleteTime)
+
+	// Foto resep. Data kesehatan, jadi: bucket privat, akses lewat server
+	// ini (origin sama, sesuai CSP `connect-src 'self'`), dan tautan baca
+	// berumur pendek.
+	r.Post("/medications/{id}/photo", h.UploadPhoto)
+	r.Get("/medications/{id}/photo", h.GetPhoto)
+	r.Delete("/medications/{id}/photo", h.DeletePhoto)
 }
 
 // -----------------------------------------------------------------------------
@@ -745,4 +757,228 @@ func (h *Medications) writeErr(w http.ResponseWriter, r *http.Request, err error
 			slog.String("error", err.Error()))
 	}
 	pohttp.WriteDomainError(w, r, err)
+}
+
+
+// -----------------------------------------------------------------------------
+// Foto resep
+// -----------------------------------------------------------------------------
+
+// uploadPhotoMaxBody membatasi ukuran tubuh permintaan DI LUAR batas berkas.
+//
+// Batas berkasnya 8 MiB; tubuh multipart membawa tambahan beberapa ratus
+// byte untuk pembungkusnya. Tanpa batas di level HTTP, permintaan raksasa
+// akan dibaca seluruhnya ke memori sebelum ditolak — dan itu cukup untuk
+// menjatuhkan server hanya dengan beberapa permintaan.
+const uploadPhotoMaxBody = storage.MaxPhotoBytes + (1 << 20)
+
+// UploadPhoto menangani POST /api/v1/medications/{id}/photo.
+//
+// Foto diterima sebagai multipart. Berkasnya disimpan di object storage,
+// dan yang ditulis ke database adalah KUNCI objeknya — bukan URL. URL akan
+// kedaluwarsa; kunci bisa dipakai membuat tautan baru kapan saja.
+func (h *Medications) UploadPhoto(w http.ResponseWriter, r *http.Request) {
+	if h.Photos == nil {
+		pohttp.WriteError(w, r, http.StatusServiceUnavailable, pohttp.CodeNotAvailable,
+			"penyimpanan foto resep belum dikonfigurasi di server ini", nil)
+		return
+	}
+
+	id := pohttp.IdentityFrom(r.Context())
+	if id == nil {
+		pohttp.WriteError(w, r, http.StatusUnauthorized, pohttp.CodeUnauthenticated,
+			"sesi tidak valid, silakan masuk lagi", nil)
+		return
+	}
+	medID := chi.URLParam(r, "id")
+
+	// Obat harus ada DAN milik pemanggil. Diperiksa lebih dulu supaya
+	// berkas dari permintaan yang tidak berhak tidak pernah ditulis ke
+	// penyimpanan.
+	if _, err := h.Svc.Get(r.Context(), id.UserID, medID); err != nil {
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, uploadPhotoMaxBody)
+	if err := r.ParseMultipartForm(4 << 20); err != nil {
+		pohttp.WriteError(w, r, http.StatusRequestEntityTooLarge, pohttp.CodeValidationFailed,
+			"berkas terlalu besar; maksimum 8 MiB",
+			map[string]any{"field": "file", "issue": "too_large"})
+		return
+	}
+	defer func() { _ = r.MultipartForm.RemoveAll() }()
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+			"berkas foto wajib disertakan pada field 'file'",
+			map[string]any{"field": "file", "issue": "required"})
+		return
+	}
+	defer func() { _ = file.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(file, storage.MaxPhotoBytes+1))
+	if err != nil {
+		pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+			"berkas tidak bisa dibaca", nil)
+		return
+	}
+	if len(data) > storage.MaxPhotoBytes {
+		pohttp.WriteError(w, r, http.StatusRequestEntityTooLarge, pohttp.CodeValidationFailed,
+			"berkas terlalu besar; maksimum 8 MiB",
+			map[string]any{"field": "file", "issue": "too_large"})
+		return
+	}
+
+	// Jenis berkas diperiksa dari ISI-nya, bukan dari header Content-Type
+	// yang dikirim klien. Header itu mudah dipalsukan; `DetectContentType`
+	// membaca beberapa byte pertama berkas.
+	if ct := detectImageType(data); ct == "" {
+		pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+			"jenis berkas tidak didukung; pakai JPEG, PNG, atau WebP",
+			map[string]any{"field": "file", "issue": "unsupported_type"})
+		return
+	}
+
+	key, err := h.Photos.Upload(r.Context(), id.UserID, medID, data, detectImageType(data))
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "gagal menyimpan foto resep",
+			slog.String("medication_id", medID), slog.String("error", err.Error()))
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+
+	// Kunci lama dibuang setelah yang baru tersimpan, dan kegagalannya tidak
+	// menggagalkan permintaan: yang penting foto baru sudah aman.
+	if old, err := h.Svc.PhotoKey(r.Context(), id.UserID, medID); err == nil && old != "" && old != key {
+		if err := h.Photos.Delete(r.Context(), old); err != nil {
+			h.Logger.WarnContext(r.Context(), "foto lama tidak terhapus",
+				slog.String("key_awal", old[:min(12, len(old))]), slog.String("error", err.Error()))
+		}
+	}
+
+	if err := h.Svc.SetPhoto(r.Context(), id.UserID, medID, key); err != nil {
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+
+	pohttp.WriteJSON(w, r, http.StatusCreated, map[string]any{
+		"uploaded": true,
+		"name":     header.Filename,
+		"bytes":    len(data),
+	})
+}
+
+// GetPhoto menangani GET /api/v1/medications/{id}/photo.
+//
+// Menyajikan berkasnya lewat server ini, bukan mengalihkan ke object
+// storage. Dua alasan:
+//
+//   - CSP aplikasi menetapkan `connect-src 'self'`; gambar dari domain lain
+//     akan diblokir peramban.
+//   - URL object storage tidak perlu dibuka ke publik sama sekali. Berkasnya
+//     keluar hanya lewat jalur yang sudah memeriksa kepemilikan.
+func (h *Medications) GetPhoto(w http.ResponseWriter, r *http.Request) {
+	if h.Photos == nil {
+		pohttp.WriteError(w, r, http.StatusServiceUnavailable, pohttp.CodeNotAvailable,
+			"penyimpanan foto resep belum dikonfigurasi di server ini", nil)
+		return
+	}
+
+	id := pohttp.IdentityFrom(r.Context())
+	if id == nil {
+		pohttp.WriteError(w, r, http.StatusUnauthorized, pohttp.CodeUnauthenticated,
+			"sesi tidak valid, silakan masuk lagi", nil)
+		return
+	}
+	medID := chi.URLParam(r, "id")
+
+	key, err := h.Svc.PhotoKey(r.Context(), id.UserID, medID)
+	if err != nil {
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+	if key == "" {
+		pohttp.WriteError(w, r, http.StatusNotFound, pohttp.CodeNotFound,
+			"obat ini belum punya foto resep", nil)
+		return
+	}
+
+	rc, ct, err := h.Photos.Read(r.Context(), key)
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "gagal membaca foto resep",
+			slog.String("medication_id", medID), slog.String("error", err.Error()))
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+	defer func() { _ = rc.Close() }()
+
+	w.Header().Set("Content-Type", ct)
+	// Foto kesehatan tidak boleh disimpan di cache bersama maupun disimpan
+	// peramban dalam waktu lama.
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, rc); err != nil {
+		h.Logger.WarnContext(r.Context(), "pengiriman foto terputus", slog.String("error", err.Error()))
+	}
+}
+
+// DeletePhoto menangani DELETE /api/v1/medications/{id}/photo.
+func (h *Medications) DeletePhoto(w http.ResponseWriter, r *http.Request) {
+	id := pohttp.IdentityFrom(r.Context())
+	if id == nil {
+		pohttp.WriteError(w, r, http.StatusUnauthorized, pohttp.CodeUnauthenticated,
+			"sesi tidak valid, silakan masuk lagi", nil)
+		return
+	}
+	medID := chi.URLParam(r, "id")
+
+	key, err := h.Svc.PhotoKey(r.Context(), id.UserID, medID)
+	if err != nil {
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+
+	if err := h.Svc.SetPhoto(r.Context(), id.UserID, medID, ""); err != nil {
+		pohttp.WriteDomainError(w, r, err)
+		return
+	}
+
+	// Berkas dibuang SETELAH rujukan di database hilang. Urutan sebaliknya
+	// berisiko meninggalkan rujukan ke berkas yang sudah tidak ada.
+	if h.Photos != nil && key != "" {
+		if err := h.Photos.Delete(r.Context(), key); err != nil {
+			h.Logger.WarnContext(r.Context(), "berkas foto tidak terhapus",
+				slog.String("error", err.Error()))
+		}
+	}
+
+	pohttp.WriteJSON(w, r, http.StatusOK, map[string]any{"deleted": true})
+}
+
+// detectImageType menebak jenis gambar dari isi berkas.
+//
+// Hanya jenis yang bisa ditampilkan peramban yang diterima. SVG sengaja
+// TIDAK diterima: ia bisa memuat skrip, dan berkas yang diunggah pengguna
+// tidak boleh punya kemampuan menjalankan apa pun.
+func detectImageType(data []byte) string {
+	if len(data) < 12 {
+		return ""
+	}
+	switch {
+	case data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
+		return "image/jpeg"
+	case string(data[0:8]) == "\x89PNG\r\n\x1a\n":
+		return "image/png"
+	case string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+		return "image/webp"
+	case string(data[4:8]) == "ftyp":
+		// HEIC/HEIF adalah format bawaan kamera iPhone.
+		brand := string(data[8:12])
+		if brand == "heic" || brand == "heif" || brand == "mif1" || brand == "msf1" {
+			return "image/heic"
+		}
+	}
+	return ""
 }

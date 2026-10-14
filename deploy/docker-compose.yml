@@ -222,6 +222,70 @@ services:
   # menghabiskan seluruh riwayat.
   #
   # Restore: docker compose run --rm db-restore
+  # MailHog — SMTP palsu untuk PENGEMBANGAN.
+  #
+  # KENAPA ADA
+  #
+  # Alur lupa sandi butuh mengirim email. Tanpa SMTP, alurnya tidak bisa
+  # diuji sama sekali — dan menguji dengan SMTP sungguhan berarti mengirim
+  # surat ke alamat orang. MailHog menampung semua surat dan menampilkannya
+  # di UI, jadi tautan reset bisa dibaca tanpa ada yang benar-benar terkirim.
+  #
+  # JANGAN dipakai di produksi: ia menerima surat tanpa autentikasi dan
+  # menampilkan isinya tanpa enkripsi.
+  #
+  #   SMTP  : localhost:1025  (dari host) / mailhog:1025 (dari container)
+  #   UI    : http://localhost:8025
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: po-mailhog
+    restart: unless-stopped
+    # Tanpa autentikasi dan tanpa TLS — memang begitu MailHog dirancang.
+    # Membatasinya di localhost mencegah jaringan lain ikut membaca surat.
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    networks:
+      - internal
+
+  # Silo — object storage S3-compatible untuk foto resep.
+  #
+  # KENAPA pgsty/silo
+  #
+  # Silo adalah fork MinIO yang dirawat komunitas Pigsty. Protokol dan
+  # format datanya tetap sama dengan MinIO (S3 API, variabel MINIO_*), jadi
+  # perkakas dan klien S3 yang ada tetap bekerja.
+  #
+  # Yang disimpan di sini HANYA berkas yang diunggah pengguna (foto resep).
+  # Isi resep adalah data kesehatan, jadi bucket-nya privat dan aksesnya
+  # lewat URL bertanda tangan dengan masa berlaku pendek — bukan URL publik.
+  #
+  #   S3 API  : localhost:9000
+  #   Console : http://localhost:9001
+  silo:
+    image: pgsty/silo:latest
+    container_name: po-silo
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${SILO_ROOT_USER:?SILO_ROOT_USER wajib diisi di deploy/.env}
+      MINIO_ROOT_PASSWORD: ${SILO_ROOT_PASSWORD:?SILO_ROOT_PASSWORD wajib diisi di deploy/.env}
+    volumes:
+      - silodata:/data
+    ports:
+      # Hanya localhost: yang mengunggah adalah backend, bukan browser.
+      # Membuka port ini ke jaringan berarti siapa pun bisa membaca berkas
+      # kesehatan bila kredensialnya bocor.
+      - "127.0.0.1:${SILO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${SILO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mcli", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
   db-backup:
     image: postgres:18-alpine
     container_name: po-db-backup
@@ -386,6 +450,8 @@ volumes:
     name: po-pgdata
   pgbackup:
     name: po-pgbackup
+  silodata:
+    name: po-silodata
 
 networks:
   internal:

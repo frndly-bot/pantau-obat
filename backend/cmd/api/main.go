@@ -24,6 +24,7 @@ import (
 	"github.com/frndly-bot/pantau-obat/backend/internal/config"
 	"github.com/frndly-bot/pantau-obat/backend/internal/repo/postgres"
 	"github.com/frndly-bot/pantau-obat/backend/internal/service"
+	"github.com/frndly-bot/pantau-obat/backend/internal/storage"
 	pohttp "github.com/frndly-bot/pantau-obat/backend/internal/transport/http"
 	"github.com/frndly-bot/pantau-obat/backend/internal/transport/http/handlers"
 	"github.com/frndly-bot/pantau-obat/backend/internal/worker"
@@ -453,9 +454,29 @@ func run() error {
 	// menyerahkan token pemulihannya.
 	resetSvc := service.NewPasswordResetter(db, worker.NewMailerAdapter(emailSender), cfg.PublicURL, logger)
 
+	// Penyimpanan foto resep. Bila belum dikonfigurasi, hasilnya nil dan
+	// fitur fotonya menjawab "belum tersedia" — aplikasi tetap jalan.
+	photos, err := storage.NewPhotos(ctx, storage.Config{
+		Endpoint:  cfg.Storage.Endpoint,
+		AccessKey: cfg.Storage.AccessKey,
+		SecretKey: cfg.Storage.SecretKey,
+		Bucket:    cfg.Storage.Bucket,
+		UseSSL:    cfg.Storage.UseSSL,
+	}, logger)
+	if err != nil {
+		// Kegagalan menyiapkan penyimpanan TIDAK menghentikan aplikasi:
+		// mencatat obat jauh lebih penting daripada melampirkan foto.
+		logger.Warn("penyimpanan foto resep tidak siap; fitur foto dinonaktifkan",
+			slog.String("error", err.Error()))
+		photos = nil
+	} else if photos != nil {
+		logger.Info("penyimpanan foto resep siap",
+			slog.String("endpoint", cfg.Storage.Endpoint),
+			slog.String("bucket", cfg.Storage.Bucket))
+	}
 	authHandler := handlers.NewAuth(authSvc, resetSvc, logger, cfg.IsProduction())
 	usersHandler := handlers.NewUsers(usersSvc, logger)
-	medsHandler := handlers.NewMedications(medsSvc, logger)
+	medsHandler := handlers.NewMedications(medsSvc, photos, logger)
 	logsHandler := handlers.NewLogs(logsSvc, usersSvc, logger)
 	stockHandler := handlers.NewStock(stockSvc, logger)
 	adherenceHandler := handlers.NewAdherence(adherenceSvc, usersSvc, logger)

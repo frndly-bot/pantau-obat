@@ -89,6 +89,20 @@ if [[ -z "${SMTP_HOST:-}" ]]; then
 	export SMTP_PASSWORD=""
 fi
 
+# Penyimpanan foto resep menunjuk container Silo dari compose.
+#
+# Kredensialnya dibaca dari deploy/.env (yang sudah dimuat di atas); di sini
+# hanya alamatnya yang diarahkan ke localhost, karena backend berjalan di
+# host sedangkan Silo ada di dalam Docker.
+export STORAGE_ENDPOINT="${STORAGE_ENDPOINT:-127.0.0.1:9000}"
+export STORAGE_BUCKET="${STORAGE_BUCKET:-pantau-obat}"
+export STORAGE_USE_SSL="${STORAGE_USE_SSL:-false}"
+# Nama variabel Silo memakai awalan MINIO_/SILO_, sedangkan backend membaca
+# STORAGE_*. Dipetakan di sini supaya satu berkas .env bisa dipakai keduanya
+# tanpa menulis nilai yang sama dua kali.
+export STORAGE_ACCESS_KEY="${STORAGE_ACCESS_KEY:-${SILO_ROOT_USER:-}}"
+export STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY:-${SILO_ROOT_PASSWORD:-}}"
+
 cd "$BE_DIR"
 
 if [[ "${1:-}" == "--bg" ]]; then
