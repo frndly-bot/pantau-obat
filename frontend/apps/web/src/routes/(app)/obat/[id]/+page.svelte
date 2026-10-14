@@ -17,7 +17,9 @@
 	import {
 		ApiError,
 		type Medication,
+		type MedicationLog,
 		type MedicationStock,
+		type MedicationTime,
 		type StockTransaction
 	} from '@pantau-obat/api-client';
 	import {
@@ -32,6 +34,7 @@
 	} from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { i18n } from '$lib/i18n.svelte';
+	import { computeRatio, formatRatio } from '$lib/dose-logic';
 	import MedicationEdit from '$lib/components/medication-edit.svelte';
 
 	let med = $state<Medication | null>(null);
@@ -47,6 +50,26 @@
 	let editOpen = $state(false);
 	/** Dialog hentikan / arsipkan obat. */
 	let stopOpen = $state(false);
+	/** Dialog tambah jam minum. */
+	let addTimeOpen = $state(false);
+	let newTime = $state('08:00');
+
+	/** Catatan dosis obat ini. */
+	let logs = $state<MedicationLog[]>([]);
+	let loadingLogs = $state(true);
+
+	const logLabel: Record<string, string> = {
+		taken: 'Sudah diminum',
+		late: 'Terlambat',
+		skipped: 'Dilewati',
+		snoozed: 'Ditunda'
+	};
+	const logVariant: Record<string, 'ok' | 'warn' | 'na' | 'info'> = {
+		taken: 'ok',
+		late: 'warn',
+		skipped: 'na',
+		snoozed: 'info'
+	};
 	let restockOpen = $state(false);
 	let restockQty = $state(30);
 	let restockNote = $state('');
@@ -111,6 +134,17 @@
 		try {
 			med = await api.medications.get(medId);
 			error = null;
+
+			// Catatan dosis obat ini dimuat terpisah: kegagalannya tidak boleh
+			// mengosongkan seluruh halaman, dan obat baru memang belum punya
+			// catatan sama sekali.
+			try {
+				logs = await api.logs.forMedication(medId, { limit: 50 });
+			} catch {
+				logs = [];
+			} finally {
+				loadingLogs = false;
+			}
 			// Stok diambil terpisah: obat boleh tidak punya stok sama sekali.
 			try {
 				stock = await api.stock.get(medId);
@@ -178,6 +212,43 @@
 			await load();
 		} catch (err) {
 			actionError = err instanceof ApiError ? err.message : 'Gagal mengubah status obat.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	/**
+	 * Menambah satu jam minum.
+	 *
+	 * Perubahan jam hanya berlaku untuk dosis KE DEPAN — log yang sudah
+	 * tercatat tidak berubah. Server menegakkan itu; naskahnya menyebutkan
+	 * supaya pengguna tidak mengira riwayatnya ikut berubah.
+	 */
+	async function addTime() {
+		if (busy || !med) return;
+		busy = true;
+		actionError = null;
+		try {
+			await api.medications.addTime(med.id, { time_local: newTime });
+			addTimeOpen = false;
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal menambah jam minum.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** Menghapus satu jam minum. */
+	async function removeTime(t: MedicationTime) {
+		if (busy || !med) return;
+		busy = true;
+		actionError = null;
+		try {
+			await api.medications.removeTime(med.id, t.id);
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal menghapus jam minum.';
 		} finally {
 			busy = false;
 		}
@@ -348,7 +419,15 @@
 	<!-- ============ Jam minum ============ -->
 	<Card class="mt-4">
 		<CardContent class="py-5">
-			<p class="text-sm font-medium">Jam minum</p>
+			<div class="flex items-center justify-between gap-3">
+				<p class="text-sm font-medium">Jam minum</p>
+				{#if med.frequency?.pattern !== 'prn'}
+					<Button size="sm" variant="outline" onclick={() => (addTimeOpen = true)} disabled={busy}>
+						Tambah jam
+					</Button>
+				{/if}
+			</div>
+
 			{#if med.frequency?.pattern === 'prn'}
 				<p class="mt-2 text-xs text-muted-foreground">
 					PRN tidak punya jam tetap. Dosisnya dicatat manual dari halaman Hari Ini.
@@ -359,15 +438,39 @@
 				<ul class="mt-3 flex flex-wrap gap-2">
 					{#each med.times ?? [] as t (t.id)}
 						<li>
-							<Badge variant="outline" class="gap-1.5 py-1 tabular-nums">
+							<!-- Jam bisa dihapus. Mengubah jam HANYA berlaku untuk
+							     dosis ke depan — log yang sudah tercatat tidak
+							     berubah, dan itu disebutkan supaya pengguna tidak
+							     mengira riwayatnya ikut berubah. -->
+							<span class="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs tabular-nums">
 								{t.time_local}
 								{#if t.label}
 									<span class="text-muted-foreground">· {t.label}</span>
 								{/if}
-							</Badge>
+								<button
+									type="button"
+									class="ml-0.5 grid size-5 place-items-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+									aria-label="Hapus jam {t.time_local}"
+									disabled={busy}
+									onclick={() => removeTime(t)}
+								>
+									<svg viewBox="0 0 24 24" class="size-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+										<path d="M18 6 6 18M6 6l12 12" />
+									</svg>
+								</button>
+							</span>
 						</li>
 					{/each}
 				</ul>
+				<p class="mt-3 text-xs text-muted-foreground">
+					Mengubah jam hanya berlaku untuk dosis ke depan. Log yang sudah tercatat tidak berubah.
+				</p>
+			{/if}
+
+			{#if actionError}
+				<p class="mt-3 rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive" role="alert">
+					{actionError}
+				</p>
 			{/if}
 		</CardContent>
 	</Card>
@@ -505,7 +608,97 @@
 	</Dialog>
 {/if}
 
-<!-- ============ Dialog: ubah data obat ============ -->
+	<!-- ============ Riwayat dosis obat ini ============ -->
+	<!-- Sebelumnya halaman ini hanya menampilkan transaksi STOK, bukan catatan
+	     dosis. Padahal pertanyaan yang paling sering muncul saat membuka satu
+	     obat adalah "sudah berapa kali saya minum obat ini?". -->
+	<Card class="mt-4">
+		<CardContent class="space-y-3 py-5">
+			<div class="flex items-center justify-between gap-3">
+				<p class="text-sm font-medium">Riwayat dosis obat ini</p>
+				<Button size="sm" variant="outline" onclick={() => goto('/riwayat')}>
+					Semua riwayat
+				</Button>
+			</div>
+
+			{#if loadingLogs}
+				<Skeleton class="h-16 w-full" />
+			{:else if logs.length === 0}
+				<p class="text-xs text-muted-foreground">
+					Belum ada catatan dosis. Log lahir hanya saat dosis benar-benar dicatat.
+				</p>
+			{:else}
+				<!-- Ringkasan angka memakai aturan yang SAMA dengan server:
+				     pembilang hanya `taken`. Menghitungnya sendiri di sini
+				     akan membuat angka berbeda dari halaman lain. -->
+				<div class="grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/30 py-3 text-center">
+					<div>
+						<p class="text-base font-semibold tabular-nums">{logs.length}</p>
+						<p class="text-[11px] text-muted-foreground">catatan</p>
+					</div>
+					<div>
+						<p class="text-base font-semibold tabular-nums">{formatRatio(computeRatio(logs))}</p>
+						<p class="text-[11px] text-muted-foreground">tepat waktu</p>
+					</div>
+					<div>
+						<p class="text-base font-semibold tabular-nums">
+							{logs.filter((l) => l.status === 'late').length}
+						</p>
+						<p class="text-[11px] text-muted-foreground">terlambat</p>
+					</div>
+				</div>
+
+				<ul class="divide-y divide-border">
+					{#each logs.slice(0, 8) as log (log.id)}
+						<li class="flex items-center justify-between gap-3 py-2.5">
+							<div class="min-w-0">
+								<p class="text-sm tabular-nums">{log.scheduled_time ?? '—'}</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									{log.slot_date}
+									{#if log.source === 'caregiver'}· dicatat pendamping{/if}
+									{#if log.note}· {log.note}{/if}
+								</p>
+							</div>
+							<Badge variant={logVariant[log.status] ?? 'outline'}>
+								{logLabel[log.status] ?? log.status}
+							</Badge>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</CardContent>
+	</Card>
+
+<!-- ============ Dialog: tambah jam minum ============ -->
+<Dialog open={addTimeOpen} title="Tambah jam minum" onopenchange={(v) => !v && (addTimeOpen = false)}>
+	<div class="space-y-4">
+		<p class="text-sm text-muted-foreground">{med?.name}</p>
+
+		<div class="space-y-2">
+			<Label for="nt-time">Jam</Label>
+			<input
+				id="nt-time"
+				type="time"
+				class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+				bind:value={newTime}
+			/>
+		</div>
+
+		<!-- Batas yang disengaja, disebutkan supaya pengguna tidak mengira
+		     riwayatnya ikut berubah. -->
+		<p class="rounded-lg border border-border bg-muted/40 px-3.5 py-3 text-xs text-muted-foreground">
+			Jam baru berlaku untuk dosis ke depan. Log yang sudah tercatat tidak berubah.
+		</p>
+	</div>
+	{#snippet footer()}
+		<div class="flex justify-end gap-2">
+			<Button variant="outline" onclick={() => (addTimeOpen = false)}>Batal</Button>
+			<Button onclick={addTime} disabled={busy || !newTime}>
+				{busy ? 'Menyimpan…' : 'Tambah'}
+			</Button>
+		</div>
+	{/snippet}
+</Dialog>
 <MedicationEdit
 	bind:open={editOpen}
 	{med}

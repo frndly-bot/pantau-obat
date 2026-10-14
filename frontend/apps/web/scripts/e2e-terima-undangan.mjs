@@ -146,7 +146,7 @@ check(
 // ============================================================
 // 2. Belum masuk → diminta masuk → kembali ke undangan
 // ============================================================
-const ctxGuest = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const ctxGuest = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'id-ID' });
 const guest = await ctxGuest.newPage();
 const guestErrs = [];
 guest.on('pageerror', (e) => guestErrs.push(e.message));

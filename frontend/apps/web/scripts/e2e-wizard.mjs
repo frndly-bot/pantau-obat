@@ -10,7 +10,7 @@ const email=`wiz-${Date.now()}@example.com`;
 await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json',Origin:ORIGIN},body:JSON.stringify({email,password,full_name:'Uji Wizard',timezone:'Asia/Jakarta'})});
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2});
+const ctx=await b.newContext({ viewport: {width:390,height:844}, locale: 'id-ID',deviceScaleFactor:2});
 const p=await ctx.newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 

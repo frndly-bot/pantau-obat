@@ -4,9 +4,9 @@
 	 *
 	 * Ada dua peran di halaman ini dan keduanya ditampilkan TERPISAH:
 	 *
-	 * - **Caregiver Anda** — saya pemilik data; saya mengatur siapa yang boleh
+	 * - **{i18n.t('caregiver.section_mine')}** — saya pemilik data; saya mengatur siapa yang boleh
 	 *   melihat atau mencatat.
-	 * - **Undangan untuk Anda** — saya pendamping; saya menunggu/berperan.
+	 * - **{i18n.t('caregiver.section_invites')}** — saya pendamping; saya menunggu/berperan.
 	 *
 	 * Menggabungkannya dalam satu daftar membingungkan: "menunggu" pada baris
 	 * yang saya kirim berarti menunggu ORANG LAIN bertindak, sedangkan pada
@@ -36,6 +36,7 @@
 	} from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
 
 	let links = $state<CareLink[]>([]);
 	/** Relasi tempat SAYA pendamping (dari `?as=caregiver`). */
@@ -180,10 +181,10 @@
 
 <div class="mb-5 flex items-center justify-between gap-3">
 	<div>
-		<h1 class="text-2xl font-semibold tracking-tight">Caregiver</h1>
-		<p class="mt-1 text-sm text-muted-foreground">Orang yang membantu memantau pengobatan.</p>
+		<h1 class="text-2xl font-semibold tracking-tight">{i18n.t('caregiver.page_title')}</h1>
+		<p class="mt-1 text-sm text-muted-foreground">{i18n.t('caregiver.page_sub')}</p>
 	</div>
-	<Button size="sm" onclick={() => (inviteOpen = true)}>Undang</Button>
+	<Button size="sm" onclick={() => (inviteOpen = true)}>{i18n.t('caregiver.invite')}</Button>
 </div>
 
 {#if actionError}
@@ -195,7 +196,7 @@
 <!-- Tautan undangan: hanya tersedia SEKALI, tepat setelah undangan dibuat. -->
 {#if lastInviteUrl}
 	<div class="mb-4 rounded-lg border border-info/40 bg-info/10 px-4 py-3">
-		<p class="text-sm font-medium">Tautan undangan siap dikirim</p>
+		<p class="text-sm font-medium">{i18n.t('caregiver.invite_sent')}</p>
 		<p class="mt-1 text-xs">
 			Kirim tautan ini ke orang yang Anda undang. Demi keamanan, tautan hanya ditampilkan
 			sekali dan tidak bisa dilihat lagi setelah Anda meninggalkan halaman ini.
@@ -205,9 +206,9 @@
 		</p>
 		<div class="mt-2.5 flex gap-2">
 			<Button size="sm" variant="outline" onclick={copyInviteUrl}>
-				{copied ? 'Tersalin' : 'Salin tautan'}
+				{copied ? i18n.t('caregiver.copied') : i18n.t('caregiver.copy_link')}
 			</Button>
-			<Button size="sm" variant="ghost" onclick={() => (lastInviteUrl = null)}>Tutup</Button>
+			<Button size="sm" variant="ghost" onclick={() => (lastInviteUrl = null)}>{i18n.t('common.close')}</Button>
 		</div>
 	</div>
 {/if}
@@ -238,12 +239,12 @@
 	-->
 	<section class="mb-6">
 		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-			Undangan untuk Anda
+			{i18n.t('caregiver.section_invites')}
 		</h2>
 		{#if received.length === 0}
 			<Card>
 				<CardContent class="flex flex-col items-center gap-2 py-10 text-center">
-					<p class="text-sm font-medium">Belum memantau siapa pun</p>
+					<p class="text-sm font-medium">{i18n.t('caregiver.no_watch_title')}</p>
 					<p class="max-w-xs text-xs text-muted-foreground">
 						Anda bisa memantau seseorang setelah mereka mengundang email Anda. Undangan
 						datang lewat email berisi tautan khusus — buka tautan itu untuk menerima.
@@ -276,7 +277,7 @@
 									</div>
 									{#if link.status === 'accepted'}
 										<p class="mt-3 text-xs font-medium text-primary">
-											Buka data pasien →
+											{i18n.t('caregiver.open_patient')}
 										</p>
 									{/if}
 								</CardContent>
@@ -291,17 +292,17 @@
 	<!-- ============ Caregiver yang saya undang ============ -->
 	<section>
 		<h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-			Caregiver Anda
+			{i18n.t('caregiver.section_mine')}
 		</h2>
 		{#if sent.length === 0}
 			<Card>
 				<CardContent class="flex flex-col items-center gap-2 py-10 text-center">
-					<p class="text-sm font-medium">Belum ada caregiver</p>
+					<p class="text-sm font-medium">{i18n.t('caregiver.no_caregiver_title')}</p>
 					<p class="max-w-xs text-xs text-muted-foreground">
 						Undang keluarga atau pendamping agar mereka bisa ikut memantau, tanpa perlu menyerahkan
 						kata sandi Anda.
 					</p>
-					<Button size="sm" class="mt-2" onclick={() => (inviteOpen = true)}>Undang caregiver</Button>
+					<Button size="sm" class="mt-2" onclick={() => (inviteOpen = true)}>{i18n.t('caregiver.invite_caregiver')}</Button>
 				</CardContent>
 			</Card>
 		{:else}
@@ -313,7 +314,7 @@
 								<div class="flex items-start justify-between gap-3">
 									<div class="min-w-0">
 										<p class="truncate text-sm font-medium">
-											{link.invite_email ?? 'Pengguna terdaftar'}
+											{link.invite_email ?? i18n.t('caregiver.registered_user')}
 										</p>
 										<p class="mt-0.5 text-xs text-muted-foreground">
 											{relationLabel[link.relation] ?? link.relation} · {roleLabel[link.role] ?? link.role}
@@ -331,7 +332,7 @@
 											disabled={busy === link.id}
 											onclick={() => revoke(link)}
 										>
-											{busy === link.id ? 'Memproses…' : 'Cabut akses'}
+											{busy === link.id ? i18n.t('caregiver.processing') : i18n.t('caregiver.revoke')}
 										</Button>
 									</div>
 								{/if}
@@ -345,18 +346,18 @@
 {/if}
 
 <!-- ============ Dialog: undang ============ -->
-<Dialog bind:open={inviteOpen} title="Undang caregiver">
+<Dialog bind:open={inviteOpen} title={i18n.t('caregiver.invite_title')}>
 	<div class="space-y-4">
 		<div class="space-y-2">
 			<Label for="i-email">Email</Label>
 			<Input id="i-email" type="email" bind:value={inviteEmail} placeholder="nama@contoh.com" />
 			<p class="text-xs text-muted-foreground">
-				Boleh email yang belum terdaftar. Undangannya menunggu sampai mereka membuat akun.
+				{i18n.t('caregiver.invite_hint')}
 			</p>
 		</div>
 
 		<div class="space-y-2">
-			<Label for="i-rel">Hubungan</Label>
+			<Label for="i-rel">{i18n.t('caregiver.relation')}</Label>
 			<Select
 				id="i-rel"
 				bind:value={inviteRelation}
@@ -373,7 +374,7 @@
 		</div>
 
 		<div class="space-y-2">
-			<Label for="i-role">Peran</Label>
+			<Label for="i-role">{i18n.t('caregiver.role')}</Label>
 			<Select
 				id="i-role"
 				bind:value={inviteRole}
@@ -391,7 +392,7 @@
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" onclick={() => (inviteOpen = false)}>Batal</Button>
 			<Button onclick={sendInvite} disabled={busy === 'invite' || !inviteEmail.trim()}>
-				{busy === 'invite' ? 'Mengirim…' : 'Kirim undangan'}
+				{busy === 'invite' ? i18n.t('caregiver.sending') : i18n.t('caregiver.send_invite')}
 			</Button>
 		</div>
 	{/snippet}

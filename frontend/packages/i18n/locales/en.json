@@ -30,7 +30,8 @@
     "add_medication": "Add medication",
     "main_navigation": "Main navigation",
     "admin_navigation": "Admin navigation",
-    "activate": "Activate"
+    "activate": "Activate",
+    "saving": "Processing…"
   },
   "hub": {
     "pantau_obat_ui_ux_prototype": "Pantau Obat — UI/UX Prototype",
@@ -93,7 +94,10 @@
     "email_phone_time_zone_password": "Email, phone, time zone, password",
     "email_phone_time_zone_password_2": "Email, phone, time zone, password",
     "credentials_admin_example_com_full": "Credentials: admin@example.com (full)",
-    "user_sign": "user sign-in"
+    "user_sign": "user sign-in",
+    "continue_to_schedule": "Continue to your medication schedule.",
+    "creating_account": "Creating account…",
+    "not_replacement": "not a replacement for medical advice"
   },
   "shell": {
     "manage": "Manage",
@@ -363,7 +367,8 @@
     "private": "Private",
     "publish_unpublish_presets": "Publish/unpublish presets",
     "list_presets_publish_unpublish_archive": "List presets; publish/unpublish/archive",
-    "manage_medications": "Manage medications"
+    "manage_medications": "Manage medications",
+    "list_subtitle": "Medications you track."
   },
   "medDetail": {
     "recorded_adherence": "Recorded adherence",
@@ -540,7 +545,7 @@
     "helpers_record_they_never_manage": "Can edit — logging doses only",
     "invite_watcher_2": "Invite a watcher",
     "unregistered_email_fine_invitation_waits_until_they_": "An unregistered email is fine — the invitation waits until they create an account.",
-    "relation": "Relation",
+    "relation": "Relationship",
     "spouse": "Spouse",
     "child": "Child",
     "parent": "Parent",
@@ -589,7 +594,29 @@
     "revoked": "Revoked",
     "not_registered_yet": "not registered yet",
     "accepted_2": "accepted",
-    "declined_2": "declined"
+    "declined_2": "declined",
+    "page_title": "Caregiver",
+    "page_sub": "People who help monitor medication.",
+    "invite_sent": "Invite link ready to send",
+    "invite_once": "Send this link to the person you invited. For security, it is shown only once and cannot be viewed again after you leave this page.",
+    "copy_link": "Copy link",
+    "copied": "Copied",
+    "close": "Close",
+    "section_invites": "Invitations for you",
+    "section_mine": "Your caregivers",
+    "no_watch_title": "Not watching anyone yet",
+    "no_watch_hint": "You can watch someone after they invite your email. The invitation arrives by email with a special link — open it to accept.",
+    "no_caregiver_title": "No caregivers yet",
+    "no_caregiver_hint": "Invite family or a companion so they can help monitor, without giving up your password.",
+    "invite_caregiver": "Invite a caregiver",
+    "open_patient": "Open patient data →",
+    "revoke": "Revoke access",
+    "processing": "Processing…",
+    "invite_title": "Invite a caregiver",
+    "send_invite": "Send invitation",
+    "sending": "Sending…",
+    "registered_user": "Registered user",
+    "invite_hint": "An unregistered email is fine. The invitation waits until they create an account."
   },
   "settings": {
     "profile_notifications_devices_privacy": "Profile, notifications, devices, privacy",
@@ -1104,5 +1131,40 @@
     "c08ca01": "C08CA01",
     "fever_38_5_since_morning": "fever 38.5 since morning",
     "please_keep_eye_dad_s_blood_pressure_meds": "Please keep an eye on Dad's blood-pressure meds."
+  },
+  "riwayat": {
+    "range_7": "7 days",
+    "range_30": "30 days",
+    "range_90": "90 days",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "loading": "Loading…",
+    "export_csv": "Export CSV",
+    "preparing": "Preparing…",
+    "all_status": "All",
+    "status_taken": "Taken",
+    "status_late": "Late",
+    "status_skipped": "Skipped",
+    "status_snoozed": "Snoozed",
+    "all_source": "All sources",
+    "source_self": "Myself",
+    "source_caregiver": "Caregiver",
+    "source_system": "System",
+    "empty_title": "No records in this range",
+    "empty_hint": "Try changing the date range, or log a dose from the Today page.",
+    "adherence_range": "adherence in this range",
+    "daily_title": "Daily adherence",
+    "calendar_title": "Calendar",
+    "legend_recorded": "Has logged doses",
+    "legend_missed": "Has missed doses",
+    "legend_nodata": "No data yet",
+    "scheduled_total": "Scheduled",
+    "missed_total": "Missed",
+    "days_without_data": "Days without data",
+    "bar_hint": "Yellow bars mark days with missed doses. Grey bars mean no dose could be assessed that day.",
+    "records_count": "records",
+    "no_data_range": "No doses can be assessed in this range.",
+    "subtitle": "Your dose records."
   }
 }

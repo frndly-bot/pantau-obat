@@ -18,7 +18,7 @@ const med=(await c.json()).data;
 check('obat dibuat dengan stok', c.status===201, `status ${c.status}`);
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const p=await (await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2})).newPage();
+const p=await (await b.newContext({ viewport: {width:390,height:844}, locale: 'id-ID',deviceScaleFactor:2})).newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 await p.goto(BASE+'/login',{waitUntil:'networkidle'});
 await p.fill('#email',email); await p.fill('#password',password);

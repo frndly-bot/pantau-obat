@@ -10,6 +10,7 @@
 	import { Badge, Button, Card, CardContent, Skeleton } from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
 	import MedicationWizard from '$lib/components/medication-wizard.svelte';
 
 	let meds = $state<Medication[]>([]);
@@ -63,10 +64,10 @@
 
 <div class="mb-5 flex items-center justify-between gap-3">
 	<div>
-		<h1 class="text-2xl font-semibold tracking-tight">Obat</h1>
-		<p class="mt-1 text-sm text-muted-foreground">Daftar obat yang Anda pantau.</p>
+		<h1 class="text-2xl font-semibold tracking-tight">{i18n.t('nav.obat')}</h1>
+		<p class="mt-1 text-sm text-muted-foreground">{i18n.t('meds.list_subtitle')}</p>
 	</div>
-	<Button size="sm" onclick={() => (wizardOpen = true)}>Tambah obat</Button>
+	<Button size="sm" onclick={() => (wizardOpen = true)}>{i18n.t('meds.add_medication')}</Button>
 </div>
 
 {#if justSaved}
@@ -99,7 +100,7 @@
 				Tambahkan obat pertama Anda beserta jadwalnya. Setelah itu, dosisnya muncul di halaman
 				Hari Ini.
 			</p>
-			<Button size="sm" class="mt-2" onclick={() => (wizardOpen = true)}>Tambah obat</Button>
+			<Button size="sm" class="mt-2" onclick={() => (wizardOpen = true)}>{i18n.t('meds.add_medication')}</Button>
 		</CardContent>
 	</Card>
 {:else}

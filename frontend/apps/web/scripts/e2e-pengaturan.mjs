@@ -8,7 +8,7 @@ const tok=(await (await fetch(`${API}/auth/register`,{method:'POST',headers:{'Co
 await fetch(`${API}/medications`,{method:'POST',headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json',Origin:ORIGIN},body:JSON.stringify({name:'Obat Audit',dose_value:1,dose_unit_code:'tablet',route_code:'O',meal_relation:'after_meal',start_date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta'}).format(new Date()),start_time:'08:00',frequency:{pattern:'daily',times_per_day:1,tolerance_minutes:60,start_time:'08:00',schedule_timezone:'Asia/Jakarta'},times:[{time_local:'08:00',label:'morning'}]})});
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const p=await (await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2})).newPage();
+const p=await (await b.newContext({ viewport: {width:390,height:844}, locale: 'id-ID',deviceScaleFactor:2})).newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 await p.goto(BASE+'/login',{waitUntil:'networkidle'});
 await p.fill('#email',email); await p.fill('#password',password);
@@ -18,7 +18,14 @@ await p.goto(BASE+'/pengaturan',{waitUntil:'networkidle'}); await p.waitForTimeo
 const t=await p.textContent('main');
 check('halaman pengaturan memuat', (await p.textContent('h1'))?.includes('Pengaturan'));
 check('profil: email tampil', t?.includes(email));
-check('profil: nama tampil', t?.includes('Uji Pengaturan'));
+// Nama kini ada di ISIAN (`<input value>`), bukan teks — halaman ini
+// berubah dari tampilan statis menjadi form yang bisa diedit. Membaca
+// `inputValue` adalah cara yang benar untuk memeriksanya.
+check(
+	'profil: nama terisi di isian',
+	(await p.locator('#p-name').inputValue()) === 'Uji Pengaturan',
+	await p.locator('#p-name').inputValue()
+);
 check('kanal notifikasi dari backend', t?.includes('Dalam aplikasi'));
 check('kanal lain bertanda Nanti', t?.includes('Nanti'));
 check('riwayat aktivitas ada isinya', /Menambah data \(obat\)|Membuat|Menambah/.test(t ?? ''), (t ?? '').match(/Menambah[^\n]{0,25}/)?.[0] ?? 'tidak ada');

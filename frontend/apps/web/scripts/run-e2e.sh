@@ -61,15 +61,18 @@ SUITES=(
 	e2e-wizard-scroll
 	e2e-a11y-dialog
 	e2e-obat-edit
+	e2e-obat-jam
 	e2e-detail
 	e2e-riwayat
 	e2e-riwayat-bagan
 	e2e-caregiver
 	e2e-caregiver-pasien
 	e2e-pengaturan
+	e2e-pengaturan-form
 	e2e-terima-undangan
 	e2e-tampilan
 	e2e-i18n-halaman
+	e2e-i18n-semua
 	e2e-layout
 )
 

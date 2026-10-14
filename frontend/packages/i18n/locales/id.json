@@ -30,7 +30,8 @@
     "add_medication": "Tambah obat",
     "main_navigation": "Navigasi utama",
     "admin_navigation": "Navigasi admin",
-    "activate": "Aktifkan"
+    "activate": "Aktifkan",
+    "saving": "Memproses…"
   },
   "hub": {
     "pantau_obat_ui_ux_prototype": "Pantau Obat — Prototipe UI/UX",
@@ -93,7 +94,10 @@
     "email_phone_time_zone_password": "Email, telepon, zona waktu, sandi",
     "email_phone_time_zone_password_2": "Email, telepon, timezone, sandi",
     "credentials_admin_example_com_full": "Kredensial admin@example.com (penuh)",
-    "user_sign": "login user"
+    "user_sign": "login user",
+    "continue_to_schedule": "Lanjutkan ke jadwal obat Anda.",
+    "creating_account": "Membuat akun…",
+    "not_replacement": "bukan pengganti nasihat dokter"
   },
   "shell": {
     "manage": "Kelola",
@@ -363,7 +367,8 @@
     "private": "Pribadi",
     "publish_unpublish_presets": "Terbitkan/arsipkan preset",
     "list_presets_publish_unpublish_archive": "Daftar preset, terbitkan/tarik/arsipkan",
-    "manage_medications": "Kelola obat"
+    "manage_medications": "Kelola obat",
+    "list_subtitle": "Daftar obat yang Anda pantau."
   },
   "medDetail": {
     "recorded_adherence": "Kepatuhan tercatat",
@@ -589,7 +594,29 @@
     "revoked": "Dicabut",
     "not_registered_yet": "belum terdaftar",
     "accepted_2": "diterima",
-    "declined_2": "ditolak"
+    "declined_2": "ditolak",
+    "page_title": "Caregiver",
+    "page_sub": "Orang yang membantu memantau pengobatan.",
+    "invite_sent": "Tautan undangan siap dikirim",
+    "invite_once": "Kirim tautan ini ke orang yang Anda undang. Demi keamanan, tautan hanya ditampilkan sekali dan tidak bisa dilihat lagi setelah Anda meninggalkan halaman ini.",
+    "copy_link": "Salin tautan",
+    "copied": "Tersalin",
+    "close": "Tutup",
+    "section_invites": "Undangan untuk Anda",
+    "section_mine": "Caregiver Anda",
+    "no_watch_title": "Belum memantau siapa pun",
+    "no_watch_hint": "Anda bisa memantau seseorang setelah mereka mengundang email Anda. Undangan datang lewat email berisi tautan khusus — buka tautan itu untuk menerima.",
+    "no_caregiver_title": "Belum ada caregiver",
+    "no_caregiver_hint": "Undang keluarga atau pendamping agar mereka bisa ikut memantau, tanpa perlu menyerahkan kata sandi Anda.",
+    "invite_caregiver": "Undang caregiver",
+    "open_patient": "Buka data pasien →",
+    "revoke": "Cabut akses",
+    "processing": "Memproses…",
+    "invite_title": "Undang caregiver",
+    "send_invite": "Kirim undangan",
+    "sending": "Mengirim…",
+    "registered_user": "Pengguna terdaftar",
+    "invite_hint": "Boleh email yang belum terdaftar. Undangannya menunggu sampai mereka membuat akun."
   },
   "settings": {
     "profile_notifications_devices_privacy": "Profil, notifikasi, perangkat, privasi",
@@ -1104,5 +1131,40 @@
     "c08ca01": "C08CA01",
     "fever_38_5_since_morning": "demam 38.5 sejak pagi",
     "please_keep_eye_dad_s_blood_pressure_meds": "Bud, tolong pantau obat tensi ayah ya."
+  },
+  "riwayat": {
+    "range_7": "7 hari",
+    "range_30": "30 hari",
+    "range_90": "90 hari",
+    "from": "Dari",
+    "to": "Sampai",
+    "apply": "Terapkan",
+    "loading": "Memuat…",
+    "export_csv": "Ekspor CSV",
+    "preparing": "Menyiapkan…",
+    "all_status": "Semua",
+    "status_taken": "Diminum",
+    "status_late": "Terlambat",
+    "status_skipped": "Dilewati",
+    "status_snoozed": "Ditunda",
+    "all_source": "Semua sumber",
+    "source_self": "Saya sendiri",
+    "source_caregiver": "Caregiver",
+    "source_system": "Sistem",
+    "empty_title": "Tidak ada catatan pada rentang ini",
+    "empty_hint": "Coba ubah rentang tanggal, atau catat dosis dari halaman Hari Ini.",
+    "adherence_range": "kepatuhan pada rentang ini",
+    "daily_title": "Kepatuhan harian",
+    "calendar_title": "Kalender",
+    "legend_recorded": "Ada dosis tercatat",
+    "legend_missed": "Ada yang terlewat",
+    "legend_nodata": "Belum ada data",
+    "scheduled_total": "Terjadwal",
+    "missed_total": "Terlewat",
+    "days_without_data": "Hari tanpa data",
+    "bar_hint": "Batang kuning menandai hari dengan dosis terlewat. Batang abu-abu berarti belum ada dosis yang bisa dinilai pada hari itu.",
+    "records_count": "catatan",
+    "no_data_range": "Belum ada dosis yang bisa dinilai pada rentang ini.",
+    "subtitle": "Catatan dosis Anda."
   }
 }

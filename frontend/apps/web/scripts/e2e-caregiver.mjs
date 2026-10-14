@@ -19,7 +19,7 @@ check('balasan undangan memuat invite_url (sekali saja)', !!inviteUrl);
 const inviteToken = inviteUrl ? new URL(inviteUrl).searchParams.get('token') : null;
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const p=await (await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2})).newPage();
+const p=await (await b.newContext({ viewport: {width:390,height:844}, locale: 'id-ID',deviceScaleFactor:2})).newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 
 // Login sebagai OWNER, lihat halaman caregiver

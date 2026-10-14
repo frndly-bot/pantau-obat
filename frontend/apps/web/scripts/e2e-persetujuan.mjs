@@ -25,7 +25,7 @@ const check = (label, ok, detail = '') => {
 };
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'id-ID' });
 const page = await ctx.newPage();
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));

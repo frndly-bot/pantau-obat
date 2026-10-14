@@ -14,6 +14,7 @@
 		ApiError,
 		type AuditLogEntry,
 		type DeviceToken,
+		type InAppNotification,
 		type NotificationPrefs
 	} from '@pantau-obat/api-client';
 	import {
@@ -24,6 +25,7 @@
 		Dialog,
 		Input,
 		Label,
+		Select,
 		Skeleton
 	} from '@pantau-obat/ui';
 	import { api } from '$lib/api';
@@ -35,6 +37,48 @@
 	let prefs = $state<NotificationPrefs[]>([]);
 	let devices = $state<DeviceToken[]>([]);
 	let audit = $state<AuditLogEntry[]>([]);
+	/** Pengingat yang pernah dikirim (`notifications.list`). */
+	let notifikasi = $state<InAppNotification[]>([]);
+
+	// ── Form profil ──
+	//
+	// Sebelumnya halaman ini hanya menampilkan nama, nomor HP, dan zona
+	// waktu sebagai teks statis. Nilainya kini disalin ke isian agar bisa
+	// diubah, dan `profileDirty` mencegah tombol Simpan aktif saat tidak ada
+	// perubahan.
+	let profileName = $state('');
+	let profilePhone = $state('');
+	let profileTimezone = $state('Asia/Jakarta');
+	let savingProfile = $state(false);
+	let profileError = $state<string | null>(null);
+
+	/**
+	 * Benar setelah JavaScript selesai memuat.
+	 *
+	 * Halaman ini di-PRERENDER, jadi isian tampil sebelum JS siap dan
+	 * ketikan pengguna akan hilang saat hidrasi menimpanya. Lihat penjelasan
+	 * lengkap di `login/+page.svelte`.
+	 */
+	let hydrated = $state(false);
+
+	/** Zona waktu yang ditawarkan — dikelompokkan supaya mudah dicari. */
+	const TZ_OPTIONS = [
+		{ value: 'Asia/Jakarta', label: 'WIB — Jakarta' },
+		{ value: 'Asia/Makassar', label: 'WITA — Makassar' },
+		{ value: 'Asia/Jayapura', label: 'WIT — Jayapura' },
+		{ value: 'Asia/Singapore', label: 'Singapura' },
+		{ value: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur' },
+		{ value: 'Asia/Tokyo', label: 'Tokyo' },
+		{ value: 'Asia/Shanghai', label: 'Shanghai' },
+		{ value: 'Asia/Dubai', label: 'Dubai' },
+		{ value: 'Europe/London', label: 'London' },
+		{ value: 'Europe/Amsterdam', label: 'Amsterdam' },
+		{ value: 'America/New_York', label: 'New York' },
+		{ value: 'Australia/Sydney', label: 'Sydney' },
+		{ value: 'UTC', label: 'UTC' }
+	];
+
+
 	let loading = $state(true);
 	let actionError = $state<string | null>(null);
 	let notice = $state<string | null>(null);
@@ -51,6 +95,23 @@
 	let delConfirm = $state('');
 
 	const user = $derived(session.user);
+
+	/** Apakah ada perubahan yang belum disimpan. */
+	let profileDirty = $derived(
+		profileName.trim() !== (user?.full_name ?? '') ||
+			// Nomor HP dibandingkan dengan `?? ''` di KEDUA sisi.
+			//
+			// `user.phone` bernilai `null` bila belum diisi, sedangkan isian
+			// mengembalikan string kosong. Membandingkan `'' !== null`
+			// menghasilkan `true` terus-menerus, sehingga tombol Simpan
+			// selalu aktif — dan mengosongkan nomor HP tidak pernah terdeteksi
+			// sebagai perubahan.
+			profilePhone.trim() !== (user?.phone ?? '').trim() ||
+			profileTimezone !== (user?.timezone ?? '')
+	);
+
+	/** Berapa notifikasi yang belum dibaca. */
+	let belumDibaca = $derived(notifikasi.filter((n) => !n.read_at).length);
 
 	const channelLabel: Record<string, string> = {
 		in_app: 'Dalam aplikasi',
@@ -122,15 +183,118 @@
 	async function load() {
 		// Tiap bagian dimuat terpisah: satu endpoint yang bermasalah tidak
 		// boleh mengosongkan seluruh halaman.
-		const [p, d, a] = await Promise.allSettled([
+		const [p, d, a, n] = await Promise.allSettled([
 			api.notifications.prefs(),
 			api.notifications.devices(),
-			api.users.auditLog({ limit: 30 })
+			api.users.auditLog({ limit: 30 }),
+			api.notifications.list({ limit: 20 })
 		]);
 		prefs = p.status === 'fulfilled' ? p.value : [];
 		devices = d.status === 'fulfilled' ? d.value : [];
 		audit = a.status === 'fulfilled' ? a.value : [];
+		notifikasi = n.status === 'fulfilled' ? n.value : [];
+
+		// Isi form dari data pengguna. Dilakukan SETELAH sesi pulih, karena
+		// `user` baru terisi setelah `session.init()` selesai.
+		profileName = user?.full_name ?? '';
+		profilePhone = user?.phone ?? '';
+		profileTimezone = user?.timezone ?? 'Asia/Jakarta';
+
 		loading = false;
+	}
+
+	/**
+	 * Menyimpan perubahan profil.
+	 *
+	 * Hanya field yang BERUBAH yang dikirim. Mengirim semuanya membuat
+	 * perubahan yang tidak disengaja ikut tersimpan, dan menyulitkan
+	 * penelusuran "siapa mengubah apa" di jejak audit.
+	 */
+	async function saveProfile() {
+		if (savingProfile || !profileDirty) return;
+		savingProfile = true;
+		profileError = null;
+		notice = null;
+		try {
+			const patch: { full_name?: string; phone?: string | null; timezone?: string } = {};
+			if (profileName.trim() !== (user?.full_name ?? '')) patch.full_name = profileName.trim();
+			// Nomor HP: kirim STRING KOSONG, bukan `null`, bila dikosongkan.
+			//
+			// Server membedakan keduanya dengan sengaja:
+			//   `null`  → jangan ubah (field tidak disertakan)
+			//   `''`    → kosongkan
+			//
+			// Mengirim `null` untuk maksud "kosongkan" membuat nomor HP tidak
+			// pernah benar-benar terhapus — permintaannya tampak berhasil,
+			// tapi nilainya tetap seperti semula.
+			if (profilePhone.trim() !== (user?.phone ?? '').trim()) {
+				patch.phone = profilePhone.trim();
+			}
+			if (profileTimezone !== (user?.timezone ?? '')) patch.timezone = profileTimezone;
+
+			const diperbarui = await api.users.update(patch);
+			// Sinkronkan sesi lokal supaya nama di bilah atas ikut berubah
+			// tanpa perlu memuat ulang halaman. `applyUser` tidak ada; yang
+			// tersedia adalah `refreshUser`.
+			if (diperbarui) await session.refreshUser();
+			notice = 'Profil tersimpan.';
+			await load();
+		} catch (err) {
+			profileError = err instanceof ApiError ? err.message : 'Gagal menyimpan profil.';
+		} finally {
+			savingProfile = false;
+		}
+	}
+
+	/** Menyalakan atau mematikan satu kanal notifikasi. */
+	async function toggleChannel(pref: NotificationPrefs) {
+		if (busy) return;
+		busy = true;
+		actionError = null;
+		try {
+			await api.notifications.updatePrefs({
+				channel: pref.channel,
+				enabled: !pref.enabled
+			});
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal mengubah kanal.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** Mengubah jam sunyi satu kanal. */
+	async function setQuiet(
+		pref: NotificationPrefs,
+		field: 'quiet_start' | 'quiet_end',
+		nilai: string
+	) {
+		if (busy || !nilai) return;
+		busy = true;
+		actionError = null;
+		try {
+			await api.notifications.updatePrefs({
+				channel: pref.channel,
+				quiet_start: field === 'quiet_start' ? nilai : pref.quiet_start,
+				quiet_end: field === 'quiet_end' ? nilai : pref.quiet_end
+			});
+			await load();
+		} catch (err) {
+			actionError = err instanceof ApiError ? err.message : 'Gagal mengubah jam sunyi.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** Waktu relatif singkat untuk daftar notifikasi. */
+	function waktuSingkat(iso: string): string {
+		return new Intl.DateTimeFormat('id-ID', {
+			day: 'numeric',
+			month: 'short',
+			hour: '2-digit',
+			minute: '2-digit'
+		}).format(new Date(iso));
 	}
 
 	async function changePassword() {
@@ -189,7 +353,13 @@
 		}
 	}
 
-	onMount(load);
+	onMount(async () => {
+	// Sesi dipulihkan lebih dulu: `user` baru terisi setelah itu, dan form
+	// profil diisi dari sana. Tanpa menunggu, isian akan kosong.
+	await session.init();
+	hydrated = true;
+	await load();
+});
 </script>
 
 <svelte:head>
@@ -274,29 +444,59 @@
 <Card>
 	<CardContent class="space-y-4 py-5">
 		<p class="text-sm font-medium">Profil</p>
-		<dl class="space-y-2 text-sm">
-			<div class="flex items-center justify-between gap-3">
-				<dt class="text-muted-foreground">Nama</dt>
-				<dd class="font-medium">{user?.full_name ?? '—'}</dd>
+
+		<!-- Dulu bagian ini hanya <dl> statis: nama, nomor HP, dan zona waktu
+		     ditampilkan tapi TIDAK BISA DIUBAH sama sekali, padahal
+		     `users.update` sudah tersedia. -->
+		<div class="space-y-3">
+			<div class="space-y-1.5">
+				<Label for="p-name">Nama lengkap</Label>
+				<Input id="p-name" bind:value={profileName} disabled={!hydrated} />
 			</div>
-			<div class="flex items-center justify-between gap-3">
-				<dt class="text-muted-foreground">Email</dt>
-				<dd class="truncate font-medium">{user?.email ?? '—'}</dd>
+
+			<div class="space-y-1.5">
+				<Label for="p-phone">Nomor HP</Label>
+				<Input
+					id="p-phone"
+					type="tel"
+					inputmode="tel"
+					bind:value={profilePhone}
+					placeholder="+62812…"
+					disabled={!hydrated}
+				/>
+				<p class="text-xs text-muted-foreground">
+					Opsional, 6–20 digit. Dipakai untuk pemulihan akun.
+				</p>
 			</div>
-			<div class="flex items-center justify-between gap-3">
-				<dt class="text-muted-foreground">Zona waktu</dt>
-				<dd class="font-medium">{user?.timezone ?? '—'}</dd>
+
+			<div class="space-y-1.5">
+				<Label for="p-tz">Zona waktu</Label>
+				<Select id="p-tz" bind:value={profileTimezone} options={TZ_OPTIONS} />
+				<!-- Aturan A4: mengubah zona TIDAK mengubah log lama. Tanpa
+				     penjelasan ini, pengguna mengira riwayatnya ikut berubah. -->
+				<p class="text-xs text-muted-foreground">
+					Mengubah zona tidak mengubah log lama — hanya perhitungan dosis ke depan.
+				</p>
 			</div>
-			<div class="flex items-center justify-between gap-3">
-				<dt class="text-muted-foreground">Peran</dt>
-				<dd>
-					<Badge variant={user?.role === 'admin' ? 'private' : 'outline'}>
-						{user?.role === 'admin' ? 'Admin' : 'Pengguna'}
-					</Badge>
-				</dd>
+
+			<div class="flex items-center justify-between gap-3 border-t border-border pt-3">
+				<span class="text-sm text-muted-foreground">Email</span>
+				<span class="truncate text-sm font-medium">{user?.email ?? '—'}</span>
 			</div>
-		</dl>
-		<Button size="sm" variant="outline" onclick={() => (pwOpen = true)}>Ganti sandi</Button>
+
+			{#if profileError}
+				<p class="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive" role="alert">
+					{profileError}
+				</p>
+			{/if}
+		</div>
+
+		<div class="flex flex-wrap gap-2">
+			<Button size="sm" onclick={saveProfile} disabled={savingProfile || !profileDirty || !hydrated}>
+				{savingProfile ? 'Menyimpan…' : 'Simpan profil'}
+			</Button>
+			<Button size="sm" variant="outline" onclick={() => (pwOpen = true)}>Ganti sandi</Button>
+		</div>
 	</CardContent>
 </Card>
 
@@ -309,25 +509,107 @@
 		{:else if prefs.length === 0}
 			<p class="text-xs text-muted-foreground">Preferensi kanal belum tersedia.</p>
 		{:else}
-			<ul class="space-y-2">
+			<ul class="space-y-3">
 				{#each prefs as pref (pref.channel)}
-					<li class="flex items-center justify-between gap-3">
-						<span class="text-sm text-muted-foreground">
-							{channelLabel[pref.channel] ?? pref.channel}
-							{#if pref.quiet_start && pref.quiet_end}
-								<span class="block text-xs">jam sunyi {pref.quiet_start}–{pref.quiet_end}</span>
+					{@const bisaDiubah = pref.channel === 'in_app' || pref.channel === 'push'}
+					<li class="space-y-2">
+						<div class="flex items-center justify-between gap-3">
+							<span class="text-sm">
+								{channelLabel[pref.channel] ?? pref.channel}
+							</span>
+
+							<!-- Saklar sungguhan untuk kanal yang bisa diatur. Kanal
+							     yang butuh kredensial operator tetap ditandai
+							     "Nanti" — tombol yang tidak melakukan apa-apa lebih
+							     membingungkan daripada label yang jujur. -->
+							{#if bisaDiubah}
+								<button
+									type="button"
+									role="switch"
+									aria-checked={pref.enabled}
+									aria-label="{channelLabel[pref.channel] ?? pref.channel}: {pref.enabled ? 'aktif' : 'nonaktif'}"
+									class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors {pref.enabled
+										? 'bg-primary'
+										: 'bg-muted'}"
+									disabled={busy}
+									onclick={() => toggleChannel(pref)}
+								>
+									<span
+										class="inline-block size-4 rounded-full bg-background transition-transform {pref.enabled
+											? 'translate-x-6'
+											: 'translate-x-1'}"
+									></span>
+								</button>
+							{:else}
+								<Badge variant="na">Nanti (v0.2)</Badge>
 							{/if}
-						</span>
-						<Badge variant={pref.enabled ? 'ok' : 'na'}>
-							{pref.enabled ? 'Aktif' : 'Nanti'}
-						</Badge>
+						</div>
+
+						<!-- Jam sunyi hanya relevan untuk kanal yang aktif, dan
+						     hanya untuk kanal yang bisa diatur. -->
+						{#if bisaDiubah && pref.enabled}
+							<div class="flex items-center gap-2">
+								<Label for="q-{pref.channel}" class="text-xs">Jam sunyi</Label>
+								<input
+									id="q-{pref.channel}"
+									type="time"
+									class="h-8 rounded-md border border-input bg-background px-2 text-xs"
+									value={pref.quiet_start}
+									disabled={busy}
+									onchange={(e) => setQuiet(pref, 'quiet_start', e.currentTarget.value)}
+								/>
+								<span class="text-xs text-muted-foreground">–</span>
+								<input
+									type="time"
+									class="h-8 rounded-md border border-input bg-background px-2 text-xs"
+									value={pref.quiet_end}
+									disabled={busy}
+									onchange={(e) => setQuiet(pref, 'quiet_end', e.currentTarget.value)}
+								/>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				Kanal selain dalam aplikasi memerlukan kredensial operator (VAPID, SMTP, token bot) dan
-				ditunda ke versi berikutnya. Badge "Nanti" menandai kanal yang belum aktif.
+				Kanal email dan Telegram memerlukan kredensial operator (SMTP, token bot) dan
+				ditunda ke versi berikutnya.
 			</p>
+		{/if}
+	</CardContent>
+</Card>
+
+<!-- ============ Kotak masuk ============ -->
+<!-- `notifications.list` sudah tersedia sejak awal tapi belum pernah dipakai:
+     pengguna tidak punya tempat melihat pengingat yang pernah dikirim. -->
+<Card class="mt-4">
+	<CardContent class="space-y-3 py-5">
+		<div class="flex items-center justify-between gap-3">
+			<p class="text-sm font-medium">Kotak masuk</p>
+			{#if belumDibaca > 0}
+				<Badge variant="info">{belumDibaca} baru</Badge>
+			{/if}
+		</div>
+		{#if loading}
+			<Skeleton class="h-16 w-full" />
+		{:else if notifikasi.length === 0}
+			<p class="text-xs text-muted-foreground">
+				Semua pengingat yang pernah dikirim akan muncul di sini.
+			</p>
+		{:else}
+			<ul class="divide-y divide-border">
+				{#each notifikasi.slice(0, 10) as n (n.id)}
+					<li class="py-2.5">
+						<p class="text-sm {n.read_at ? 'text-muted-foreground' : 'font-medium'}">
+							{n.title}
+						</p>
+						{#if n.body}
+							<p class="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
+						{/if}
+						<p class="mt-0.5 text-xs text-muted-foreground">{waktuSingkat(n.created_at)}</p>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</CardContent>
 </Card>

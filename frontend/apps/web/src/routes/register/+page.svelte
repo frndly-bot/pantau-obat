@@ -12,6 +12,7 @@ import { ApiError } from '@pantau-obat/api-client';
 import { Button, Input, Label } from '@pantau-obat/ui';
 import { api } from '$lib/api';
 import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
 import { APP_NAME } from '$lib/config';
 
 let email = $state('');
@@ -125,7 +126,7 @@ async function onSubmit(event: SubmitEvent) {
 
 			<form class="mt-6 space-y-4" onsubmit={onSubmit}>
 				<div class="space-y-2">
-					<Label for="full_name">Nama lengkap</Label>
+					<Label for="full_name">{i18n.t('auth.full_name')}</Label>
 					<Input
 						id="full_name"
 						autocomplete="name"
@@ -140,7 +141,7 @@ async function onSubmit(event: SubmitEvent) {
 				</div>
 
 				<div class="space-y-2">
-					<Label for="email">Email</Label>
+					<Label for="email">{i18n.t('auth.email')}</Label>
 					<Input
 						id="email"
 						type="email"
@@ -148,7 +149,7 @@ async function onSubmit(event: SubmitEvent) {
 						required
 						disabled={!hydrated}
 						bind:value={email}
-						placeholder="nama@contoh.com"
+						placeholder={i18n.t('misc.name_example_com')}
 						aria-invalid={fieldIssues.email ? 'true' : undefined}
 					/>
 					{#if fieldIssues.email}
@@ -157,7 +158,7 @@ async function onSubmit(event: SubmitEvent) {
 				</div>
 
 				<div class="space-y-2">
-					<Label for="password">Sandi</Label>
+					<Label for="password">{i18n.t('auth.password')}</Label>
 					<Input
 						id="password"
 						type="password"
@@ -168,7 +169,7 @@ async function onSubmit(event: SubmitEvent) {
 						bind:value={password}
 						aria-invalid={fieldIssues.password ? 'true' : undefined}
 					/>
-					<p class="text-xs text-muted-foreground">Minimal 8 karakter.</p>
+					<p class="text-xs text-muted-foreground">{i18n.t('auth.at_least_8_characters')}.</p>
 					{#if fieldIssues.password}
 						<p class="text-xs text-destructive">{fieldIssues.password}</p>
 					{/if}
@@ -190,27 +191,26 @@ async function onSubmit(event: SubmitEvent) {
 						bind:checked={agreed}
 					/>
 					<span>
-						Saya mengerti aplikasi ini <b class="font-semibold text-foreground">alat bantu</b>, bukan pengganti
-						nasihat dokter.
+						{i18n.t('auth.i_understand_this_app')} <b class="font-semibold text-foreground">{i18n.t('auth.helper_tool')}</b>, {i18n.t('auth.not_replacement')}
 						<span class="mt-0.5 block text-[11px]">
-							Tidak ada saran dosis maupun pemeriksaan interaksi obat di dalamnya.
+							{i18n.t('auth.it_gives_no_dosing_advice_performs_no_drug_interacti')}
 						</span>
 					</span>
 				</label>
 
 				<Button type="submit" class="w-full" disabled={submitting || !hydrated || !agreed}>
-					{submitting ? 'Membuat akun…' : 'Daftar'}
+					{submitting ? i18n.t('auth.creating_account') : i18n.t('common.register')}
 				</Button>
 			</form>
 		</div>
 
 		<p class="mt-6 text-center text-sm text-muted-foreground">
-			Sudah punya akun?
+			{i18n.t('auth.already_have_account')}
 			<a
 				href={`/login${next === '/hari-ini' ? '' : `?next=${encodeURIComponent(next)}`}`}
 				class="font-medium text-primary underline-offset-4 hover:underline"
 			>
-				Masuk
+				{i18n.t('common.sign')}
 			</a>
 		</p>
 	</div>

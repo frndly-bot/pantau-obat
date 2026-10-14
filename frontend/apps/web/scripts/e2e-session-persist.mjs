@@ -40,7 +40,7 @@ async function testCase(label, webBase) {
 	console.log(`\n=== ${label} (${webBase}) ===`);
 	const email = await makeAccount('sesi');
 	const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
-	const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+	const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'id-ID' });
 	const page = await context.newPage();
 
 	// Login lewat UI.

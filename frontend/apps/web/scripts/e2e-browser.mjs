@@ -13,7 +13,7 @@ const password = 'SandiUji123!';
 // CHROME_PATH memungkinkan memakai Chromium yang sudah ada di sistem,
 // sehingga Playwright tidak perlu mengunduh peramban sendiri.
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
-const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'id-ID' });
 const page = await context.newPage();
 
 const consoleErrors = [];

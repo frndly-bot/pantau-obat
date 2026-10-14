@@ -18,7 +18,7 @@ const rec=await fetch(`${API}/medications/${med.id}/logs`,{method:'POST',headers
 check('dosis tercatat lewat API', rec.status===201, `status ${rec.status}`);
 
 const b=await chromium.launch({executablePath:process.env.CHROME_PATH});
-const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,acceptDownloads:true});
+const ctx=await b.newContext({ viewport: {width:390,height:844}, locale: 'id-ID',deviceScaleFactor:2,acceptDownloads:true});
 const p=await ctx.newPage();
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 await p.goto(BASE+'/login',{waitUntil:'networkidle'});

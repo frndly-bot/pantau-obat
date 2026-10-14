@@ -18,6 +18,7 @@
 	import { Badge, Button, Card, CardContent, Input, Label, Skeleton } from '@pantau-obat/ui';
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
+	import { i18n } from '$lib/i18n.svelte';
 	import { computeRatio, formatRatio } from '$lib/dose-logic';
 	import type { AdherenceDailyPoint } from '@pantau-obat/api-client';
 
@@ -198,8 +199,8 @@
 </svelte:head>
 
 <div class="mb-5">
-	<h1 class="text-2xl font-semibold tracking-tight">Riwayat</h1>
-	<p class="mt-1 text-sm text-muted-foreground">Catatan dosis Anda.</p>
+	<h1 class="text-2xl font-semibold tracking-tight">{i18n.t('nav.riwayat')}</h1>
+	<p class="mt-1 text-sm text-muted-foreground">{i18n.t('riwayat.subtitle')}</p>
 </div>
 
 <!-- Ringkasan kepatuhan. Angkanya memakai aturan yang sama dengan server,
@@ -210,27 +211,27 @@
 			<div class="flex items-baseline justify-between gap-3">
 				<div>
 					<p class="text-2xl font-semibold tabular-nums">{ringkasan.teks}</p>
-					<p class="mt-0.5 text-xs text-muted-foreground">kepatuhan pada rentang ini</p>
+					<p class="mt-0.5 text-xs text-muted-foreground">{i18n.t('riwayat.adherence_range')}</p>
 				</div>
-				<p class="text-xs text-muted-foreground tabular-nums">{ringkasan.total} catatan</p>
+				<p class="text-xs text-muted-foreground tabular-nums">{ringkasan.total} {i18n.t('riwayat.records_count')}</p>
 			</div>
 			<dl class="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3 text-center">
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Diminum</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.status_taken')}</dt>
 					<dd class="text-sm font-semibold tabular-nums">{ringkasan.taken}</dd>
 				</div>
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Terlambat</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.status_late')}</dt>
 					<dd class="text-sm font-semibold tabular-nums">{ringkasan.late}</dd>
 				</div>
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Dilewati</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.status_skipped')}</dt>
 					<dd class="text-sm font-semibold tabular-nums">{ringkasan.skipped}</dd>
 				</div>
 			</dl>
 			{#if ringkasan.ratio === null}
 				<p class="mt-2 text-center text-[11px] text-muted-foreground">
-					Belum ada dosis yang bisa dinilai pada rentang ini.
+					{i18n.t('riwayat.no_data_range')}
 				</p>
 			{/if}
 		</CardContent>
@@ -245,7 +246,7 @@
 	<Card class="mb-4">
 		<CardContent class="py-4">
 			<div class="flex items-baseline justify-between gap-3">
-				<p class="text-sm font-medium">Kepatuhan harian</p>
+				<p class="text-sm font-medium">{i18n.t('riwayat.daily_title')}</p>
 				<p class="text-xs text-muted-foreground">
 					{harian.length} hari
 				</p>
@@ -274,19 +275,19 @@
 
 			<dl class="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3 text-center">
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Terjadwal</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.scheduled_total')}</dt>
 					<dd class="text-sm font-semibold tabular-nums">
 						{harian.reduce((a, d) => a + d.scheduled_doses, 0)}
 					</dd>
 				</div>
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Terlewat</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.missed_total')}</dt>
 					<dd class="text-sm font-semibold tabular-nums text-warn">
 						{harian.reduce((a, d) => a + d.missed_doses, 0)}
 					</dd>
 				</div>
 				<div>
-					<dt class="text-[11px] text-muted-foreground">Hari tanpa data</dt>
+					<dt class="text-[11px] text-muted-foreground">{i18n.t('riwayat.days_without_data')}</dt>
 					<dd class="text-sm font-semibold tabular-nums">
 						{harian.filter((d) => d.adherence_ratio === null).length}
 					</dd>
@@ -306,7 +307,7 @@
 {#if !loading && !error && harian.length > 0}
 	<Card class="mb-4">
 		<CardContent class="py-4">
-			<p class="text-sm font-medium">Kalender</p>
+			<p class="text-sm font-medium">{i18n.t('riwayat.calendar_title')}</p>
 			<div class="mt-3 grid grid-cols-7 gap-1.5">
 				{#each ['S', 'S', 'R', 'K', 'J', 'S', 'M'] as h, i (i)}
 					<span class="text-center text-[10px] font-medium text-muted-foreground">{h}</span>
@@ -328,13 +329,13 @@
 			</div>
 			<div class="mt-3 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
 				<span class="flex items-center gap-1.5">
-					<span class="size-2.5 rounded-sm bg-ok/60"></span> Ada dosis tercatat
+					<span class="size-2.5 rounded-sm bg-ok/60"></span> {i18n.t('riwayat.legend_recorded')}
 				</span>
 				<span class="flex items-center gap-1.5">
-					<span class="size-2.5 rounded-sm bg-warn/60"></span> Ada yang terlewat
+					<span class="size-2.5 rounded-sm bg-warn/60"></span> {i18n.t('riwayat.legend_missed')}
 				</span>
 				<span class="flex items-center gap-1.5">
-					<span class="size-2.5 rounded-sm bg-muted"></span> Belum ada data
+					<span class="size-2.5 rounded-sm bg-muted"></span> {i18n.t('riwayat.legend_nodata')}
 				</span>
 			</div>
 		</CardContent>
@@ -346,19 +347,19 @@
 	<CardContent class="space-y-3 py-4">
 		<div class="grid grid-cols-2 gap-3">
 			<div class="space-y-1.5">
-				<Label for="f-from">Dari</Label>
+				<Label for="f-from">{i18n.t('riwayat.from')}</Label>
 				<Input id="f-from" type="date" bind:value={from} />
 			</div>
 			<div class="space-y-1.5">
-				<Label for="f-to">Sampai</Label>
+				<Label for="f-to">{i18n.t('riwayat.to')}</Label>
 				<Input id="f-to" type="date" bind:value={to} />
 			</div>
 		</div>
 
 		<div class="flex flex-wrap gap-2">
-			<Button variant="outline" size="sm" onclick={() => setPreset(7)}>7 hari</Button>
-			<Button variant="outline" size="sm" onclick={() => setPreset(30)}>30 hari</Button>
-			<Button variant="outline" size="sm" onclick={() => setPreset(90)}>90 hari</Button>
+			<Button variant="outline" size="sm" onclick={() => setPreset(7)}>{i18n.t('riwayat.range_7')}</Button>
+			<Button variant="outline" size="sm" onclick={() => setPreset(30)}>{i18n.t('riwayat.range_30')}</Button>
+			<Button variant="outline" size="sm" onclick={() => setPreset(90)}>{i18n.t('riwayat.range_90')}</Button>
 		</div>
 
 		<div class="flex flex-wrap gap-1.5">
@@ -403,10 +404,10 @@
 
 		<div class="flex gap-2 pt-1">
 			<Button size="sm" class="flex-1" onclick={load} disabled={loading}>
-				{loading ? 'Memuat…' : 'Terapkan'}
+				{loading ? i18n.t('riwayat.loading') : i18n.t('riwayat.apply')}
 			</Button>
 			<Button size="sm" variant="outline" onclick={exportCsv} disabled={exporting || !from || !to}>
-				{exporting ? 'Menyiapkan…' : 'Ekspor CSV'}
+				{exporting ? i18n.t('riwayat.preparing') : i18n.t('riwayat.export_csv')}
 			</Button>
 		</div>
 	</CardContent>
@@ -431,9 +432,9 @@
 {:else if logs.length === 0}
 	<Card class="mt-4">
 		<CardContent class="py-10 text-center">
-			<p class="text-sm font-medium">Tidak ada catatan pada rentang ini</p>
+			<p class="text-sm font-medium">{i18n.t('riwayat.empty_title')}</p>
 			<p class="mt-1 text-xs text-muted-foreground">
-				Coba ubah rentang tanggal, atau catat dosis dari halaman Hari Ini.
+				{i18n.t('riwayat.empty_hint')}
 			</p>
 		</CardContent>
 	</Card>

@@ -110,12 +110,12 @@ async function onSubmit(event: SubmitEvent) {
 		</a>
 
 		<div class="rounded-xl border border-border bg-card p-6 shadow-sm">
-			<h1 class="text-xl font-semibold tracking-tight">Masuk</h1>
-			<p class="mt-1.5 text-sm text-muted-foreground">Lanjutkan ke jadwal obat Anda.</p>
+			<h1 class="text-xl font-semibold tracking-tight">{i18n.t('common.sign')}</h1>
+			<p class="mt-1.5 text-sm text-muted-foreground">{i18n.t('auth.continue_to_schedule')}</p>
 
 			<form class="mt-6 space-y-4" onsubmit={onSubmit}>
 				<div class="space-y-2">
-					<Label for="email">Email</Label>
+					<Label for="email">{i18n.t('auth.email')}</Label>
 					<Input
 						id="email"
 						type="email"
@@ -123,13 +123,13 @@ async function onSubmit(event: SubmitEvent) {
 						required
 						disabled={!hydrated}
 						bind:value={email}
-						placeholder="nama@contoh.com"
+						placeholder={i18n.t('misc.name_example_com')}
 						aria-invalid={error ? 'true' : undefined}
 					/>
 				</div>
 
 				<div class="space-y-2">
-					<Label for="password">Sandi</Label>
+					<Label for="password">{i18n.t('auth.password')}</Label>
 					<Input
 						id="password"
 						type="password"
@@ -148,7 +148,7 @@ async function onSubmit(event: SubmitEvent) {
 				{/if}
 
 				<Button type="submit" class="w-full" disabled={submitting || !hydrated}>
-					{submitting ? 'Memproses…' : 'Masuk'}
+					{submitting ? i18n.t('common.saving') : i18n.t('common.sign')}
 				</Button>
 			</form>
 		</div>
