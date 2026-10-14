@@ -49,6 +49,14 @@ x-app-environment: &app-environment
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-}
+  # Foto resep. Alamatnya menunjuk service `silo` lewat jaringan internal —
+  # BUKAN 127.0.0.1, karena di dalam container localhost adalah container
+  # itu sendiri. Kredensialnya sama dengan yang dipakai service silo.
+  STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-silo:9000}
+  STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-${SILO_ROOT_USER:-}}
+  STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-${SILO_ROOT_PASSWORD:-}}
+  STORAGE_BUCKET: ${STORAGE_BUCKET:-pantau-obat}
+  STORAGE_USE_SSL: ${STORAGE_USE_SSL:-false}
   TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
   TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
   WEBHOOK_EMAIL_SECRET: ${WEBHOOK_EMAIL_SECRET:-}
