@@ -495,26 +495,51 @@ export interface AdjustStockInput {
    Kepatuhan
    ============================================================ */
 
+/**
+ * Ringkasan kepatuhan satu rentang (`GET /adherence`).
+ *
+ * Bentuk ini mengikuti respons SERVER apa adanya — lihat `summaryResponse`
+ * di `adherence.go`. Sebelumnya tipe ini mendeklarasikan `total`, `taken`,
+ * `late`, `skipped`, `missed`, dan `rate` yang tidak pernah dikirim server,
+ * sehingga UI menampilkan angka kosong tanpa galat apa pun.
+ */
 export interface AdherenceSummary {
 	from: string;
 	to: string;
-	total: number;
-	taken: number;
-	late: number;
-	skipped: number;
-	missed: number;
-	/** Persentase 0–100. */
-	rate: number;
+	scheduled_doses: number;
+	taken_doses: number;
+	late_doses: number;
+	skipped_doses: number;
+	missed_doses: number;
+	pending_doses: number;
+	/** 0..1, atau `null` bila belum ada dosis yang bisa dinilai — bukan 0%. */
+	adherence_ratio: number | null;
 }
 
+/**
+ * Satu hari pada rekap kepatuhan (`GET /adherence/daily`).
+ *
+ * Bentuk ini mengikuti respons SERVER apa adanya. Sebelumnya tipe ini
+ * mendeklarasikan `total`, `taken`, `late`, dan `rate` yang tidak pernah
+ * dikirim server — sehingga setiap akses ke field itu menghasilkan
+ * `undefined` tanpa peringatan tipe, dan UI menampilkan angka kosong tanpa
+ * galat. Kesalahan seperti ini paling sulit dilacak.
+ *
+ * `missed_doses` di sini berasal dari `medication_dose_events`, BUKAN dari
+ * status `medication_logs` — dosis terlewat hidup di tabel terpisah. Inilah
+ * satu-satunya sumber yang bisa menggambarkan hari yang bolong.
+ */
 export interface AdherenceDailyPoint {
+	/** `YYYY-MM-DD`, waktu lokal pemilik. */
 	date: string;
-	total: number;
-	taken: number;
-	late: number;
-	skipped: number;
-	missed: number;
-	rate: number;
+	scheduled_doses: number;
+	taken_doses: number;
+	skipped_doses: number;
+	missed_doses: number;
+	pending_doses: number;
+	logged_doses: number;
+	/** `null` berarti belum ada dosis yang bisa dinilai — bukan 0%. */
+	adherence_ratio: number | null;
 }
 
 /* ============================================================

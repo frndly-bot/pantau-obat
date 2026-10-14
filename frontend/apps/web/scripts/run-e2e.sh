@@ -63,6 +63,7 @@ SUITES=(
 	e2e-obat-edit
 	e2e-detail
 	e2e-riwayat
+	e2e-riwayat-bagan
 	e2e-caregiver
 	e2e-caregiver-pasien
 	e2e-pengaturan

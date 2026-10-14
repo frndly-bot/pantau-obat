@@ -19,9 +19,21 @@
 	import { api } from '$lib/api';
 	import { session } from '$lib/session.svelte';
 	import { computeRatio, formatRatio } from '$lib/dose-logic';
+	import type { AdherenceDailyPoint } from '@pantau-obat/api-client';
 
 	let logs = $state<MedicationLog[]>([]);
 	let medNames = $state<Record<string, string>>({});
+	/**
+	 * Rekap kepatuhan harian — SATU-SATUNYA sumber yang bisa menggambarkan
+	 * hari yang bolong.
+	 *
+	 * `missed_doses` di sini berasal dari `medication_dose_events`, bukan dari
+	 * status `medication_logs`: dosis terlewat hidup di tabel terpisah dan
+	 * tidak ikut dalam daftar catatan. Karena itu filter "Terlewat" pada
+	 * daftar catatan akan selalu kosong — bukan bug tampilan, datanya memang
+	 * tidak pernah ada di sana.
+	 */
+	let harian = $state<AdherenceDailyPoint[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let exporting = $state(false);
@@ -122,7 +134,7 @@
 	async function load() {
 		loading = true;
 		try {
-			const [list, meds] = await Promise.all([
+			const [list, meds, hari] = await Promise.all([
 				api.logs.list({
 					from: from || undefined,
 					to: to || undefined,
@@ -130,10 +142,14 @@
 					source: sourceFilter || undefined,
 					limit: 100
 				}),
-				api.medications.list({ limit: 100 })
+				api.medications.list({ limit: 100 }),
+				// Rekap harian dimuat terpisah dari daftar catatan: ia memuat
+				// dosis TERLEWAT yang tidak ada di daftar catatan.
+				api.adherence.daily({ from: from || undefined, to: to || undefined })
 			]);
 			logs = list;
 			medNames = Object.fromEntries((meds as Medication[]).map((m) => [m.id, m.name]));
+			harian = hari;
 			error = null;
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : 'Gagal memuat riwayat.';
@@ -217,6 +233,110 @@
 					Belum ada dosis yang bisa dinilai pada rentang ini.
 				</p>
 			{/if}
+		</CardContent>
+	</Card>
+{/if}
+
+<!-- Bagan kepatuhan harian.
+     Sumbernya rekap harian, BUKAN daftar catatan — hanya rekap itu yang
+     memuat dosis terlewat. Hari yang bolong tidak akan muncul di daftar
+     catatan sama sekali. -->
+{#if !loading && !error && harian.length > 0}
+	<Card class="mb-4">
+		<CardContent class="py-4">
+			<div class="flex items-baseline justify-between gap-3">
+				<p class="text-sm font-medium">Kepatuhan harian</p>
+				<p class="text-xs text-muted-foreground">
+					{harian.length} hari
+				</p>
+			</div>
+
+			<!-- Batang disusun dari kiri (terlama) ke kanan (terbaru).
+			     Tinggi = rasio hari itu; `null` digambar sebagai batang kosong
+			     bergaris, bukan nol — karena "belum ada data" bukan "gagal". -->
+			<div class="mt-3 flex h-24 items-end gap-1" role="img" aria-label="Bagan kepatuhan harian">
+				{#each [...harian].reverse() as d (d.date)}
+					{@const tinggi = d.adherence_ratio === null ? 0 : Math.round(d.adherence_ratio * 100)}
+					<div class="flex flex-1 flex-col items-center gap-1" title="{d.date}: {d.taken_doses}/{d.scheduled_doses}">
+						<div class="flex h-20 w-full items-end">
+							<div
+								class="w-full rounded-t {d.missed_doses > 0
+									? 'bg-warn'
+									: d.adherence_ratio === null
+										? 'bg-muted'
+										: 'bg-ok'}"
+								style="height: {d.adherence_ratio === null ? 3 : Math.max(3, tinggi)}%"
+							></div>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<dl class="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3 text-center">
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Terjadwal</dt>
+					<dd class="text-sm font-semibold tabular-nums">
+						{harian.reduce((a, d) => a + d.scheduled_doses, 0)}
+					</dd>
+				</div>
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Terlewat</dt>
+					<dd class="text-sm font-semibold tabular-nums text-warn">
+						{harian.reduce((a, d) => a + d.missed_doses, 0)}
+					</dd>
+				</div>
+				<div>
+					<dt class="text-[11px] text-muted-foreground">Hari tanpa data</dt>
+					<dd class="text-sm font-semibold tabular-nums">
+						{harian.filter((d) => d.adherence_ratio === null).length}
+					</dd>
+				</div>
+			</dl>
+
+			<p class="mt-2 text-[11px] text-muted-foreground">
+				Batang kuning menandai hari dengan dosis terlewat. Batang abu-abu berarti
+				belum ada dosis yang bisa dinilai pada hari itu.
+			</p>
+		</CardContent>
+	</Card>
+{/if}
+
+<!-- Kalender bulanan: menandai hari yang bolong, yang tidak terlihat di
+     daftar catatan karena dosis terlewat tidak pernah menjadi baris catatan. -->
+{#if !loading && !error && harian.length > 0}
+	<Card class="mb-4">
+		<CardContent class="py-4">
+			<p class="text-sm font-medium">Kalender</p>
+			<div class="mt-3 grid grid-cols-7 gap-1.5">
+				{#each ['S', 'S', 'R', 'K', 'J', 'S', 'M'] as h, i (i)}
+					<span class="text-center text-[10px] font-medium text-muted-foreground">{h}</span>
+				{/each}
+				{#each [...harian].reverse() as d (d.date)}
+					{@const tgl = Number(d.date.slice(8, 10))}
+					<div
+						class="grid aspect-square place-items-center rounded-md text-[11px] font-medium tabular-nums {d.missed_doses >
+						0
+							? 'bg-warn/20 text-warn'
+							: d.adherence_ratio === null
+								? 'bg-muted text-muted-foreground'
+								: 'bg-ok/20 text-ok'}"
+						title="{d.date}: {d.taken_doses} diminum, {d.missed_doses} terlewat"
+					>
+						{tgl}
+					</div>
+				{/each}
+			</div>
+			<div class="mt-3 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+				<span class="flex items-center gap-1.5">
+					<span class="size-2.5 rounded-sm bg-ok/60"></span> Ada dosis tercatat
+				</span>
+				<span class="flex items-center gap-1.5">
+					<span class="size-2.5 rounded-sm bg-warn/60"></span> Ada yang terlewat
+				</span>
+				<span class="flex items-center gap-1.5">
+					<span class="size-2.5 rounded-sm bg-muted"></span> Belum ada data
+				</span>
+			</div>
 		</CardContent>
 	</Card>
 {/if}
