@@ -40,16 +40,30 @@ internet
 ┌─────────┐   /api/*    ┌─────┐        ┌──────────┐
 │  caddy  │────────────▶│ api │───────▶│ postgres │
 │  (web)  │             └─────┘        └──────────┘
-│         │  sisanya: berkas statis        ▲
-└─────────┘                                │
-      ▲                              ┌─────┴──────┐
-      │ hasil build frontend         │ db-backup  │
-      │ (adapter-static)             │ retention  │
-                                     └────────────┘
+│         │  sisanya: berkas statis     ▲    ▲
+└─────────┘                             │    │
+      ▲                          ┌──────┴──┐ │
+      │ hasil build frontend     │db-backup│ │
+      │ (adapter-static)         │retention│ │
+                                 └─────────┘ │
+                                             │
+                    ┌────────┐   ┌───────────┴──┐
+                    │ silo   │◀──│ foto resep   │
+                    │(foto)  │   └──────────────┘
+                    └────────┘
+                    ┌────────┐
+                    │mailhog │  ← pengembangan saja
+                    └────────┘
 ```
 
-**Hanya `web` (Caddy) yang menghadap internet.** Postgres dan API berada di
-jaringan `internal`.
+**Hanya `web` (Caddy) yang menghadap internet.** Postgres, API, `silo`, dan
+`mailhog` berada di jaringan `internal`.
+
+`silo` menyimpan foto resep. `mailhog` adalah SMTP palsu untuk
+pengembangan — **jangan dipakai di produksi**: ia menerima surat tanpa
+autentikasi dan menampilkan isinya tanpa enkripsi. Untuk produksi, isi
+`SMTP_HOST` dengan server surat yang sebenarnya dan hentikan service
+`mailhog`.
 
 ### Kenapa Caddy menyajikan frontend DAN mem-proxy /api dari satu origin
 
@@ -94,11 +108,41 @@ memuat `.env` secara otomatis, jadi tidak perlu flag tambahan.
 | `POSTGRES_USER` | `pantau_obat` | user aplikasi, bukan superuser |
 | `POSTGRES_PASSWORD` | — | **wajib diisi** |
 | `POSTGRES_PORT` | `5432` | port di host |
+| `SILO_ROOT_USER` | — | **wajib diisi**; kredensial object storage foto resep |
+| `SILO_ROOT_PASSWORD` | — | **wajib diisi**; compose menolak jalan bila kosong |
+| `SILO_API_PORT` | `9000` | port S3 di host (hanya localhost) |
+| `SILO_CONSOLE_PORT` | `9001` | port console Silo di host (hanya localhost) |
+| `SMTP_HOST` | — | server surat. Untuk pengembangan: `mailhog` |
+| `SMTP_PORT` | `587` | untuk MailHog: `1025` |
+| `SMTP_FROM` | — | contoh: `"Pantau Obat <no-reply@example.com>"` |
+
+`SMTP_*` tidak lagi opsional: sejak alur lupa sandi ada, tanpa SMTP
+pengguna yang lupa sandinya tidak punya jalan masuk kembali. Bila
+dikosongkan, endpoint `/auth/forgot-password` menolak dengan pesan yang
+menyebut sebabnya — bukan diam-diam mengaku sudah mengirim.
 
 Buat password yang kuat:
 
 ```bash
 openssl rand -base64 32
+```
+
+### Menguji email di pengembangan
+
+Service `mailhog` menampung semua surat dan menampilkannya di UI, sehingga
+alur lupa sandi bisa diuji tanpa mengirim surat ke alamat siapa pun:
+
+```bash
+docker compose up -d mailhog
+# UI surat: http://localhost:8025
+```
+
+Lalu di `.env`:
+
+```
+SMTP_HOST=mailhog
+SMTP_PORT=1025
+SMTP_FROM="Pantau Obat <no-reply@pantau-obat.local>"
 ```
 
 ## Profil resource
