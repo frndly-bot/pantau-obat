@@ -417,13 +417,28 @@ func run() error {
 		senders = append(senders, worker.NewPushSender(cfg.Push, logger).
 			WithSubscriptions(workerBridge))
 	}
+	// Pengirim email dibuat SEKALI di sini, terlepas dari kanal notifikasi.
+	//
+	// Alasannya: sejak alur LUPA SANDI ada, email bukan lagi sekadar kanal
+	// pengingat yang boleh ditunda. Tanpa email, pengguna yang lupa sandinya
+	// tidak punya jalan masuk kembali. Karena itu sender-nya selalu
+	// disiapkan; yang menentukan dipakai atau tidak adalah konfigurasi SMTP
+	// di dalamnya.
+	emailSender := worker.NewEmailSender(cfg.Email, logger)
+
 	if cfg.Email.Enabled() {
-		// DITUNDA v0.2: aktivasi butuh SMTP dari operator.
-		senders = append(senders, worker.NewEmailSender(cfg.Email, logger))
+		senders = append(senders, emailSender)
 	}
 	if len(senders) == 0 {
-		logger.Info("kanal aktif: in-app; push/email/telegram ditunda (v0.2)")
+		logger.Info("kanal in-app aktif; kanal lain menunggu konfigurasi")
 		senders = append(senders, worker.NewLogSender(logger, true))
+	}
+	if !cfg.Email.Enabled() {
+		logger.Warn("SMTP belum dikonfigurasi — alur lupa sandi tidak akan bisa mengirim tautan")
+	} else {
+		logger.Info("SMTP aktif",
+			slog.String("host", cfg.Email.Host),
+			slog.Int("port", cfg.Email.Port))
 	}
 
 	queue := worker.NewDBQueue(db)
@@ -432,7 +447,13 @@ func run() error {
 		WithPrefs(workerBridge)
 	missedPass := worker.NewMissedPass(db, logger)
 
-	authHandler := handlers.NewAuth(authSvc, logger, cfg.IsProduction())
+	// Pemulihan sandi memakai URL publik dari konfigurasi — BUKAN dari
+	// header permintaan. Tautan yang disusun dari header Host bisa diarahkan
+	// penyerang ke domainnya sendiri, dan pengguna yang mengekliknya akan
+	// menyerahkan token pemulihannya.
+	resetSvc := service.NewPasswordResetter(db, worker.NewMailerAdapter(emailSender), cfg.PublicURL, logger)
+
+	authHandler := handlers.NewAuth(authSvc, resetSvc, logger, cfg.IsProduction())
 	usersHandler := handlers.NewUsers(usersSvc, logger)
 	medsHandler := handlers.NewMedications(medsSvc, logger)
 	logsHandler := handlers.NewLogs(logsSvc, usersSvc, logger)

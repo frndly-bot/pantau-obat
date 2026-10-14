@@ -72,6 +72,23 @@ export APP_PORT="${APP_PORT:-8080}"
 export MIGRATE_ON_START="${MIGRATE_ON_START:-false}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 
+# SMTP untuk pengembangan menunjuk MAILHOG, bukan server surat sungguhan.
+#
+# Alur lupa sandi butuh mengirim email, dan menguji dengan SMTP nyata berarti
+# mengirim surat ke alamat orang sungguhan. MailHog menampung semuanya dan
+# menampilkannya di http://127.0.0.1:8025, jadi tautan reset bisa dibaca
+# tanpa ada yang benar-benar terkirim.
+#
+# Bila SMTP_HOST diisi di lingkungan (misalnya untuk menguji server surat
+# sungguhan), nilai itu yang menang.
+if [[ -z "${SMTP_HOST:-}" ]]; then
+	export SMTP_HOST="127.0.0.1"
+	export SMTP_PORT="1025"
+	export SMTP_FROM="Pantau Obat <no-reply@pantau-obat.local>"
+	export SMTP_USER=""
+	export SMTP_PASSWORD=""
+fi
+
 cd "$BE_DIR"
 
 if [[ "${1:-}" == "--bg" ]]; then

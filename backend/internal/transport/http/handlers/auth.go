@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -17,13 +18,17 @@ import (
 // Auth adalah handler untuk endpoint /auth/*.
 type Auth struct {
 	Svc          *service.Auth
+	// Reset menangani alur LUPA SANDI. Dipisah dari Svc karena tanggung
+	// jawabnya berbeda: Svc memeriksa kredensial yang sudah terbukti,
+	// sedangkan di sini pemanggilnya belum membuktikan apa pun.
+	Reset        *service.PasswordResetter
 	Logger       *slog.Logger
 	IsProduction bool
 }
 
 // NewAuth membuat handler autentikasi.
-func NewAuth(svc *service.Auth, logger *slog.Logger, isProduction bool) *Auth {
-	return &Auth{Svc: svc, Logger: logger, IsProduction: isProduction}
+func NewAuth(svc *service.Auth, reset *service.PasswordResetter, logger *slog.Logger, isProduction bool) *Auth {
+	return &Auth{Svc: svc, Reset: reset, Logger: logger, IsProduction: isProduction}
 }
 
 // Routes mendaftarkan seluruh endpoint autentikasi.
@@ -38,6 +43,12 @@ func (h *Auth) Routes(r chi.Router) {
 	r.Post("/auth/logout", h.Logout)
 	r.Get("/auth/me", h.Me)
 	r.Post("/auth/change-password", h.ChangePassword)
+
+	// Pemulihan sandi. Keduanya endpoint PUBLIK — pemanggilnya justru orang
+	// yang tidak bisa masuk. Karena itu keduanya berada di bawah pembatas
+	// laju ketat yang sama dengan login/register.
+	r.Post("/auth/forgot-password", h.ForgotPassword)
+	r.Post("/auth/reset-password", h.ResetPassword)
 }
 
 // registerRequest adalah body POST /auth/register.
@@ -407,4 +418,112 @@ func userResponse(u *domain.User) map[string]any {
 		"last_login_at":    u.LastLoginAt,
 		"created_at":       u.CreatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+
+// -----------------------------------------------------------------------------
+// Pemulihan sandi
+// -----------------------------------------------------------------------------
+
+type forgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+// ForgotPassword menangani POST /api/v1/auth/forgot-password.
+//
+// SELALU membalas sukses bila permintaannya berbentuk benar, termasuk untuk
+// alamat yang tidak terdaftar.
+//
+// KENAPA: kalau endpoint ini membedakan "email terdaftar" dari "tidak",
+// siapa pun bisa memakainya untuk memeriksa apakah seseorang punya akun di
+// aplikasi kesehatan ini. Keanggotaan itu sendiri sudah informasi pribadi.
+// Membalas seragam menutup kebocoran itu tanpa mengurangi kegunaan: pengguna
+// yang alamatnya benar tetap menerima surat, dan yang salah tetap tidak
+// menerima apa-apa — bedanya hanya ia tidak diberi tahu dari layar.
+//
+// Batas laju per alamat tetap berlaku (lihat service), supaya endpoint ini
+// tidak bisa dipakai membanjiri kotak masuk orang lain.
+func (h *Auth) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
+		writeAuthDecodeError(w, r, err)
+		return
+	}
+
+	if strings.TrimSpace(req.Email) == "" {
+		pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+			"email wajib diisi",
+			map[string]any{"field": "email", "issue": "required"})
+		return
+	}
+
+	err := h.Reset.RequestReset(r.Context(), req.Email, h.meta(r))
+	switch {
+	case err == nil:
+		// Termasuk saat alamatnya tidak ada — lihat catatan di atas.
+	case errors.Is(err, service.ErrResetCooldown):
+		pohttp.WriteError(w, r, http.StatusTooManyRequests, pohttp.CodeRateLimited,
+			"permintaan pemulihan baru saja dikirim; periksa kotak masuk Anda", nil)
+		return
+	case errors.Is(err, domain.ErrValidation):
+		// SMTP belum dikonfigurasi, atau emailnya tidak berbentuk alamat.
+		// Ini keadaan server yang perlu diketahui operator, bukan sesuatu
+		// yang bisa diperbaiki pengguna — jadi pesannya menyebut sebabnya.
+		h.Logger.WarnContext(r.Context(), "permintaan pemulihan tidak bisa dilayani",
+			slog.String("error", err.Error()))
+		writeMedicationValidation(w, r, err)
+		return
+	default:
+		h.writeAuthError(w, r, err)
+		return
+	}
+
+	pohttp.WriteJSON(w, r, http.StatusOK, map[string]any{
+		"sent": true,
+		"note": "Jika email itu terdaftar, tautan pengaturan ulang sudah dikirim. " +
+			"Periksa kotak masuk dan folder spam.",
+	})
+}
+
+type resetPasswordRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// ResetPassword menangani POST /api/v1/auth/reset-password.
+//
+// Berbeda dari ForgotPassword, endpoint ini memberi tahu bila tokennya tidak
+// sah — karena di sini pengguna sudah memegang token, sehingga tidak ada
+// informasi baru yang bocor. Menyembunyikannya justru membuat pengguna
+// menunggu surat yang tidak akan datang.
+func (h *Auth) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+	if err := decodeBodyWithRules(w, r, &req, nil); err != nil {
+		writeAuthDecodeError(w, r, err)
+		return
+	}
+
+	if strings.TrimSpace(req.Token) == "" {
+		pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+			"tautan pengaturan ulang tidak lengkap",
+			map[string]any{"field": "token", "issue": "required"})
+		return
+	}
+
+	err := h.Reset.ResetPassword(r.Context(), req.Token, req.Password, h.meta(r))
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			pohttp.WriteError(w, r, http.StatusBadRequest, pohttp.CodeValidationFailed,
+				"tautan tidak berlaku atau sudah kedaluwarsa; minta tautan baru",
+				map[string]any{"field": "token", "issue": "invalid"})
+			return
+		}
+		h.writeAuthError(w, r, err)
+		return
+	}
+
+	pohttp.WriteJSON(w, r, http.StatusOK, map[string]any{
+		"reset": true,
+		"note":  "Sandi sudah diganti. Seluruh sesi lain dicabut, jadi perangkat lain perlu masuk ulang.",
+	})
 }

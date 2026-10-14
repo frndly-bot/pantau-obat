@@ -91,6 +91,15 @@ type OutgoingMessage struct {
 	Body     string
 	Data     map[string]any
 	DedupKey string
+	// Email adalah alamat tujuan untuk kanal email.
+	//
+	// Ditambahkan bersama implementasi SMTP: sebelumnya field ini tidak ada
+	// karena kanal email belum pernah dipakai, sehingga dispatcher tidak
+	// punya cara memberi tahu pengirim ke alamat mana suratnya ditujukan.
+	//
+	// Dikosongkan untuk kanal lain. Pengirim email menolak pesan tanpa
+	// alamat, bukan mengirimnya ke tempat yang tidak jelas.
+	Email string
 }
 
 // WithPrefs memasang penyedia preferensi.
@@ -414,6 +423,21 @@ func (d *Dispatcher) buildMessage(ctx context.Context, it *BumpItem) (*OutgoingM
 	return nil, nil
 }
 
+
+// emailPemilik mengambil alamat email pemilik untuk kanal email.
+//
+// Kegagalan TIDAK menggagalkan pembuatan pesan: kanal dalam aplikasi tetap
+// harus jalan walau emailnya bermasalah. Yang terjadi adalah alamat kosong,
+// dan pengirim email menolaknya dengan pesan yang jelas — bukan mengirim
+// surat ke tempat yang tidak jelas.
+func (d *Dispatcher) emailPemilik(ctx context.Context, ownerID string) string {
+	u, err := d.db.UserByID(ctx, d.queue.txOrPool(), ownerID)
+	if err != nil || u == nil {
+		return ""
+	}
+	return u.Email
+}
+
 // buildDoseMessage menyusun pengingat dosis.
 func (d *Dispatcher) buildDoseMessage(ctx context.Context, it *BumpItem) (*OutgoingMessage, error) {
 	title := "Waktunya minum obat"
@@ -447,6 +471,7 @@ func (d *Dispatcher) buildDoseMessage(ctx context.Context, it *BumpItem) (*Outgo
 		Body:     body,
 		Data:     data,
 		DedupKey: "dose:" + it.DedupKey,
+		Email:    d.emailPemilik(ctx, it.OwnerID),
 	}, nil
 }
 
@@ -469,11 +494,12 @@ func (d *Dispatcher) buildRefillMessage(ctx context.Context, it *BumpItem) (*Out
 		Body:     body,
 		Data:     map[string]any{"type": "refill_reminder", "medication_id": it.MedicationID},
 		DedupKey: "refill:" + it.DedupKey,
+		Email:    d.emailPemilik(ctx, it.OwnerID),
 	}, nil
 }
 
 // buildDigestMessage menyusun ringkasan harian.
-func (d *Dispatcher) buildDigestMessage(_ context.Context, it *BumpItem) (*OutgoingMessage, error) {
+func (d *Dispatcher) buildDigestMessage(ctx context.Context, it *BumpItem) (*OutgoingMessage, error) {
 	return &OutgoingMessage{
 		OwnerID:  it.OwnerID,
 		Kind:     domain.JobCareDigest,
@@ -481,6 +507,7 @@ func (d *Dispatcher) buildDigestMessage(_ context.Context, it *BumpItem) (*Outgo
 		Body:     "Lihat daftar obat yang diminum dan terlewat hari ini",
 		Data:     map[string]any{"type": "daily_digest", "date": it.SlotDate.Format(time.DateOnly)},
 		DedupKey: "digest:" + it.DedupKey,
+		Email:    d.emailPemilik(ctx, it.OwnerID),
 	}, nil
 }
 

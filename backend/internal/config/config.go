@@ -79,6 +79,31 @@ type EmailConfig struct {
 // Enabled melaporkan apakah kanal email bisa dipakai.
 func (e EmailConfig) Enabled() bool { return e.Host != "" && e.From != "" }
 
+// FromAddress mengambil alamat email saja dari `From`.
+//
+// `SMTP_FROM` boleh berbentuk "Nama <alamat@domain>" karena itulah yang
+// ditampilkan di kotak masuk penerima. Tapi SMTP punya dua tempat berbeda:
+//
+//   - Amplop (MAIL FROM) HARUS alamat saja. Sebagian server menolak
+//     display name di sini, dan MailHog menampilkannya sebagai mailbox
+//     "Pantau Obat <no-reply" — tanda bahwa bentuknya tidak sah.
+//   - Header (From:) justru sebaiknya memuat nama tampilan, supaya
+//     penerima melihat "Pantau Obat" alih-alih alamat mentah.
+//
+// Fungsi ini memisahkan keduanya: yang mengembalikan alamat saja untuk
+// amplop, sedangkan header tetap memakai `From` apa adanya.
+func (e EmailConfig) FromAddress() string {
+	s := strings.TrimSpace(e.From)
+	i := strings.LastIndex(s, "<")
+	j := strings.LastIndex(s, ">")
+	if i >= 0 && j > i {
+		return strings.TrimSpace(s[i+1 : j])
+	}
+	// Tidak ada kurung sudut: seluruh isinya memang alamat.
+	return s
+}
+
+
 // TelegramConfig menampung pengaturan bot Telegram (v0.2).
 type TelegramConfig struct {
 	BotToken      string
