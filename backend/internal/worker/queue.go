@@ -27,9 +27,13 @@ import (
 // disengaja: snooze mengubah waktu, bukan isi pesan, sehingga riwayat
 // pengiriman tidak ikut kotor.
 type BumpItem struct {
-	ID           int64
-	Kind         domain.BumpKind
-	OwnerID      string
+	ID   int64
+	Kind domain.BumpKind
+	// OwnerID adalah PENERIMA notifikasi ini.
+	OwnerID string
+	// SubjectOwnerID adalah pemilik data yang dibicarakan, bila berbeda
+	// dari penerima. Nil berarti sama dengan OwnerID.
+	SubjectOwnerID *string
 	MedicationID *string
 	ScheduleID   *string
 	ScheduledAt  time.Time
@@ -49,11 +53,12 @@ func (db *DBQueue) EnqueueBump(ctx context.Context, q Querier, in EnqueueInput) 
 	tag, err := q.Exec(ctx, `
         INSERT INTO bump_queue (
             kind, owner_id, medication_id, schedule_id, scheduled_at,
-            slot_date, dedup_key, skip_tag
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            slot_date, dedup_key, skip_tag, subject_owner_id
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         ON CONFLICT (dedup_key) WHERE done_at IS NULL DO NOTHING`,
 		in.Kind, in.OwnerID, in.MedicationID, in.ScheduleID,
-		in.ScheduledAt, in.SlotDate, in.DedupKey, in.SkipTag)
+		in.ScheduledAt, in.SlotDate, in.DedupKey, in.SkipTag,
+		in.SubjectOwnerID)
 	if err != nil {
 		return false, fmt.Errorf("menambah antrean pengingat: %w", err)
 	}
@@ -62,8 +67,16 @@ func (db *DBQueue) EnqueueBump(ctx context.Context, q Querier, in EnqueueInput) 
 
 // EnqueueInput adalah data satu item antrean.
 type EnqueueInput struct {
-	Kind         domain.BumpKind
-	OwnerID      string
+	Kind domain.BumpKind
+
+	// OwnerID adalah PENERIMA: pemilik kotak masuk yang akan membacanya.
+	OwnerID string
+
+	// SubjectOwnerID adalah PEMILIK DATA yang dibicarakan, bila berbeda
+	// dari penerima. Diisi pada eskalasi ke caregiver — datanya milik
+	// pasien, tapi penerimanya caregiver. Dikosongkan (nil) untuk jenis
+	// antrean lain, yang penerimanya memang pemilik datanya sendiri.
+	SubjectOwnerID *string
 	MedicationID *string
 	ScheduleID   *string
 	ScheduledAt  time.Time
@@ -106,8 +119,9 @@ func (db *DBQueue) ClaimDueBumps(ctx context.Context, q Querier, now time.Time, 
                attempts   = b.attempts + 1
           FROM claimed c
          WHERE b.id = c.id
-        RETURNING b.id, b.kind, b.owner_id, b.medication_id, b.schedule_id,
-                  b.scheduled_at, b.slot_date, b.dedup_key, b.attempts, b.skip_tag`,
+        RETURNING b.id, b.kind, b.owner_id, b.subject_owner_id, b.medication_id,
+                  b.schedule_id, b.scheduled_at, b.slot_date, b.dedup_key,
+                  b.attempts, b.skip_tag`,
 		now, limit)
 	if err != nil {
 		return nil, fmt.Errorf("mengambil antrean yang jatuh tempo: %w", err)
@@ -117,9 +131,9 @@ func (db *DBQueue) ClaimDueBumps(ctx context.Context, q Querier, now time.Time, 
 	var out []BumpItem
 	for rows.Next() {
 		var it BumpItem
-		if err := rows.Scan(&it.ID, &it.Kind, &it.OwnerID, &it.MedicationID,
-			&it.ScheduleID, &it.ScheduledAt, &it.SlotDate, &it.DedupKey,
-			&it.Attempts, &it.SkipTag); err != nil {
+		if err := rows.Scan(&it.ID, &it.Kind, &it.OwnerID, &it.SubjectOwnerID,
+			&it.MedicationID, &it.ScheduleID, &it.ScheduledAt, &it.SlotDate,
+			&it.DedupKey, &it.Attempts, &it.SkipTag); err != nil {
 			return nil, fmt.Errorf("membaca antrean: %w", err)
 		}
 		out = append(out, it)

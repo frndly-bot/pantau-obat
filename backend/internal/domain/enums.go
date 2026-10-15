@@ -101,6 +101,16 @@ const (
 	BumpDose   BumpKind = "dose"
 	BumpRefill BumpKind = "refill"
 	BumpDigest BumpKind = "digest"
+
+	// BumpEscalation memberitahu CAREGIVER bahwa pasiennya melewatkan
+	// beberapa dosis berturut-turut.
+	//
+	// Dipisah dari BumpDose karena penerimanya berbeda orang: BumpDose
+	// dikirim ke pemilik data (pasien), sedangkan yang ini ke caregiver.
+	// Memakai jenis yang sama akan membuat preferensi notifikasi pasien
+	// ikut menentukan apakah caregiver diberi tahu — dan itu salah:
+	// caregiver punya pengaturannya sendiri.
+	BumpEscalation BumpKind = "escalation"
 )
 
 // JobKind = notification_jobs.kind. Mencatat pengiriman yang sudah terjadi.

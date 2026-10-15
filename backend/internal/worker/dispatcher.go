@@ -2,6 +2,8 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -41,6 +43,11 @@ type Dispatcher struct {
 	// maxAttempts adalah batas percobaan sebelum item berhenti dilepas.
 	// Tanpa batas ini, item yang selalu gagal akan berputar selamanya.
 	maxAttempts int
+
+	// senders adalah daftar kanal asli, disimpan supaya fanout bisa disusun
+	// ULANG saat preferensi dipasang (WithPrefs dipanggil setelah
+	// NewDispatcher, jadi preferensinya belum ada saat itu).
+	senders []Sender
 
 	// sender mengirim pesan ke kanal yang tersedia. Boleh nil; dalam hal itu
 	// dispatcher mencatat job dengan status skipped, bukan diam-diam selesai.
@@ -105,6 +112,9 @@ type OutgoingMessage struct {
 // WithPrefs memasang penyedia preferensi.
 func (d *Dispatcher) WithPrefs(p PrefsProvider) *Dispatcher {
 	d.prefs = p
+	// Fanout disusun ULANG di sini, karena inilah saat preferensi tersedia.
+	// Tanpa gerbang preferensi, kanal yang dimatikan user tetap dikirimi.
+	d.sender = multiSender(d.senders, p, d.logger)
 	return d
 }
 
@@ -118,7 +128,8 @@ func NewDispatcher(db *postgres.DB, queue *DBQueue, logger *slog.Logger, senders
 		batchSize:   50,
 		staleAfter:  5 * time.Minute,
 		maxAttempts: 5, // sesuai max_attempts di notification_jobs
-		sender:      multiSender(senders),
+		senders:     senders,
+		sender:      multiSender(senders, nil, logger),
 	}
 }
 
@@ -373,6 +384,16 @@ func (d *Dispatcher) deferBump(ctx context.Context, it *BumpItem, until time.Tim
 		SlotDate:     it.SlotDate,
 		DedupKey:     key,
 		SkipTag:      &tag,
+		// SubjectOwnerID HARUS ikut disalin.
+		//
+		// Ini sempat hilang dan akibatnya halus: bump yang ditunda karena
+		// jam sunyi ditandai selesai lalu dibuat ulang TANPA pemilik
+		// datanya. Untuk pengingat dosis itu tidak terasa (penerima dan
+		// pemilik data orang yang sama), tapi pada eskalasi keduanya
+		// berbeda — bump barunya kehilangan info pasiennya, pesannya tidak
+		// bisa disusun, dan caregiver tidak pernah menerima pemberitahuan.
+		// Gejalanya: bump selesai tanpa job, tanpa error di log.
+		SubjectOwnerID: it.SubjectOwnerID,
 	})
 	if err != nil {
 		return err
@@ -419,6 +440,8 @@ func (d *Dispatcher) buildMessage(ctx context.Context, it *BumpItem) (*OutgoingM
 		return d.buildRefillMessage(ctx, it)
 	case domain.BumpDigest:
 		return d.buildDigestMessage(ctx, it)
+	case domain.BumpEscalation:
+		return d.buildEscalationMessage(ctx, it)
 	}
 	return nil, nil
 }
@@ -495,6 +518,66 @@ func (d *Dispatcher) buildRefillMessage(ctx context.Context, it *BumpItem) (*Out
 		Data:     map[string]any{"type": "refill_reminder", "medication_id": it.MedicationID},
 		DedupKey: "refill:" + it.DedupKey,
 		Email:    d.emailPemilik(ctx, it.OwnerID),
+	}, nil
+}
+
+// buildEscalationMessage menyusun pemberitahuan untuk CAREGIVER bahwa
+// pasiennya melewatkan beberapa hari dosis berturut-turut.
+//
+// PENERIMA BERBEDA DARI PEMILIK DATA. Ini satu-satunya jenis pesan yang
+// seperti itu: `it.OwnerID` adalah caregiver yang menerima, sedangkan
+// `it.SubjectOwnerID` adalah pasien yang datanya dibicarakan.
+//
+// Karena itu isinya dijaga ketat:
+//
+//   - TIDAK menyebut nama obat. Caregiver memang berhak tahu bahwa ada
+//     masalah, tetapi rincian obat pasien adalah data kesehatan yang tidak
+//     dibutuhkan untuk bertindak. Ia bisa membuka halaman pasien bila perlu,
+//     dan pembukaan itu tercatat di audit.
+//   - TIDAK menyebut dosis yang terlewat satu per satu. Yang berguna bagi
+//     caregiver adalah polanya ("tiga hari berturut-turut"), bukan daftar
+//     yang harus ia hitung sendiri.
+func (d *Dispatcher) buildEscalationMessage(ctx context.Context, it *BumpItem) (*OutgoingMessage, error) {
+	hari := 0
+	if it.SubjectOwnerID != nil {
+		if streak, err := d.db.MissedStreak(ctx, d.queue.txOrPool(),
+			*it.SubjectOwnerID, it.SlotDate.Format(time.DateOnly)); err == nil {
+			hari = streak
+		}
+	}
+
+	nama := "Pasien yang Anda pantau"
+	if it.SubjectOwnerID != nil {
+		if u, err := d.db.UserByID(ctx, d.queue.txOrPool(), *it.SubjectOwnerID); err == nil && u != nil {
+			nama = u.FullName
+			if nama == "" {
+				nama = "Pasien yang Anda pantau"
+			}
+		}
+	}
+
+	judul := "Ada dosis yang terlewat"
+	isi := nama + " melewatkan dosis obat beberapa hari berturut-turut."
+	if hari > 0 {
+		isi = fmt.Sprintf("%s melewatkan dosis obat %d hari berturut-turut.", nama, hari)
+	}
+	isi += " Buka halaman pasien untuk melihat rinciannya."
+
+	return &OutgoingMessage{
+		OwnerID:  it.OwnerID, // penerima: caregiver
+		Kind:     domain.JobMissedEscalation,
+		Title:    judul,
+		Body:     isi,
+		Data: map[string]any{
+			"type":            "missed_escalation",
+			"subject_owner_id": it.SubjectOwnerID,
+			"missed_days":      hari,
+		},
+		DedupKey: "escalation:" + it.DedupKey,
+		// Alamat email PENERIMA (caregiver), bukan pemilik data. Salah di
+		// sini berarti data kesehatan pasien dikirim ke alamat caregiver —
+		// atau lebih buruk, pemberitahuan tentang pasien dikirim ke pasien.
+		Email: d.emailPemilik(ctx, it.OwnerID),
 	}, nil
 }
 
@@ -632,43 +715,125 @@ func buildDeepLink(it *BumpItem) string {
 //
 // Mengembalikan nil bila tidak ada satu pun yang tersedia, sehingga
 // dispatcher tahu bahwa tidak ada kanal yang perlu dicoba.
-func multiSender(senders []Sender) Sender {
+// multiSender menyusun pengirim gabungan dari kanal yang benar-benar siap.
+//
+// `prefs` dipakai fanout untuk memeriksa tiap kanal PER PENERIMA. Di sini
+// hanya kanal yang benar-benar tersedia yang dipilih: sender yang belum
+// dikonfigurasi (mis. email tanpa SMTP) tidak boleh ikut, karena ia akan
+// selalu gagal dan menutupi kanal yang sebenarnya bisa dipakai.
+func multiSender(senders []Sender, prefs PrefsProvider, logger *slog.Logger) Sender {
 	var available []Sender
 	for _, s := range senders {
 		if s != nil && s.Available() {
 			available = append(available, s)
 		}
 	}
-	switch len(available) {
-	case 0:
+	if len(available) == 0 {
 		return nil
-	case 1:
-		return available[0]
-	default:
-		return &fanoutSender{senders: available}
 	}
+	return &fanoutSender{senders: available, prefs: prefs, logger: logger}
 }
 
-// fanoutSender mencoba setiap kanal sampai ada yang berhasil.
+// fanoutSender mengirim ke SEMUA kanal yang aktif bagi penerimanya.
+//
+// Bukan "kirim ke kanal pertama yang berhasil". notification-v2 bagian 6
+// menetapkan tiap kanal punya keputusan sendiri, dan bagian 5 mencatat
+// alasannya: pasien dan caregiver memakai perangkat berbeda, jadi satu
+// kanal tidak cukup. Mengirim hanya ke yang pertama membuat pengguna yang
+// mengaktifkan email DAN in-app hanya menerima salah satunya.
 type fanoutSender struct {
 	senders []Sender
+	prefs   PrefsProvider
+	logger  *slog.Logger
 }
 
-func (f *fanoutSender) Channel() domain.Channel { return f.senders[0].Channel() }
-func (f *fanoutSender) Available() bool         { return len(f.senders) > 0 }
-
-// Send mencoba kanal satu per satu, dan berhenti pada keberhasilan pertama.
+// Channel melaporkan kanal yang mewakili pengirim ini.
 //
-// Urutan mencoba mengikuti urutan pemasangan sender, yang disusun dari yang
-// paling murah dan paling cepat (push) ke yang paling lambat (email).
+// KANAL IN-APP DIDAHULUKAN, dan itu bukan soal urutan belaka.
+//
+// dispatcher memakai nilai ini untuk membaca preferensi sebagai gerbang
+// sebelum mengirim. Sebelumnya fungsi ini mengembalikan kanal sender
+// PERTAMA — dan begitu SMTP diaktifkan, sender pertama adalah email.
+// dispatcher lalu menilai preferensi `email` untuk semua pesan; karena
+// email mati secara bawaan, SELURUH pengingat dijatuhkan ke `skipped`
+// CHANNEL_DISABLED — termasuk yang seharusnya masuk kotak masuk aplikasi.
+//
+// notification-v2 bagian 6 menetapkan `in_app` SELALU aktif. Mengembalikan
+// in_app di sini membuat gerbang itu tidak pernah menolak semuanya; kanal
+// lain tetap diperiksa sendiri di Send, per penerima.
+func (f *fanoutSender) Channel() domain.Channel {
+	for _, s := range f.senders {
+		if s.Channel() == domain.ChannelInApp {
+			return domain.ChannelInApp
+		}
+	}
+	return f.senders[0].Channel()
+}
+
+// Available melaporkan apakah ada kanal yang bisa dipakai.
+func (f *fanoutSender) Available() bool { return len(f.senders) > 0 }
+
+// Send mengirim ke setiap kanal yang aktif bagi penerima pesan.
+//
+// Mengembalikan id penyedia dari kanal pertama yang berhasil, atau error
+// terakhir bila semuanya gagal. Kegagalan satu kanal TIDAK menggagalkan
+// pengiriman kanal lain: email yang bermasalah tidak boleh menahan
+// notifikasi masuk ke kotak masuk aplikasi.
 func (f *fanoutSender) Send(ctx context.Context, msg OutgoingMessage) (string, error) {
 	var lastErr error
+	var providerID string
+	var terkirim int
+
 	for _, s := range f.senders {
-		pid, err := s.Send(ctx, msg)
-		if err == nil {
-			return pid, nil
+		ch := s.Channel()
+
+		// Kanal in-app selalu lolos — ia tidak bisa mengganggu dan tidak
+		// bergantung pada izin siapa pun (notification-v2 bagian 6).
+		if ch != domain.ChannelInApp && f.prefs != nil {
+			prefs, err := f.prefs.PrefsFor(ctx, msg.OwnerID, ch)
+			if err != nil {
+				// Gagal membaca preferensi diperlakukan sebagai "pakai
+				// bawaan", bukan "jangan kirim": pengingat obat yang hilang
+				// karena kesalahan database lebih merugikan.
+				prefs = domain.DefaultPrefs(ch)
+			}
+			// Jam sunyi TIDAK diperiksa di sini: dispatcher sudah
+			// memeriksanya memakai waktu jadwal bump sebelum memanggil
+			// pengirim, dan di sini waktu itu tidak lagi tersedia.
+			// Memeriksanya dengan waktu lain hanya akan menyesatkan.
+			if !domain.ChannelEnabled(prefs) {
+				continue
+			}
 		}
-		lastErr = err
+
+		pid, err := s.Send(ctx, msg)
+		if err != nil {
+			lastErr = err
+			if f.logger != nil {
+				f.logger.WarnContext(ctx, "pengiriman lewat satu kanal gagal",
+					slog.String("channel", string(ch)),
+					slog.String("owner_id", msg.OwnerID),
+					slog.String("error", err.Error()))
+			}
+			continue
+		}
+		terkirim++
+		if providerID == "" {
+			providerID = pid
+		}
 	}
-	return "", lastErr
+
+	if terkirim == 0 {
+		if lastErr != nil {
+			return "", lastErr
+		}
+		return "", errNoChannelActive
+	}
+	return providerID, nil
 }
+
+// errNoChannelActive: tidak ada kanal yang aktif bagi penerima ini.
+//
+// Bukan kegagalan teknis, tapi juga bukan keberhasilan. Dipisahkan supaya
+// pemanggil bisa membedakannya dari error pengiriman sungguhan.
+var errNoChannelActive = errors.New("tidak ada kanal notifikasi yang aktif untuk penerima ini")

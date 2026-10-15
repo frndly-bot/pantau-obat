@@ -82,6 +82,7 @@ func TestEnumContract(t *testing.T) {
 			constraint: "bump_queue_kind_check",
 			values: []string{
 				string(domain.BumpDose), string(domain.BumpRefill), string(domain.BumpDigest),
+				string(domain.BumpEscalation),
 			},
 		},
 

@@ -409,7 +409,18 @@ func run() error {
 	// sendiri (GET /notifications). Karena itu Enabled=true — kalau false,
 	// dispatcher menjatuhkan semua job ke `skipped` NO_CHANNEL dan inbox
 	// user menampilkan pengingat yang sebenarnya tidak pernah terkirim.
+	// Kanal in-app SELALU dipasang, bukan hanya saat tidak ada kanal lain.
+	//
+	// notification-v2 bagian 6 menetapkan `in_app` selalu aktif: isinya
+	// dibaca dari inbox aplikasi sendiri, tidak butuh kredensial, dan tidak
+	// bisa mengganggu. Sebelumnya sender ini hanya dipasang bila TIDAK ADA
+	// kanal lain — sehingga begitu SMTP diaktifkan untuk alur lupa sandi,
+	// kanal in-app ikut hilang dan SELURUH pengingat dijatuhkan ke
+	// `skipped` CHANNEL_DISABLED. Pengingat obat berhenti masuk ke
+	// aplikasi hanya karena email dinyalakan.
 	var senders []worker.Sender
+	senders = append(senders, worker.NewLogSender(logger, true))
+
 	if cfg.Push.Enabled() {
 		// Langganan push dipasang supaya sender benar-benar punya daftar
 		// perangkat. Tanpa ini, sender akan mengembalikan error "belum
@@ -430,10 +441,7 @@ func run() error {
 	if cfg.Email.Enabled() {
 		senders = append(senders, emailSender)
 	}
-	if len(senders) == 0 {
-		logger.Info("kanal in-app aktif; kanal lain menunggu konfigurasi")
-		senders = append(senders, worker.NewLogSender(logger, true))
-	}
+	logger.Info("kanal aktif", slog.Int("jumlah", len(senders)))
 	if !cfg.Email.Enabled() {
 		logger.Warn("SMTP belum dikonfigurasi — alur lupa sandi tidak akan bisa mengirim tautan")
 	} else {
@@ -446,7 +454,7 @@ func run() error {
 	scheduler := worker.NewScheduler(db, queue, logger)
 	dispatcher := worker.NewDispatcher(db, queue, logger, senders...).
 		WithPrefs(workerBridge)
-	missedPass := worker.NewMissedPass(db, logger)
+	missedPass := worker.NewMissedPass(db, logger).WithQueue(queue)
 
 	// Pemulihan sandi memakai URL publik dari konfigurasi — BUKAN dari
 	// header permintaan. Tautan yang disusun dari header Host bisa diarahkan

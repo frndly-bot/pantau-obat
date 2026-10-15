@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -23,6 +24,10 @@ import (
 type MissedPass struct {
 	db     *postgres.DB
 	logger *slog.Logger
+	// queue dipakai membuat eskalasi ke caregiver. Boleh nil: pass tetap
+	// berguna tanpa eskalasi, dan lebih baik dosis terlewat tercatat
+	// daripada seluruh pass gagal karena antrean tidak tersedia.
+	queue *DBQueue
 
 	// graceMinutes adalah tenggang setelah jam dosis sebelum dinyatakan
 	// terlewat. Tanpa tenggang, dosis yang baru lewat satu menit sudah
@@ -37,6 +42,12 @@ func NewMissedPass(db *postgres.DB, logger *slog.Logger) *MissedPass {
 		logger:       logger,
 		graceMinutes: 60,
 	}
+}
+
+// WithQueue memasang antrean supaya eskalasi caregiver bisa dibuat.
+func (p *MissedPass) WithQueue(q *DBQueue) *MissedPass {
+	p.queue = q
+	return p
 }
 
 // Run menjalankan loop harian sampai context dibatalkan.
@@ -110,6 +121,119 @@ func (p *MissedPass) RunOnce(ctx context.Context, now time.Time) error {
 	if marked > 0 {
 		p.logger.InfoContext(ctx, "dosis terlewat ditandai",
 			slog.Int("jumlah", marked), slog.Int("gagal", failed))
+	}
+
+	// Eskalasi dijalankan SETIAP kali pass berjalan, bukan hanya saat ada
+	// yang baru ditandai.
+	//
+	// Alasannya: pass bisa berjalan berkali-kali dalam sehari (saat start,
+	// lalu tengah malam), dan justru pada saat start itulah rangkaian
+	// terlewat selama proses mati baru terlihat. Menggantungkannya pada
+	// `marked > 0` akan melewatkan kasus itu.
+	if err := p.escalate(ctx, now); err != nil {
+		// Kegagalan eskalasi tidak menggagalkan pass: penandaan dosis
+		// terlewat sudah tersimpan, dan itu yang lebih penting untuk
+		// perhitungan kepatuhan.
+		p.logger.ErrorContext(ctx, "eskalasi caregiver gagal", slog.String("error", err.Error()))
+	}
+	return nil
+}
+
+// escalate memberi tahu caregiver pasien yang melewatkan beberapa hari
+// berturut-turut.
+//
+// INI JANJI YANG BELUM PERNAH DIJALANKAN. notification-v2 bagian 9 menulis
+// "kalau streak >= N (default 3): buat job missed_escalation untuk
+// caregiver", dan `MissedEscalationThreshold = 3` sudah dideklarasikan di
+// domain — tetapi tidak ada satu baris pun yang membuat job itu. Akibatnya
+// caregiver baru tahu ada masalah kalau ia membuka aplikasi sendiri,
+// padahal justru merekalah yang bisa menindak.
+//
+// Batas "maksimal 1 kali per hari per pasien" (bagian 12) ditegakkan lewat
+// dedup_key: kunci yang sama tidak akan membuat baris kedua.
+func (p *MissedPass) escalate(ctx context.Context, now time.Time) error {
+	if p.queue == nil {
+		return nil
+	}
+
+	owners, err := p.db.OwnersWithMissedDoses(ctx, p.db.Pool(), now)
+	if err != nil {
+		return err
+	}
+
+	dikirim := 0
+	for _, ownerID := range owners {
+		// Tanggal acuan memakai zona pasien: "hari ini" bagi caregiver yang
+		// memantau dari kota lain harus sama dengan hari pasiennya.
+		loc, err := time.LoadLocation(p.db.TimezoneOf(ctx, p.db.Pool(), ownerID))
+		if err != nil {
+			loc = time.UTC
+		}
+		hari := now.In(loc)
+		slotDate := time.Date(hari.Year(), hari.Month(), hari.Day(), 0, 0, 0, 0, loc)
+
+		streak, err := p.db.MissedStreak(ctx, p.db.Pool(), ownerID, slotDate.Format(time.DateOnly))
+		if err != nil {
+			p.logger.WarnContext(ctx, "gagal menghitung streak terlewat",
+				slog.String("owner_id", ownerID), slog.String("error", err.Error()))
+			continue
+		}
+		if streak < domain.MissedEscalationThreshold {
+			continue
+		}
+
+		// Batas 1× per hari per pasien.
+		sudah, err := p.db.EscalationAlreadySentToday(ctx, p.db.Pool(), ownerID, slotDate.Format(time.DateOnly))
+		if err != nil {
+			p.logger.WarnContext(ctx, "gagal memeriksa eskalasi hari ini",
+				slog.String("owner_id", ownerID), slog.String("error", err.Error()))
+			continue
+		}
+		if sudah {
+			continue
+		}
+
+		caregivers, err := p.db.AcceptedCaregivers(ctx, p.db.Pool(), ownerID)
+		if err != nil {
+			p.logger.WarnContext(ctx, "gagal mencari caregiver",
+				slog.String("owner_id", ownerID), slog.String("error", err.Error()))
+			continue
+		}
+		if len(caregivers) == 0 {
+			// Tidak ada yang bisa diberi tahu. Bukan kegagalan — pasien
+			// memang belum mengundang siapa pun.
+			continue
+		}
+
+		for _, cg := range caregivers {
+			ok, err := p.queue.EnqueueBump(ctx, p.queue.txOrPool(), EnqueueInput{
+				Kind:    domain.BumpEscalation,
+				OwnerID: cg.CaregiverID, // PENERIMA: caregiver
+				// PEMILIK DATA: pasien. Dipisah supaya pesannya bisa
+				// menyebut siapa yang dimaksud tanpa menebak dari konteks.
+				SubjectOwnerID: &ownerID,
+				ScheduledAt:    now,
+				SlotDate:       slotDate,
+				// Kunci memuat tanggal, jadi satu eskalasi per pasien per
+				// hari. Kunci yang sama pada pass berikutnya tidak membuat
+				// baris kedua.
+				DedupKey: fmt.Sprintf("escalation:%s:%s:%s",
+					ownerID, cg.CaregiverID, slotDate.Format(time.DateOnly)),
+			})
+			if err != nil {
+				p.logger.WarnContext(ctx, "gagal membuat eskalasi",
+					slog.String("caregiver_id", cg.CaregiverID),
+					slog.String("error", err.Error()))
+				continue
+			}
+			if ok {
+				dikirim++
+			}
+		}
+	}
+
+	if dikirim > 0 {
+		p.logger.InfoContext(ctx, "eskalasi caregiver dibuat", slog.Int("jumlah", dikirim))
 	}
 	return nil
 }
