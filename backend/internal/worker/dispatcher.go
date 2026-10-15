@@ -267,7 +267,11 @@ func (d *Dispatcher) dispatch(ctx context.Context, it *BumpItem) error {
 				"kanal notifikasi dimatikan atau sedang ditahan")
 		}
 
-		if sendAt := domain.EffectiveSendTime(it.ScheduledAt, prefs); sendAt.After(it.ScheduledAt) {
+		// Dihitung dalam zona waktu PENERIMA, bukan zona server: jam sunyi
+		// adalah jam dinding di rumahnya. Lihat locPemilik.
+		loc := d.locPemilik(ctx, it.OwnerID)
+		lokal := it.ScheduledAt.In(loc)
+		if sendAt := domain.EffectiveSendTime(lokal, prefs); sendAt.After(lokal) {
 			// Jatuh di jam sunyi, atau dimajukan ke dalamnya. Ditunda.
 			return d.deferBump(ctx, it, sendAt)
 		}
@@ -446,6 +450,29 @@ func (d *Dispatcher) buildMessage(ctx context.Context, it *BumpItem) (*OutgoingM
 	return nil, nil
 }
 
+
+// locPemilik memuat zona waktu penerima notifikasi.
+//
+// KENAPA INI PENTING
+//
+// Jam sunyi adalah konsep JAM DINDING pengguna: "jangan bangunkan saya
+// antara 22:00 dan 06:00" berarti jam di rumahnya, bukan jam server.
+// Sebelumnya pemeriksaan itu memakai jam server (UTC), dan akibatnya
+// pengingat pagi untuk pengguna WIB — jam 05:00–13:00 WIB — SELALU
+// dianggap jatuh di jam sunyi, lalu ditunda sampai 13:00 WIB. Dosis pagi,
+// yang paling penting, datang terlambat 5–8 jam.
+//
+// Kegagalan memuat zona tidak menggagalkan pengiriman: dipakai zona bawaan.
+// Pengingat obat yang datang tepat waktu lebih penting daripada penundaan
+// yang presisi.
+func (d *Dispatcher) locPemilik(ctx context.Context, ownerID string) *time.Location {
+	tz := d.db.TimezoneOf(ctx, d.queue.txOrPool(), ownerID)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
 
 // emailPemilik mengambil alamat email pemilik untuk kanal email.
 //
