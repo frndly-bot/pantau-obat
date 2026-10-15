@@ -72,22 +72,33 @@ export APP_PORT="${APP_PORT:-8080}"
 export MIGRATE_ON_START="${MIGRATE_ON_START:-false}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 
-# SMTP untuk pengembangan menunjuk MAILHOG, bukan server surat sungguhan.
+# SMTP untuk pengembangan menunjuk MAILHOG lewat localhost, bukan server
+# surat sungguhan.
 #
 # Alur lupa sandi butuh mengirim email, dan menguji dengan SMTP nyata berarti
 # mengirim surat ke alamat orang sungguhan. MailHog menampung semuanya dan
 # menampilkannya di http://127.0.0.1:8025, jadi tautan reset bisa dibaca
 # tanpa ada yang benar-benar terkirim.
 #
-# Bila SMTP_HOST diisi di lingkungan (misalnya untuk menguji server surat
-# sungguhan), nilai itu yang menang.
-if [[ -z "${SMTP_HOST:-}" ]]; then
-	export SMTP_HOST="127.0.0.1"
-	export SMTP_PORT="1025"
-	export SMTP_FROM="Pantau Obat <no-reply@pantau-obat.local>"
-	export SMTP_USER=""
-	export SMTP_PASSWORD=""
-fi
+# PENTING: nilainya DIPAKSA, bukan `${VAR:-default}`.
+#
+# `deploy/.env` ikut dimuat di atas, dan berkas itu memuat `SMTP_HOST=mailhog`
+# — nama SERVICE di dalam jaringan Docker. Backend dev berjalan di HOST, di
+# mana nama itu tidak bisa di-resolve, sehingga SETIAP permintaan lupa sandi
+# gagal dengan "lookup mailhog: server misbehaving" dan muncul sebagai 500.
+# Gejalanya membingungkan karena konfigurasinya tampak benar.
+#
+# Nilai container memang harus `mailhog`; nilai dev memang harus `127.0.0.1`.
+# Keduanya benar di tempatnya masing-masing, jadi yang menentukan bukan
+# "sudah diisi atau belum", melainkan siapa yang menjalankannya.
+#
+# Untuk menimpa secara sadar (mis. menguji server surat sungguhan), pakai
+# variabel terpisah `DEV_SMTP_HOST`.
+export SMTP_HOST="${DEV_SMTP_HOST:-127.0.0.1}"
+export SMTP_PORT="${DEV_SMTP_PORT:-1025}"
+export SMTP_FROM="${DEV_SMTP_FROM:-Pantau Obat <no-reply@pantau-obat.local>}"
+export SMTP_USER=""
+export SMTP_PASSWORD=""
 
 # Penyimpanan foto resep menunjuk container Silo dari compose.
 #
